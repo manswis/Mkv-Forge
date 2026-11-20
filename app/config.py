@@ -417,6 +417,12 @@ class AppConstants:
     LOG_QUIET_PATHS: frozenset[str] = frozenset({"/api/health"})
     LOG_QUIET_PREFIXES: tuple[str, ...] = ("/static/",)
     LOG_UVICORN_LOGGERS: tuple[str, ...] = ("uvicorn", "uvicorn.error", "uvicorn.access")
+    LOG_QUIET_THIRD_PARTY_LOGGERS: tuple[str, ...] = (
+        "watchfiles",
+        "watchfiles.main",
+        "watchfiles.watcher",
+    )
+    LOG_QUIET_THIRD_PARTY_LEVEL: str = "WARNING"
 
 
 @dataclass(frozen=True, slots=True)

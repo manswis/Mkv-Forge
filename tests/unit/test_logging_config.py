@@ -6,6 +6,7 @@ import logging
 import re
 from datetime import datetime, timezone
 
+from app.config import AppConstants
 from app.logging_config import (
     LocalTimeFormatter,
     configure_application_logging,
@@ -93,3 +94,14 @@ class TestPiiFreeHttpLogFormatting:
         root = logging.getLogger()
         assert root.level == logging.INFO
         assert any(isinstance(h.formatter, LocalTimeFormatter) for h in root.handlers)
+
+    def test_configure_application_logging_silences_watchfiles_change_detected_spam(
+        self,
+    ) -> None:
+        configure_application_logging(AppConstants.DEFAULT_LOG_LEVEL)
+        for logger_name in AppConstants.LOG_QUIET_THIRD_PARTY_LOGGERS:
+            noisy_logger = logging.getLogger(logger_name)
+            assert noisy_logger.level == logging.WARNING
+            assert noisy_logger.isEnabledFor(logging.INFO) is False
+            assert noisy_logger.isEnabledFor(logging.WARNING) is True
+

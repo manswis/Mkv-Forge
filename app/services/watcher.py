@@ -40,6 +40,31 @@ def is_watchable_media_path(path: Path) -> bool:
     return is_supported_media_file(path)
 
 
+def should_watch_fs_event(change: Change, raw_path: str) -> bool:
+    """Filter raw `watchfiles` events before waking the watcher loop or logging changes.
+
+    Drops hidden dotfiles, internal `.mkvforge.` temp files, partial download files,
+    and `Change.modified` bursts on non-media files.
+    """
+    if not raw_path or not raw_path.strip():
+        return False
+    path = Path(raw_path)
+    name = path.name
+    if not name or name.startswith("."):
+        return False
+    lower_name = name.lower()
+    if AppConstants.TEMP_MARKER in lower_name:
+        return False
+    if any(
+        lower_name.endswith(suffix)
+        for suffix in AppConstants.IGNORED_PARTIAL_SUFFIXES
+    ):
+        return False
+    if change == Change.modified and not is_watchable_media_path(path):
+        return False
+    return True
+
+
 def _extract_job_target_paths(job_row: dict) -> set[str]:
     """Return relative filepaths currently owned by a running MKV Forge job."""
     owned: set[str] = set()
@@ -177,6 +202,7 @@ class LibraryWatcher:
             try:
                 async for changes in awatch(
                     storage_dir,
+                    watch_filter=should_watch_fs_event,
                     stop_event=self._stop_event,
                     force_polling=force_polling,
                     poll_delay_ms=self._poll_interval_ms,

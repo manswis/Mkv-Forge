@@ -22,7 +22,11 @@ from app.db.repositories import (
 )
 from app.services.library_events import LibraryEventBroker
 from app.services.scanner import LibraryScanner
-from app.services.watcher import LibraryWatcher, is_watchable_media_path
+from app.services.watcher import (
+    LibraryWatcher,
+    is_watchable_media_path,
+    should_watch_fs_event,
+)
 
 
 def _fake_probe_payload(title: str = "") -> dict:
@@ -136,6 +140,33 @@ class TestWatcherConfigAndFiltering:
     )
     def test_is_watchable_media_path(self, filename: str, expected: bool) -> None:
         assert is_watchable_media_path(Path("/storage/movies") / filename) is expected
+
+    @pytest.mark.parametrize(
+        ("change_type", "raw_path", "expected"),
+        [
+            (Change.added, "/storage/movies/Movie.mkv", True),
+            (Change.modified, "/storage/movies/Movie.mkv", True),
+            (Change.deleted, "/storage/movies/Movie.mp4", True),
+            (Change.added, "/storage/movies/NewFolder", True),
+            (Change.deleted, "/storage/movies/OldFolder", True),
+            (Change.added, "/storage/movies/Subtitles.srt", True),
+            (Change.modified, "/storage/movies/Subtitles.srt", False),
+            (Change.modified, "/storage/movies/Uploading.bin", False),
+            (Change.added, "/storage/movies/.DS_Store", False),
+            (Change.modified, "/storage/movies/._Movie.mkv", False),
+            (Change.modified, "/storage/movies/Movie.mkv.mkvforge.tmp", False),
+            (Change.modified, "/storage/movies/Movie.mkv.mkvforge.tmp.eac3", False),
+            (Change.modified, "/storage/movies/Movie.mkv.part", False),
+            (Change.modified, "/storage/movies/Movie.mkv.!qB", False),
+            (Change.modified, "/storage/movies/Movie.mkv.crdownload", False),
+            (Change.added, "", False),
+            (Change.added, "   ", False),
+        ],
+    )
+    def test_should_watch_fs_event_filters_noise_before_watchfiles_logging(
+        self, change_type: Change, raw_path: str, expected: bool
+    ) -> None:
+        assert should_watch_fs_event(change_type, raw_path) is expected
 
 
 class TestWatcherDebounceSuppressionAndDeletes:

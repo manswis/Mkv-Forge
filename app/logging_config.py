@@ -66,6 +66,14 @@ def configure_application_logging(log_level: str) -> None:
             for handler in uv_logger.handlers:
                 handler.setFormatter(formatter)
 
+    quiet_third_party_level = getattr(
+        logging,
+        AppConstants.LOG_QUIET_THIRD_PARTY_LEVEL,
+        logging.WARNING,
+    )
+    for noisy_logger_name in AppConstants.LOG_QUIET_THIRD_PARTY_LOGGERS:
+        logging.getLogger(noisy_logger_name).setLevel(quiet_third_party_level)
+
 
 def is_quiet_access_path(path: str) -> bool:
     """Return True for high-frequency static/health paths logged only at DEBUG when healthy."""
