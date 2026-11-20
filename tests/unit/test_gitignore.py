@@ -90,11 +90,20 @@ class GitIgnoreTestConstants:
         "app/static/img/app-icon.png",
         "tests/conftest.py",
         "tests/unit/test_gitignore.py",
+        ".dockerignore",
+        ".github/workflows/docker-publish.yml",
     )
 
     README_FILENAME: str = "README.md"
+    DOCKERIGNORE_FILENAME: str = ".dockerignore"
+    WORKFLOW_REL_PATH: str = ".github/workflows/docker-publish.yml"
     REQUIRED_README_SECTIONS: tuple[str, ...] = (
         "## Quick Start with Docker",
+        "### Image Release Channels",
+        "ghcr.io/manswis/mkv-forge:latest",
+        "ghcr.io/manswis/mkv-forge:nightly",
+        "ghcr.io/manswis/mkv-forge:beta",
+        "https://github.com/manswis/Mkv-Forge.git",
         "## Configuration (Environment Variables)",
         "### Choosing the Right `MKVFORGE_WATCH_MODE`",
         "|**`watch`**",
@@ -102,6 +111,14 @@ class GitIgnoreTestConstants:
         "|**`off`**",
         "MKVFORGE_STORAGE_DIR",
         "MKVFORGE_DATA_DIR",
+    )
+    REQUIRED_WORKFLOW_TOKENS: tuple[str, ...] = (
+        "ghcr.io/manswis/mkv-forge",
+        "manswis/mkv-forge",
+        "type=raw,value=nightly",
+        "type=raw,value=beta",
+        "type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}",
+        "platforms: linux/amd64,linux/arm64",
     )
 
 
@@ -180,5 +197,20 @@ class TestGitIgnoreConfiguration:
         normalized = readme_path.read_text(encoding="utf-8").replace("| **`", "|**`")
         for token in GitIgnoreTestConstants.REQUIRED_README_SECTIONS:
             assert token in normalized, f"Missing expected documentation section/token: {token!r}"
+
+    def test_docker_publish_workflow_and_dockerignore_are_configured(self) -> None:
+        dockerignore_path = (
+            GitIgnoreTestConstants.REPO_ROOT / GitIgnoreTestConstants.DOCKERIGNORE_FILENAME
+        )
+        workflow_path = (
+            GitIgnoreTestConstants.REPO_ROOT / GitIgnoreTestConstants.WORKFLOW_REL_PATH
+        )
+        assert dockerignore_path.is_file(), ".dockerignore must exist at repository root"
+        assert workflow_path.is_file(), "Docker publish workflow must exist"
+
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for token in GitIgnoreTestConstants.REQUIRED_WORKFLOW_TOKENS:
+            assert token in workflow_text, f"Missing expected workflow configuration: {token!r}"
+
 
 

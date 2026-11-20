@@ -69,17 +69,27 @@ flowchart LR
 
 ## Quick Start with Docker
 
+No cloning or local building required—**MKV Forge** publishes pre-built multi-architecture images (`linux/amd64` & `linux/arm64`) directly to GitHub Container Registry and Docker Hub.
+
+### Image Release Channels
+
+| Channel Tag | Image Reference | When It Updates | Who Should Use It |
+| :--- | :--- | :--- | :--- |
+| **`:latest` (Stable)** | `ghcr.io/manswis/mkv-forge:latest`<br/>*(or `manswis/mkv-forge:latest`)* | **Only on tagged releases** (`v*.*.*`, e.g. `v1.0.0`) | Recommended for daily homelab / NAS users who want tested, stable releases. |
+| **`:nightly` / `:beta`** | `ghcr.io/manswis/mkv-forge:nightly`<br/>`ghcr.io/manswis/mkv-forge:beta` | **Every commit pushed to `main`** | Users who want the newest features and fixes immediately as they land on `main`. |
+| **`:<version>` (Pinned)** | `ghcr.io/manswis/mkv-forge:1.0.0` | Immutable semantic version tag | Users who prefer pinning an exact release version. |
+
+---
+
 ### Option 1: Docker Compose (Recommended)
 
-Create a `docker-compose.yml` file:
+Create a `docker-compose.yml` file anywhere on your server or NAS:
 
 ```yaml
 services:
   mkv-forge:
-    image: mkv-forge:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Stable release channel (use :nightly or :beta for bleeding-edge commits)
+    image: ghcr.io/manswis/mkv-forge:latest
     container_name: mkv-forge
     restart: unless-stopped
     ports:
@@ -101,10 +111,7 @@ services:
 Start the container:
 
 ```bash
-git clone https://github.com/manojbiswas/Mkv-Forge.git
-cd Mkv-Forge
-# Edit docker-compose.yml to point /path/to/your/media to your movies/shows folder
-docker compose up -d --build
+docker compose up -d
 ```
 
 Then open **`http://localhost:7788`** (or `http://<your-server-ip>:7788`) in your browser.
@@ -114,8 +121,6 @@ Then open **`http://localhost:7788`** (or `http://<your-server-ip>:7788`) in you
 ### Option 2: Docker CLI (`docker run`)
 
 ```bash
-docker build -t mkv-forge:latest .
-
 docker run -d \
   --name mkv-forge \
   --restart unless-stopped \
@@ -126,7 +131,17 @@ docker run -d \
   -e TZ=America/Toronto \
   -v "$(pwd)/data:/app/data:rw" \
   -v "/path/to/your/media:/storage:rw" \
-  mkv-forge:latest
+  ghcr.io/manswis/mkv-forge:latest
+```
+
+---
+
+### Option 3: Build from Source (Local Development)
+
+```bash
+git clone https://github.com/manswis/Mkv-Forge.git
+cd Mkv-Forge
+docker build -t mkv-forge:local .
 ```
 
 ---

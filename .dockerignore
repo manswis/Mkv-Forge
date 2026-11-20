@@ -1,0 +1,67 @@
+# =============================================================================
+# MKV Forge — Docker Build Context Ignore Rules
+# =============================================================================
+
+.git
+.github
+.gitignore
+.dockerignore
+.DS_Store
+._*
+Thumbs.db
+
+# Python & test caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+
+# Local tools, docs & test suite (not needed in runtime image)
+.tools/
+node_modules/
+tests/
+docs/
+scripts/
+pytest.ini
+requirements-dev.txt
+README.md
+LICENSE
+docker-compose*.yml
+
+# Runtime data, SQLite DBs & media files
+data/
+storage/
+uploads/
+logs/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+*.mkvforge.tmp*
+*.part
+*.tmp
+*.mkv
+*.mp4
+*.ac3
+*.eac3
+*.aac
+*.dts
+*.flac
+*.mka
+*.srt
+*.ass
+*.ssa
+*.vtt
+*.sup
+.env
+.env.*
