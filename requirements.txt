@@ -1,0 +1,5 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.34,<1.0
+sse-starlette>=2.2,<4.0
+pydantic>=2.12,<3.0
+watchfiles>=0.24,<2.0

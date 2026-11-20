@@ -1,0 +1,26 @@
+services:
+  mkv-forge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mkv-forge
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "022"
+      TZ: "America/Toronto"
+      MKVFORGE_STORAGE_DIR: "/storage"
+      MKVFORGE_DATA_DIR: "/app/data"
+      MKVFORGE_WATCH_MODE: "watch"
+      MKVFORGE_WATCH_DEBOUNCE_SEC: "8"
+      MKVFORGE_SCAN_INTERVAL_MIN: "0"
+    volumes:
+      - ./data:/app/data:rw
+      - /mnt/usbmedia/media:/storage:rw
+    networks:
+      - isolated_lan
+
+networks:
+  isolated_lan:
+    external: true

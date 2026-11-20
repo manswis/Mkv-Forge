@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MKV Forge">
+  <!-- Document base -->
+  <path
+    d="M114 0H380L468 88V494C468 503.94 459.94 512 450 512H114C104.06 512 96 503.94 96 494V18C96 8.06 104.06 0 114 0Z"
+    fill="#E4EAF8"
+  />
+  <!-- Folded top-right corner -->
+  <path
+    d="M380 0V70C380 79.94 388.06 88 398 88H468L380 0Z"
+    fill="#D5DCED"
+  />
+  <!-- Camera dual film reels -->
+  <circle cx="226" cy="146" r="40" fill="#FFB450" />
+  <circle cx="226" cy="146" r="20" fill="#E69B41" />
+  <circle cx="306" cy="146" r="40" fill="#FFB450" />
+  <circle cx="306" cy="146" r="20" fill="#E69B41" />
+  <!-- Camera lens -->
+  <path
+    d="M342 212L378 204C383.52 202.78 388.78 206.98 388.78 212.64V245.36C388.78 251.02 383.52 255.22 378 254L342 246V212Z"
+    fill="#E69B41"
+  />
+  <!-- Camera body -->
+  <rect x="186" y="186" width="158" height="88" rx="20" fill="#FFB450" />
+  <!-- Subtle shadow under MKV badge on document -->
+  <path
+    d="M96 308H320C338.78 308 354 323.22 354 342V434C354 452.78 338.78 468 320 468H96V308Z"
+    fill="#D5DCED"
+  />
+  <!-- MKV badge -->
+  <rect x="44" y="326" width="292" height="124" rx="20" fill="#FFB450" />
+  <!-- Bold rounded MKV letters (font-independent vector strokes) -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+    <!-- M -->
+    <path d="M79 415V361L110 403L141 361V415" />
+    <!-- K -->
+    <path d="M178 361V415" />
+    <path d="M220 361L181 391L220 415" />
+    <!-- V -->
+    <path d="M248 361L274 415L300 361" />
+  </g>
+</svg>
