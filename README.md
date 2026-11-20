@@ -176,6 +176,66 @@ All `MKVFORGE_*` variables have sensible defaults baked into the container, so y
 
 ---
 
+## Dashboard Integrations & API Keys
+
+MKV Forge provides a JSON API for external dashboards (such as [Homepage](https://gethomepage.dev/), Dashy, or Heimdall) and custom automation scripts.
+
+### Generating an API Key
+
+If **Local Authentication** (Sign-In) is enabled:
+1. Open MKV Forge and go to **Settings (⚙️) → Account & Sign-In**.
+2. Scroll to the **API Keys & Integrations** card and enter a descriptive name (e.g., `Homepage`).
+3. Click **+ Generate New Key**.
+4. Copy the displayed key (`mkv_...`) immediately. For security, keys are hashed with SHA-256 and will never be shown again.
+
+To authenticate requests, pass the key via either:
+* Header: `x-api-key: mkv_your_key_here`
+* Header: `Authorization: Bearer mkv_your_key_here`
+
+*(Note: If you run MKV Forge in passwordless "Anonymous" mode, API keys are optional and endpoints are accessible without headers.)*
+
+---
+
+### Homepage (`gethomepage.dev`) Widget
+
+Add the following to your Homepage `services.yaml`:
+
+```yaml
+    - MKV Forge:
+        icon: mkvtoolnix.png
+        href: http://mkv-forge.lab
+        description: Media Workshop & Dolby Converter
+        ping: http://mkv-forge:7788/api/health
+        widget:
+          type: customapi
+          url: http://mkv-forge:7788/api/dashboard
+          headers:
+            x-api-key: "mkv_your_generated_api_key_here"
+          showStats: true
+          mappings:
+            - field: stats.total_files
+              label: Movies & Shows
+              format: number
+            - field: stats.aac51_only
+              label: Needs Dolby
+              format: number
+            - field: stats.has_metadata
+              label: Junk Metadata
+              format: number
+            - field: analytics.top_codec_label
+              label: Top Codec
+            - field: analytics.top_codec_percent
+              label: Top %
+              format: percent
+```
+
+> **Tips for Homepage:**
+> * Always specify the port (`:7788`) in the URL unless using a reverse proxy.
+> * Use `type: customapi` (Homepage's generic REST API widget).
+> * The `analytics.top_codec_label` and `analytics.top_codec_percent` fields provide flattened audio codec breakdown directly without requiring array parsing.
+
+---
+
 ## Under the Hood (Technical Details)
 
 * **100% Offline Single Container:** No cloud dependencies, no external CDNs, and no telemetry—runs completely on your local network.

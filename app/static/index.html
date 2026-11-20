@@ -4184,6 +4184,67 @@
                           </form>
                         </div>
 
+                        <!-- API Keys & Integrations -->
+                        <div class="space-y-3 rounded-xl border border-hairline bg-canvas/50 p-4">
+                          <div class="flex items-center justify-between gap-2">
+                            <div>
+                              <p class="text-xs font-semibold text-zinc-100">API Keys &amp; Integrations</p>
+                              <p class="text-[11px] text-zinc-500">Generate personal access tokens for Homepage widgets, dashboards, and automation.</p>
+                            </div>
+                            <span class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400" x-text="apiKeys.length"></span>
+                          </div>
+
+                          <!-- Existing Keys List -->
+                          <div x-show="apiKeys.length > 0" class="divide-y divide-hairline overflow-hidden rounded-lg border border-hairline bg-surface">
+                            <template x-for="k in apiKeys" :key="`api-key-${k.id}`">
+                              <div class="flex items-center justify-between gap-3 px-3 py-2.5">
+                                <div class="min-w-0">
+                                  <div class="flex items-center gap-2">
+                                    <p class="truncate text-xs font-medium text-zinc-100" x-text="k.name"></p>
+                                    <span class="rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300" x-text="k.key_prefix"></span>
+                                  </div>
+                                  <p class="truncate text-[10px] text-zinc-500">
+                                    <span>Created </span>
+                                    <span x-text="new Date(k.created_at).toLocaleDateString()"></span>
+                                    <template x-if="k.last_used_at">
+                                      <span> &bull; Last used <span x-text="new Date(k.last_used_at).toLocaleDateString()"></span></span>
+                                    </template>
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  @click="removeApiKey(k)"
+                                  :disabled="authBusy"
+                                  class="shrink-0 rounded-md border border-red-500/35 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-40"
+                                >
+                                  Revoke
+                                </button>
+                              </div>
+                            </template>
+                          </div>
+
+                          <div x-show="apiKeys.length === 0 && !apiKeysLoading" class="rounded-lg border border-dashed border-hairline p-3 text-center text-xs text-zinc-500">
+                            No API keys yet. Create one to authenticate external dashboards or scripts.
+                          </div>
+
+                          <!-- Generate New Key Form -->
+                          <form @submit.prevent="submitCreateApiKey()" class="flex flex-wrap items-center gap-2 pt-1">
+                            <input
+                              type="text"
+                              x-model="newApiKeyName"
+                              placeholder="Key Name (e.g. Homepage, Dashboard)"
+                              class="min-w-0 flex-1 rounded-lg border border-hairline bg-surface px-3 py-2 text-xs text-zinc-100 focus:border-accent focus:outline-none"
+                            />
+                            <button
+                              type="submit"
+                              :disabled="authBusy"
+                              class="shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
+                            >
+                              + Generate New Key
+                            </button>
+                          </form>
+                        </div>
+
                         <!-- Switch Back to No-Auth Mode -->
                         <div class="rounded-xl border border-red-500/25 bg-red-500/5 p-4 space-y-3">
                           <div class="flex flex-wrap items-center justify-between gap-2">
@@ -6902,6 +6963,95 @@
             x-text="authBusy ? 'Signing in…' : 'Sign In'"
           ></button>
         </form>
+      </div>
+    </div>
+    <!-- Modal: API Key Created (Show Once) -->
+    <div
+      x-show="createdApiKeyModal !== null"
+      x-cloak
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="api-key-created-title"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      @keydown.escape.window="createdApiKeyModal = null"
+    >
+      <div
+        class="w-full max-w-lg rounded-2xl border border-hairline bg-surface p-6 shadow-2xl space-y-4"
+        @click.away="createdApiKeyModal = null"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m21 2-2 2m-6 6 7 7-4 4-7-7-1.5 1.5a4.95 4.95 0 0 1-7-7L9 7l2 2 4-4-2-2"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 id="api-key-created-title" class="text-sm font-semibold text-zinc-100">API Key Created</h3>
+              <p class="text-xs text-zinc-400">
+                Key name: <span class="font-medium text-accent" x-text="createdApiKeyModal && createdApiKeyModal.name"></span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="createdApiKeyModal = null"
+            class="rounded-lg p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            aria-label="Close dialog"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2.5">
+          <svg class="h-4 w-4 shrink-0 text-amber-400 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p>
+            <strong>Copy your API key now.</strong> For security reasons, this key will <em>never</em> be displayed again after you close this window.
+          </p>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="block text-xs font-medium text-zinc-300">Your API Key</label>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              readonly
+              :value="createdApiKeyModal && createdApiKeyModal.key"
+              class="w-full select-all rounded-lg border border-hairline bg-canvas px-3 py-2 font-mono text-xs text-zinc-100 focus:border-accent focus:outline-none"
+              @focus="$event.target.select()"
+            />
+            <button
+              type="button"
+              @click="copyApiKeyToClipboard()"
+              class="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold text-white transition"
+              :class="apiKeyCopied ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-accent hover:bg-accent-hover'"
+              x-text="apiKeyCopied ? 'Copied!' : 'Copy'"
+            ></button>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-hairline bg-canvas/60 p-3 text-xs space-y-1">
+          <p class="font-medium text-zinc-300">Homepage Widget Usage</p>
+          <pre class="overflow-x-auto rounded bg-zinc-900/90 p-2 font-mono text-[11px] text-zinc-300"><code>headers:
+  x-api-key: <span x-text="createdApiKeyModal && createdApiKeyModal.key"></span></code></pre>
+        </div>
+
+        <div class="flex justify-end pt-2">
+          <button
+            type="button"
+            @click="createdApiKeyModal = null"
+            class="rounded-lg border border-hairline bg-surface px-4 py-2 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+          >
+            Done
+          </button>
+        </div>
       </div>
     </div>
   </div>

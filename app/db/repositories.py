@@ -1551,6 +1551,86 @@ class AuthRepository:
             )
             return int(cursor.rowcount)
 
+    def create_api_key(
+        self,
+        *,
+        user_id: int,
+        name: str,
+        key_prefix: str,
+        key_hash: str,
+    ) -> dict[str, Any]:
+        """Store a new hashed API key for a user and return the row."""
+        now = utc_now_iso()
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO api_keys (user_id, name, key_prefix, key_hash, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, name, key_prefix, key_hash, now),
+            )
+            row = conn.execute(
+                """
+                SELECT id, user_id, name, key_prefix, created_at, last_used_at
+                FROM api_keys
+                WHERE id = ?
+                """,
+                (int(cursor.lastrowid),),
+            ).fetchone()
+        assert row is not None
+        return dict(row)
+
+    def list_api_keys(self, user_id: int) -> list[dict[str, Any]]:
+        """Return all active API keys for a specific user ordered by creation descending."""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, user_id, name, key_prefix, created_at, last_used_at
+                FROM api_keys
+                WHERE user_id = ?
+                ORDER BY created_at DESC, id DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_api_key_with_user(self, key_hash: str) -> dict[str, Any] | None:
+        """Return joined api_key + user record for a hashed token."""
+        with self._db.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    k.id AS api_key_id, k.name AS api_key_name, k.key_prefix,
+                    k.created_at AS api_key_created_at, k.last_used_at,
+                    u.id, u.username, u.display_name, u.password_hash, u.role,
+                    u.is_anonymous, u.preferences_json, u.created_at
+                FROM api_keys k
+                JOIN users u ON u.id = k.user_id
+                WHERE k.key_hash = ? AND u.is_anonymous = 0
+                LIMIT 1
+                """,
+                (key_hash,),
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    def touch_api_key(self, api_key_id: int) -> None:
+        """Update last_used_at timestamp on successful API key authentication."""
+        now = utc_now_iso()
+        with self._db.connect() as conn:
+            conn.execute(
+                "UPDATE api_keys SET last_used_at = ? WHERE id = ?",
+                (now, api_key_id),
+            )
+
+    def delete_api_key(self, api_key_id: int, user_id: int) -> bool:
+        """Delete an API key belonging to a specific user."""
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
+                (api_key_id, user_id),
+            )
+            return cursor.rowcount > 0
+
 
 def decode_warnings_json(raw_json: str | None) -> list[str]:
     """Safely deserialize persisted job warnings JSON."""

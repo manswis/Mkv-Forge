@@ -275,6 +275,11 @@
       authUser: null,
       authUsers: [],
       authUsersLoading: false,
+      apiKeys: [],
+      apiKeysLoading: false,
+      newApiKeyName: "",
+      createdApiKeyModal: null,
+      apiKeyCopied: false,
       authBusy: false,
       authError: null,
       authExpiredNotice: false,
@@ -727,6 +732,7 @@
       async loadAuthUsers() {
         if (!this.isLocalAuthEnabled || !this.authAuthenticated) {
           this.authUsers = [];
+          this.apiKeys = [];
           return;
         }
         this.authUsersLoading = true;
@@ -737,6 +743,22 @@
           this.showToast(err.message || "Failed to load local accounts", "error");
         } finally {
           this.authUsersLoading = false;
+        }
+      },
+
+      async loadApiKeys() {
+        if (!this.isLocalAuthEnabled || !this.authAuthenticated) {
+          this.apiKeys = [];
+          return;
+        }
+        this.apiKeysLoading = true;
+        try {
+          const res = await Api.getApiKeys();
+          this.apiKeys = Array.isArray(res && res.api_keys) ? res.api_keys : [];
+        } catch (err) {
+          this.showToast(err.message || "Failed to load API keys", "error");
+        } finally {
+          this.apiKeysLoading = false;
         }
       },
 
@@ -829,6 +851,7 @@
           this._applyAuthStatus(status);
           this.settingsModalOpen = false;
           this.authUsers = [];
+          this.apiKeys = [];
           this.showToast("Signed out", "info");
         } catch (err) {
           this.showToast(err.message || "Failed to sign out", "error");
@@ -943,6 +966,57 @@
         }
       },
 
+      async submitCreateApiKey() {
+        if (this.authBusy) return;
+        const name = (this.newApiKeyName || "").trim() || "Default";
+        this.authBusy = true;
+        this.authError = null;
+        try {
+          const created = await Api.createApiKey(name);
+          this.newApiKeyName = "";
+          this.createdApiKeyModal = created;
+          this.apiKeyCopied = false;
+          await this.loadApiKeys();
+          this.showToast(`API Key "${created.name}" created`, "success");
+        } catch (err) {
+          this.authError = err.message || "Failed to create API key";
+          this.showToast(this.authError, "error");
+        } finally {
+          this.authBusy = false;
+        }
+      },
+
+      async removeApiKey(key) {
+        if (!key || this.authBusy) return;
+        if (!confirm(`Revoke API key "${key.name}" (${key.key_prefix})? Any external services using it will lose access immediately.`)) {
+          return;
+        }
+        this.authBusy = true;
+        try {
+          await Api.deleteApiKey(key.id);
+          this.showToast(`Revoked key "${key.name}"`, "info");
+          await this.loadApiKeys();
+        } catch (err) {
+          this.showToast(err.message || "Failed to revoke API key", "error");
+        } finally {
+          this.authBusy = false;
+        }
+      },
+
+      async copyApiKeyToClipboard() {
+        if (!this.createdApiKeyModal || !this.createdApiKeyModal.key) return;
+        try {
+          await navigator.clipboard.writeText(this.createdApiKeyModal.key);
+          this.apiKeyCopied = true;
+          this.showToast("API key copied to clipboard!", "success");
+          setTimeout(() => {
+            this.apiKeyCopied = false;
+          }, 3000);
+        } catch (err) {
+          this.showToast("Could not copy to clipboard. Please copy manually.", "warning");
+        }
+      },
+
       async submitDisableLocalAuth() {
         if (this.authBusy) return;
         this.authError = null;
@@ -957,6 +1031,7 @@
           this.disableAuthOpen = false;
           this.disableAuthPassword = "";
           this.authUsers = [];
+          this.apiKeys = [];
           this.showToast("Switched to passwordless mode (Anonymous)", "info");
           this.loadUserSettings();
         } catch (err) {
@@ -1748,6 +1823,7 @@
         this.loadMaintenanceStatus();
         if (this.isLocalAuthEnabled && this.authAuthenticated) {
           this.loadAuthUsers();
+          this.loadApiKeys();
         }
       },
 

@@ -101,6 +101,9 @@ def _build_dashboard_analytics(
         if label not in seen_dr and int(cnt) > 0:
             dynamic_ranges.append(ResolutionCountItem(label=label, count=int(cnt)))
 
+    top_codec_label = audio_codecs[0].label if audio_codecs else ""
+    top_codec_percent = audio_codecs[0].percent if audio_codecs else 0.0
+
     return DashboardAnalytics(
         storage=StorageBreakdown(
             disk_total_bytes=disk_total,
@@ -115,6 +118,8 @@ def _build_dashboard_analytics(
         ),
         total_audio_tracks=total_audio_tracks,
         audio_codecs=audio_codecs,
+        top_codec_label=top_codec_label,
+        top_codec_percent=top_codec_percent,
         resolutions=resolutions,
         dynamic_ranges=dynamic_ranges,
     )

@@ -307,6 +307,89 @@ class TestPhase13AuthOnboardingAndRouteProtection:
             client_b.cookies.clear()
             assert (await client_b.get("/api/dashboard")).status_code == AppConstants.HTTP_OK
 
+    async def test_api_key_lifecycle_and_middleware_authentication(
+        self, api_client: httpx.AsyncClient
+    ) -> None:
+        """Verify API key generation, header authentication (X-API-Key and Bearer), and revocation."""
+        # 1. Onboard local admin
+        setup_res = await api_client.post(
+            "/api/auth/setup",
+            json={
+                "mode": "local",
+                "username": "keyuser",
+                "display_name": "Key User",
+                "password": "password-admin-1",
+            },
+        )
+        assert setup_res.status_code == AppConstants.HTTP_OK
+
+        # 2. Raw unauthenticated request without key or cookie -> 401
+        async with httpx.AsyncClient(
+            transport=api_client._transport, base_url="http://testserver"
+        ) as anon_client:
+            unauth_res = await anon_client.get("/api/dashboard")
+            assert unauth_res.status_code == AppConstants.HTTP_UNAUTHORIZED
+            assert unauth_res.json()["detail"] == "Authentication required"
+
+            # 3. Create API key using authenticated session
+            create_res = await api_client.post(
+                "/api/auth/api-keys",
+                json={"name": "Homepage Widget"},
+            )
+            assert create_res.status_code == AppConstants.HTTP_OK
+            key_data = create_res.json()
+            raw_key = key_data["key"]
+            key_id = key_data["id"]
+            assert raw_key.startswith(AppConstants.AUTH_API_KEY_PREFIX)
+            assert "••••" in key_data["key_prefix"]
+
+            # 4. List keys
+            list_res = await api_client.get("/api/auth/api-keys")
+            assert list_res.status_code == AppConstants.HTTP_OK
+            keys = list_res.json()["api_keys"]
+            assert len(keys) == 1
+            assert keys[0]["id"] == key_id
+            assert keys[0]["name"] == "Homepage Widget"
+
+            # 5. Access with X-API-Key header
+            x_res = await anon_client.get(
+                "/api/dashboard",
+                headers={AppConstants.AUTH_API_KEY_HEADER: raw_key},
+            )
+            assert x_res.status_code == AppConstants.HTTP_OK
+            dashboard_data = x_res.json()
+            assert "stats" in dashboard_data
+            assert "analytics" in dashboard_data
+            assert "top_codec_label" in dashboard_data["analytics"]
+
+            # 6. Access with Authorization: Bearer header
+            bearer_res = await anon_client.get(
+                "/api/dashboard",
+                headers={"authorization": f"Bearer {raw_key}"},
+            )
+            assert bearer_res.status_code == AppConstants.HTTP_OK
+
+            # 7. Access with invalid API key
+            invalid_res = await anon_client.get(
+                "/api/dashboard",
+                headers={AppConstants.AUTH_API_KEY_HEADER: "mkv_invalid_token_99999"},
+            )
+            assert invalid_res.status_code == AppConstants.HTTP_UNAUTHORIZED
+            assert invalid_res.json()["detail"] == "Invalid or revoked API key"
+
+            # 8. Delete API key
+            del_res = await api_client.delete(f"/api/auth/api-keys/{key_id}")
+            assert del_res.status_code == AppConstants.HTTP_OK
+            assert del_res.json()["ok"] is True
+
+            # 9. Access with revoked key -> 401
+            revoked_res = await anon_client.get(
+                "/api/dashboard",
+                headers={AppConstants.AUTH_API_KEY_HEADER: raw_key},
+            )
+            assert revoked_res.status_code == AppConstants.HTTP_UNAUTHORIZED
+            assert revoked_res.json()["detail"] == "Invalid or revoked API key"
+
     async def test_phase13_ui_landmarks_present(
         self, api_client: httpx.AsyncClient
     ) -> None:
@@ -325,6 +408,8 @@ class TestPhase13AuthOnboardingAndRouteProtection:
         assert "toggleMobileSettingsSection(C.SETTINGS_SECTIONS.ACCOUNT)" in html
         assert "Running without authentication (Anonymous)" in html
         assert "Switch to No-Auth Mode" in html
+        assert "API Keys &amp; Integrations" in html
+        assert "createdApiKeyModal !== null" in html
         assert "job.created_by_name || 'Anonymous'" in html
         assert "`by ${job.created_by_name" not in html
         assert "Your session expired" in html

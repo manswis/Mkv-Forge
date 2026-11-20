@@ -386,6 +386,17 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       }),
+    getApiKeys: () => requestJson(`${API.AUTH}/api-keys`),
+    createApiKey: (name) =>
+      requestJson(`${API.AUTH}/api-keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name || "Default" }),
+      }),
+    deleteApiKey: (keyId) =>
+      requestJson(`${API.AUTH}/api-keys/${encodeURIComponent(keyId)}`, {
+        method: "DELETE",
+      }),
     uploadExternalTrack: (kind, file, onProgress = null) =>
       new Promise((resolve, reject) => {
         if (!file) {

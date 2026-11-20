@@ -577,6 +577,8 @@ class DashboardAnalytics(BaseModel):
     storage: StorageBreakdown = Field(default_factory=StorageBreakdown)
     total_audio_tracks: int = 0
     audio_codecs: list[AudioCodecSlice] = Field(default_factory=list)
+    top_codec_label: str = ""
+    top_codec_percent: float = 0.0
     resolutions: list[ResolutionCountItem] = Field(default_factory=list)
     dynamic_ranges: list[ResolutionCountItem] = Field(default_factory=list)
 
@@ -1003,3 +1005,48 @@ class AuthUsersListResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     users: list[AuthUserSummary] = Field(default_factory=list)
+
+
+class ApiKeySummary(BaseModel):
+    """Public metadata for an active API key (never exposes full key or hash)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+    key_prefix: str
+    created_at: str
+    last_used_at: str | None = None
+
+
+class ApiKeyCreateRequest(BaseModel):
+    """Payload to create a new API key."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(
+        default="Default",
+        min_length=1,
+        max_length=AppConstants.AUTH_API_KEY_MAX_NAME_LEN,
+    )
+
+
+class ApiKeyCreateResponse(BaseModel):
+    """Response returned upon API key creation containing the raw token once."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    name: str
+    key: str
+    key_prefix: str
+    created_at: str
+
+
+class ApiKeysListResponse(BaseModel):
+    """List of active API keys for the current user."""
+
+    model_config = ConfigDict(frozen=True)
+
+    api_keys: list[ApiKeySummary] = Field(default_factory=list)
+

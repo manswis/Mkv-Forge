@@ -98,6 +98,20 @@ def hash_session_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode(AppConstants.UTF8_ENCODING)).hexdigest()
 
 
+def generate_api_key() -> tuple[str, str, str]:
+    """Generate a high-entropy API key, display prefix, and SHA-256 lookup hash."""
+    random_part = secrets.token_urlsafe(AppConstants.AUTH_API_KEY_BYTES)
+    raw_key = f"{AppConstants.AUTH_API_KEY_PREFIX}{random_part}"
+    prefix = f"{raw_key[:8]}••••{raw_key[-4:]}"
+    key_hash = hash_api_key(raw_key)
+    return raw_key, prefix, key_hash
+
+
+def hash_api_key(raw_key: str) -> str:
+    """Hash a raw API key token with SHA-256 before querying SQLite."""
+    return hashlib.sha256(raw_key.strip().encode(AppConstants.UTF8_ENCODING)).hexdigest()
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -433,3 +447,49 @@ class AuthService:
             needs_setup=False,
             user=anon,
         )
+
+    def create_api_key(self, *, user_id: int, name: str) -> dict[str, Any]:
+        """Generate, hash, and persist a new API key for `user_id`."""
+        clean_name = name.strip() or "Default"
+        if len(clean_name) > AppConstants.AUTH_API_KEY_MAX_NAME_LEN:
+            raise AuthValidationError(
+                f"API key name cannot exceed {AppConstants.AUTH_API_KEY_MAX_NAME_LEN} characters."
+            )
+        raw_key, key_prefix, key_hash = generate_api_key()
+        row = self._auth_repo.create_api_key(
+            user_id=user_id,
+            name=clean_name,
+            key_prefix=key_prefix,
+            key_hash=key_hash,
+        )
+        logger.info("API key created: uid=%d key_id=%d name=%s", user_id, row["id"], clean_name)
+        return {
+            "id": int(row["id"]),
+            "name": str(row["name"]),
+            "key": raw_key,
+            "key_prefix": str(row["key_prefix"]),
+            "created_at": str(row["created_at"]),
+        }
+
+    def list_api_keys(self, user_id: int) -> list[dict[str, Any]]:
+        """List active API keys belonging to `user_id`."""
+        return self._auth_repo.list_api_keys(user_id)
+
+    def delete_api_key(self, *, user_id: int, api_key_id: int) -> bool:
+        """Revoke and delete an API key for `user_id`."""
+        deleted = self._auth_repo.delete_api_key(api_key_id, user_id)
+        if deleted:
+            logger.info("API key deleted: uid=%d key_id=%d", user_id, api_key_id)
+        return deleted
+
+    def resolve_api_key_user(self, raw_key: str | None) -> AuthUserSummary | None:
+        """Lookup and return the authenticated user associated with an API key."""
+        if not raw_key or not raw_key.strip():
+            return None
+        key_hash = hash_api_key(raw_key)
+        row = self._auth_repo.get_api_key_with_user(key_hash)
+        if row is None:
+            return None
+        self._auth_repo.touch_api_key(int(row["api_key_id"]))
+        return _row_to_user_summary(row)
+

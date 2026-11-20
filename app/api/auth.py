@@ -8,6 +8,10 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.config import AppConstants
 from app.models.schemas import (
+    ApiKeyCreateRequest,
+    ApiKeyCreateResponse,
+    ApiKeySummary,
+    ApiKeysListResponse,
     AuthDisableRequest,
     AuthLoginRequest,
     AuthPasswordChangeRequest,
@@ -265,3 +269,62 @@ async def disable_auth(
 
     _clear_session_cookie(response, request)
     return status
+
+
+@router.get("/api-keys", response_model=ApiKeysListResponse)
+async def list_api_keys(request: Request) -> ApiKeysListResponse:
+    """Return all active API keys for the current user."""
+    current = _require_local_user(request)
+    auth_service: AuthService = request.app.state.auth_service
+    rows = await asyncio.to_thread(auth_service.list_api_keys, user_id=current.id)
+    return ApiKeysListResponse(
+        api_keys=[
+            ApiKeySummary(
+                id=int(r["id"]),
+                name=str(r["name"]),
+                key_prefix=str(r["key_prefix"]),
+                created_at=str(r["created_at"]),
+                last_used_at=str(r["last_used_at"]) if r.get("last_used_at") else None,
+            )
+            for r in rows
+        ]
+    )
+
+
+@router.post("/api-keys", response_model=ApiKeyCreateResponse)
+async def create_api_key(
+    request: Request,
+    payload: ApiKeyCreateRequest,
+) -> ApiKeyCreateResponse:
+    """Generate and return a new API key (full token returned once)."""
+    current = _require_local_user(request)
+    auth_service: AuthService = request.app.state.auth_service
+    try:
+        res = await asyncio.to_thread(
+            auth_service.create_api_key,
+            user_id=current.id,
+            name=payload.name,
+        )
+    except AuthValidationError as exc:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return ApiKeyCreateResponse(**res)
+
+
+@router.delete("/api-keys/{key_id}")
+async def delete_api_key(request: Request, key_id: int) -> dict[str, bool]:
+    """Revoke an API key belonging to the current user."""
+    current = _require_local_user(request)
+    auth_service: AuthService = request.app.state.auth_service
+    deleted = await asyncio.to_thread(
+        auth_service.delete_api_key,
+        user_id=current.id,
+        api_key_id=key_id,
+    )
+    if not deleted:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_NOT_FOUND, detail="API key not found."
+        )
+    return {"ok": True}
+

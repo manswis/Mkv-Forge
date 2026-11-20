@@ -217,6 +217,11 @@ class AppConstants:
     AUTH_MIN_PASSWORD_LEN: int = 6
     AUTH_MAX_PASSWORD_LEN: int = 128
     AUTH_MAX_DISPLAY_NAME_LEN: int = 48
+    AUTH_API_KEY_PREFIX: str = "mkv_"
+    AUTH_API_KEY_BYTES: int = 32
+    AUTH_API_KEY_MAX_NAME_LEN: int = 64
+    AUTH_API_KEY_HEADER: str = "x-api-key"
+    AUTH_BEARER_PREFIX: str = "bearer "
     AUTH_PUBLIC_PATHS: frozenset[str] = frozenset(
         {
             "/",

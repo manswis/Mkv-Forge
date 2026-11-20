@@ -206,6 +206,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             return await call_next(request)
 
+        # 1. Check API Key header (X-API-Key or Authorization: Bearer <key>)
+        api_key = request.headers.get(AppConstants.AUTH_API_KEY_HEADER)
+        if not api_key:
+            auth_hdr = request.headers.get("authorization", "")
+            if auth_hdr.lower().startswith(AppConstants.AUTH_BEARER_PREFIX):
+                api_key = auth_hdr[len(AppConstants.AUTH_BEARER_PREFIX):].strip()
+
+        if api_key:
+            resolved_key_user = await asyncio.to_thread(
+                auth_service.resolve_api_key_user, api_key
+            )
+            if resolved_key_user is not None:
+                request.state.current_user = resolved_key_user
+                return await call_next(request)
+            return JSONResponse(
+                status_code=AppConstants.HTTP_UNAUTHORIZED,
+                content={"detail": "Invalid or revoked API key"},
+            )
+
+        # 2. Check Local Cookie Session
         cookie_token = request.cookies.get(AppConstants.AUTH_SESSION_COOKIE_NAME)
         resolved_user = await asyncio.to_thread(
             auth_service.resolve_session_user, cookie_token
