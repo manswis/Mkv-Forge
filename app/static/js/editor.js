@@ -62,7 +62,9 @@
 
       const meta = getCodecMeta(targetCodec);
       const preferredTrack =
-        eligibleTracks.find((t) => isAac51Track(t)) || eligibleTracks[0];
+        eligibleTracks.find((t) => isAac51Track(t)) ||
+        eligibleTracks.find((t) => isSurroundTrack(t)) ||
+        eligibleTracks[0];
       const channelLabel = formatChannelLabel(preferredTrack.audio_channels);
 
       options.push({
@@ -101,6 +103,11 @@
       Number(track.audio_channels) === EDITOR.MAX_DOLBY_CHANNELS &&
       canonicalizeAudioCodec(track.codec, track.codec_id) === "aac"
     );
+  }
+
+  function isSurroundTrack(track) {
+    if (!track || track.type !== "audio") return false;
+    return Number(track.audio_channels) >= EDITOR.MAX_DOLBY_CHANNELS;
   }
 
   function isMp4File(fileDetail) {
@@ -991,6 +998,7 @@
     buildDefaultAudioTitle,
     buildDefaultExternalTitle,
     isAac51Track,
+    isSurroundTrack,
     isMp4File,
     stripFileExtension,
     ensureMkvFilename,

@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG TAILWIND_VERSION=v3.4.17
+ARG APP_VERSION=1.0.0
 
 # ---------------------------------------------------------------------------
 # Stage 1: Compile static Tailwind CSS using standalone CLI (zero Node.js)
@@ -36,11 +37,14 @@ RUN tailwindcss -i ./frontend/input.css -o ./app/static/css/app.css --minify
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim-bookworm AS runtime
 
+ARG APP_VERSION=1.0.0
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PUID=1000 \
     PGID=1000 \
     UMASK=022 \
+    MKVFORGE_APP_VERSION=${APP_VERSION} \
     MKVFORGE_STORAGE_DIR=/storage \
     MKVFORGE_DATA_DIR=/app/data
 

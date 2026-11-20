@@ -4,7 +4,9 @@
   # MKV Forge
 
   **The friendly, self-hosted media workshop for your movie & TV library.**  
-  Fix incompatible audio for your TV or soundbar, clean up messy release-group metadata, add external subtitles, and remux `.mkv` / `.mp4` files in seconds—without touching the command line.
+A lightweight, modern web alternative to MKVToolNix—with a built-in file browser and audio converter.
+
+Browse your movie and TV folders right from your phone or computer, pick any file, and fix it in place. There’s no tedious adding, exporting, or juggling multiple tools: clean up messy titles and metadata, add or reorder subtitles, and convert incompatible surround sound (like AAC or DTS to Dolby AC3/EAC3, and vice versa) in a few taps—without ever losing video quality or touching the command line.
 
   <p>
     <a href="https://www.buymeacoffee.com/manojbiswas" target="_blank">

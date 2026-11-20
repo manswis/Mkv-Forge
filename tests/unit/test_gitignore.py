@@ -90,8 +90,11 @@ class GitIgnoreTestConstants:
         "app/static/img/app-icon.png",
         "tests/conftest.py",
         "tests/unit/test_gitignore.py",
+        "tests/unit/test_release_version.py",
         ".dockerignore",
         ".github/workflows/docker-publish.yml",
+        "scripts/release.sh",
+        "scripts/release_version.py",
     )
 
     README_FILENAME: str = "README.md"

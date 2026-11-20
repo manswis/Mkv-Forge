@@ -103,6 +103,18 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
+      - name: Resolve build APP_VERSION
+        id: app_version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            BASE_VER="$(python3 scripts/release_version.py --current)"
+            SHORT_SHA="${GITHUB_SHA::7}"
+            VERSION="${BASE_VER}-nightly.${SHORT_SHA}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Docker image (linux/amd64, linux/arm64)
         uses: docker/build-push-action@v6
         with:
@@ -110,6 +122,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            APP_VERSION=${{ steps.app_version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

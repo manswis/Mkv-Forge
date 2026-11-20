@@ -12,7 +12,11 @@ class AppConstants:
     """Centralized immutable constants to eliminate magic values."""
 
     APP_NAME: str = "MKV Forge"
-    APP_VERSION: str = "0.1.0"
+    DEFAULT_APP_VERSION: str = "1.0.0"
+    ENV_APP_VERSION: str = "MKVFORGE_APP_VERSION"
+    APP_VERSION: str = (
+        os.environ.get("MKVFORGE_APP_VERSION", "").strip() or DEFAULT_APP_VERSION
+    )
 
     DEFAULT_HOST: str = "0.0.0.0"
     DEFAULT_PORT: int = 7788
@@ -450,6 +454,15 @@ class Settings:
     def uploads_dir(self) -> Path:
         """Path to the staged uploads directory inside data_dir."""
         return self.data_dir / AppConstants.UPLOADS_SUBDIR_NAME
+
+
+def resolve_app_version(env: Mapping[str, str] | None = None) -> str:
+    """Return runtime application version from `MKVFORGE_APP_VERSION` or default."""
+    source = os.environ if env is None else env
+    raw = source.get(AppConstants.ENV_APP_VERSION)
+    if raw is not None and raw.strip():
+        return raw.strip()
+    return AppConstants.DEFAULT_APP_VERSION
 
 
 def _parse_bounded_float(
