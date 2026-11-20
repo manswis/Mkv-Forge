@@ -842,6 +842,16 @@
         }
       },
 
+      openLogoutConfirm() {
+        this.scanMenuOpen = false;
+        this.logoutConfirmOpen = true;
+      },
+
+      closeLogoutConfirm() {
+        if (!this.logoutConfirmOpen || this.authBusy) return;
+        this.logoutConfirmOpen = false;
+      },
+
       async signOut() {
         if (this.authBusy) return;
         this.authBusy = true;
