@@ -135,8 +135,14 @@ if [[ "${PUSH_CHANGES}" -eq 1 ]]; then
   echo "==> Pushing branch '${CURRENT_BRANCH}' to origin..."
   git push origin "${CURRENT_BRANCH}"
   if [[ -n "${RELEASE_TAG}" ]]; then
-    echo "==> Pushing release tag '${RELEASE_TAG}' to origin (triggers :latest Docker build)..."
+    echo "==> Pushing release tag '${RELEASE_TAG}' to origin (triggers :latest Docker build & GitHub Release)..."
     git push origin "${RELEASE_TAG}"
+
+    # If GitHub CLI ('gh') is authenticated locally, also create the release right away
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+      echo "==> Creating GitHub Release via 'gh' CLI..."
+      gh release create "${RELEASE_TAG}" --title "MKV Forge ${CLEAN_VER}" --notes "${COMMIT_MSG}" --generate-notes || true
+    fi
   fi
 fi
 

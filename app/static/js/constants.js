@@ -4,6 +4,10 @@ window.MKVForgeConstants = Object.freeze({
   APP: Object.freeze({
     NAME: "MKV Forge",
     VERSION: "1.0.0",
+    AUTHOR: "Manoj Biswas",
+    GITHUB_URL: "https://github.com/manswis/Mkv-Forge",
+    RELEASES_URL: "https://github.com/manswis/Mkv-Forge/releases",
+    LICENSE: "MIT",
   }),
 
   ROUTES: Object.freeze({
@@ -120,6 +124,7 @@ window.MKVForgeConstants = Object.freeze({
     OUTPUT_METADATA: "output_metadata",
     MAINTENANCE: "maintenance",
     AUTO_CLEANUP: "auto_cleanup",
+    ABOUT: "about",
   }),
 
   SETTINGS_CATEGORIES: Object.freeze([
@@ -174,6 +179,12 @@ window.MKVForgeConstants = Object.freeze({
           title: "Scheduled Auto-Cleanup",
           subtitle: "Idle cleanup cadence & job history retention",
           badgeClass: "border-purple-500/35 bg-purple-500/15 text-purple-300",
+        }),
+        Object.freeze({
+          id: "about",
+          title: "About & Legal Terms",
+          subtitle: "Developer attribution, zero-liability & offline terms",
+          badgeClass: "border-blue-500/35 bg-blue-500/15 text-blue-300",
         }),
       ]),
     }),

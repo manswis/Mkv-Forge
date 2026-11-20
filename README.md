@@ -195,6 +195,21 @@ All `MKVFORGE_*` variables have sensible defaults baked into the container, so y
 
 ---
 
+## Legal & Liability Disclaimer
+
+**MKV Forge** is open-source software distributed under the **MIT License**.
+
+By downloading, installing, running, containerizing, or interacting with MKV Forge, you expressly acknowledge and agree to the following terms:
+
+1. **"AS IS" & Express Warranty Disclaimer:** The software is provided "AS IS" and "AS AVAILABLE", without warranties of any kind (express, implied, statutory, or otherwise), including but not limited to the implied warranties of merchantability, fitness for a particular purpose, non-infringement, quiet enjoyment, or uninterrupted operation.
+2. **Developer Zero-Liability & Absolute Hold Harmless:** In no event shall the author (**Manoj Biswas**) or any contributors be liable under any legal theory (contract, tort, strict liability, negligence, breach of statutory duty, or otherwise) for any direct, indirect, incidental, punitive, special, consequential, or exemplary damages—including, without limitation, corruption, truncation, overwrite, or permanent loss of media files, hardware failure, disk corruption, filesystem errors, or media server downtime.
+3. **Deemed Consent by Continued Use:** Your continued use, deployment, or hosting of this software constitutes full and binding legal acceptance of these terms. If you do not accept these terms, you must immediately cease all use and delete all copies of the software and images.
+4. **No Litigation & Covenant Not to Sue:** You irrevocably covenant that you will not initiate, maintain, or participate in any lawsuit, arbitration, claim, or class-action litigation against the author in any jurisdiction worldwide.
+5. **Sole User Responsibility for Backups:** Media processing operations (including "Replace Original" and in-place deletions) modify files on disk. The user bears sole responsibility for maintaining independent, verified backups of all original media prior to remuxing or converting audio.
+6. **100% Offline & Private:** MKV Forge contains zero telemetry, zero analytics, zero external tracking, and zero remote cloud connectivity. All processing executes locally on your private machine or server.
+
+---
+
 ## Support the Project
 
 If **MKV Forge** saves you time managing your media library, consider supporting its development:
