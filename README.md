@@ -89,13 +89,14 @@ services:
       PGID: "1000"
       UMASK: "022"
       TZ: "America/Toronto"
-      MKVFORGE_STORAGE_DIR: "/storage"
-      MKVFORGE_DATA_DIR: "/app/data"
-      MKVFORGE_WATCH_MODE: "watch"
+      # Optional: change watch mode ("watch" = default, "poll" = NFS/SMB, "off" = manual/HDD sleep)
+      # MKVFORGE_WATCH_MODE: "watch"
     volumes:
       - ./data:/app/data:rw
       - /path/to/your/media:/storage:rw
 ```
+
+> **Note:** As long as your `volumes:` mount to `/app/data` and `/storage`, you do **not** need to set `MKVFORGE_DATA_DIR` or `MKVFORGE_STORAGE_DIR`—those container paths are already the built-in defaults.
 
 Start the container:
 
@@ -132,16 +133,29 @@ docker run -d \
 
 ## Configuration (Environment Variables)
 
-| Variable | Default | What It Does |
-| :--- | :--- | :--- |
-| `PUID` / `PGID` | `1000` / `1000` | Linux user & group ID so created `.mkv` files match your NAS/host permissions. |
-| `UMASK` | `022` | File creation permission mask inside `/storage`. |
-| `TZ` | `UTC` | Your local timezone for logs, timestamps, and scheduled maintenance. |
-| `MKVFORGE_STORAGE_DIR` | `/storage` | Container path where your media library is mounted. |
-| `MKVFORGE_DATA_DIR` | `/app/data` | Container path for the SQLite cache database (`mkvforge.db`) and temp uploads. |
-| `MKVFORGE_WATCH_MODE` | `watch` | `watch` for live filesystem detection, `poll` for network shares (NFS/SMB), or `off`. |
-| `MKVFORGE_WATCH_DEBOUNCE_SEC` | `8` | Quiet window (seconds) to wait after a file upload finishes before probing metadata. |
-| `MKVFORGE_SCAN_INTERVAL_MIN` | `0` | Optional periodic background scan interval in minutes (`0` = disabled). |
+All `MKVFORGE_*` variables have sensible defaults baked into the container, so you only need to add them to `docker-compose.yml` when overriding default behavior:
+
+| Variable | Default | Required? | What It Does |
+| :--- | :--- | :---: | :--- |
+| `PUID` / `PGID` | `1000` / `1000` | Optional | Linux user & group ID so created `.mkv` files match your NAS/host permissions. |
+| `UMASK` | `022` | Optional | File creation permission mask inside `/storage`. |
+| `TZ` | `UTC` | Recommended | Your local timezone for logs, timestamps, and scheduled maintenance. |
+| `MKVFORGE_WATCH_MODE` | `watch` | Optional | How MKV Forge detects filesystem changes (`watch`, `poll`, or `off`). See table below. |
+| `MKVFORGE_WATCH_DEBOUNCE_SEC` | `8` | Optional | Quiet window (seconds, `0.05`–`300`) to wait after a file write finishes before probing metadata. |
+| `MKVFORGE_SCAN_INTERVAL_MIN` | `0` | Optional | Periodic background incremental scan interval in minutes (`0` = disabled, max `10080` / 7 days). |
+| `MKVFORGE_STORAGE_DIR` | `/storage` | Optional | Container path where your media library is mounted. Only needed if you mount your media to a custom container path (e.g. `/data/media` in an `*arr`/Plex stack) or run outside Docker. |
+| `MKVFORGE_DATA_DIR` | `/app/data` | Optional | Container path for the SQLite cache database (`mkvforge.db`) and temporary uploads. Only needed if you mount data to a path other than `/app/data`. |
+| `MKVFORGE_LOG_LEVEL` | `INFO` | Optional | Application log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
+
+### Choosing the Right `MKVFORGE_WATCH_MODE`
+
+`MKVFORGE_WATCH_MODE` defaults to **`watch`**, so you can omit it for most setups. Change it based on how your media drive is connected:
+
+| Mode | Default? | How It Works | Best For |
+| :--- | :---: | :--- | :--- |
+| **`watch`** | **Yes** | Listens to native OS kernel events (`inotify` on Linux) and waits for file size & timestamp to settle (`MKVFORGE_WATCH_DEBOUNCE_SEC`) before probing. Zero idle disk polling. | Local SSDs/HDDs, direct-attached USB drives on the Docker host, or local ZFS/RAID/Unraid arrays. |
+| **`poll`** | No | Polls `/storage` every `2` seconds to detect added, modified, or deleted files when the host kernel does not receive filesystem events. | Remote network shares (**NFS**, **SMB/CIFS**, or **rclone/FUSE**) mounted from a separate NAS where `inotify` events are not forwarded over the network. |
+| **`off`** | No | Disables the background filesystem watcher completely. Library updates occur only when you click **Scan** in the web UI, browse a folder in **Explorer**, or enable `MKVFORGE_SCAN_INTERVAL_MIN`. | External USB spinning hard drives that you want to spin down/sleep completely when idle without any background watcher attached. |
 
 ---
 

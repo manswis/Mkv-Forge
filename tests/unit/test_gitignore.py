@@ -92,6 +92,18 @@ class GitIgnoreTestConstants:
         "tests/unit/test_gitignore.py",
     )
 
+    README_FILENAME: str = "README.md"
+    REQUIRED_README_SECTIONS: tuple[str, ...] = (
+        "## Quick Start with Docker",
+        "## Configuration (Environment Variables)",
+        "### Choosing the Right `MKVFORGE_WATCH_MODE`",
+        "|**`watch`**",
+        "|**`poll`**",
+        "|**`off`**",
+        "MKVFORGE_STORAGE_DIR",
+        "MKVFORGE_DATA_DIR",
+    )
+
 
 def _run_git_check_ignore(rel_path: str, repo_root: Path) -> subprocess.CompletedProcess[str]:
     """Run `git check-ignore --no-index` against `rel_path` inside `repo_root`."""
@@ -161,4 +173,12 @@ class TestGitIgnoreConfiguration:
             if any(token in path for token in GitIgnoreTestConstants.FORBIDDEN_TRACKED_TOKENS)
         ]
         assert leaked == [], f"Garbage files are still tracked in git index: {leaked}"
+
+    def test_readme_documents_watch_modes_and_optional_volume_env_vars(self) -> None:
+        readme_path = GitIgnoreTestConstants.REPO_ROOT / GitIgnoreTestConstants.README_FILENAME
+        assert readme_path.is_file()
+        normalized = readme_path.read_text(encoding="utf-8").replace("| **`", "|**`")
+        for token in GitIgnoreTestConstants.REQUIRED_README_SECTIONS:
+            assert token in normalized, f"Missing expected documentation section/token: {token!r}"
+
 
