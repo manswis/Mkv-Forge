@@ -283,10 +283,18 @@
             type="button"
             @click="scanMenuOpen = !scanMenuOpen"
             :aria-expanded="scanMenuOpen ? 'true' : 'false'"
-            aria-label="Library actions menu"
-            title="Library actions"
-            class="inline-flex min-h-[36px] min-w-[36px] items-center justify-center gap-1 rounded-lg border border-hairline bg-surface px-2 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-600 hover:text-white"
+            aria-label="Navigation and library actions menu"
+            title="Menu"
+            class="relative inline-flex min-h-[36px] min-w-[36px] items-center justify-center gap-1 rounded-lg border border-hairline bg-surface px-2 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-600 hover:text-white"
           >
+            <span
+              x-cloak
+              x-show="isJobRunning || jobsState.queued.length > 0"
+              class="absolute -top-1 -right-1 flex h-2.5 w-2.5"
+            >
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent"></span>
+            </span>
             <svg
               x-show="scanTriggering || isScanRunning"
               x-cloak
@@ -315,9 +323,72 @@
             x-transition.opacity.duration.100ms
             @click.outside="scanMenuOpen = false"
             role="menu"
-            aria-label="Library actions"
+            aria-label="Navigation and actions"
             class="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-hairline bg-surface py-1.5 shadow-2xl"
           >
+            <!-- Primary Navigation Links (Before Any Other Item) -->
+            <button
+              type="button"
+              role="menuitem"
+              @click="scanMenuOpen = false; navigate(C.ROUTES.LIBRARY)"
+              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
+              :class="route === C.ROUTES.LIBRARY ? 'bg-accent/15 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+            >
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.LIBRARY ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M4 6h16M4 12h16M4 18h10"></path>
+                </svg>
+                <span>Library</span>
+              </span>
+              <span
+                x-cloak
+                x-show="dashboard.stats.total_files > 0"
+                class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"
+                x-text="dashboard.stats.total_files"
+              ></span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              @click="scanMenuOpen = false; navigate(C.ROUTES.JOBS)"
+              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
+              :class="route === C.ROUTES.JOBS ? 'bg-accent/15 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+            >
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.JOBS ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M12 6v6l4 2"></path>
+                  <circle cx="12" cy="12" r="9"></circle>
+                </svg>
+                <span>Jobs</span>
+              </span>
+              <span
+                x-cloak
+                x-show="isJobRunning || jobsState.queued.length > 0"
+                class="inline-flex items-center gap-1.5 rounded-full bg-accent/20 px-2 py-0.5 font-mono text-[10px] font-medium text-indigo-300"
+              >
+                <span class="inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse"></span>
+                <span x-text="isJobRunning ? `${activeJobPercent}%` : `${jobsState.queued.length}Q`"></span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              @click="scanMenuOpen = false; navigate(C.ROUTES.DASHBOARD)"
+              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
+              :class="route === C.ROUTES.DASHBOARD ? 'bg-accent/15 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+            >
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.DASHBOARD ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span>Dashboard</span>
+              </span>
+            </button>
+
+            <div class="my-1 border-t border-hairline"></div>
             <button
               type="button"
               role="menuitem"
@@ -392,6 +463,19 @@
                 <span x-text="mobileSelectMode ? 'Done Selecting' : 'Select'"></span>
               </span>
               <span x-show="mobileSelectMode" class="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+            </button>
+            <div class="my-1 border-t border-hairline"></div>
+
+            <button
+              type="button"
+              role="menuitem"
+              @click="scanMenuOpen = false; openSettings(); activeSettingsSection = C.SETTINGS_SECTIONS.ABOUT; mobileSettingsSection = C.SETTINGS_SECTIONS.ABOUT;"
+              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <svg class="h-4 w-4 shrink-0 text-blue-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path>
+              </svg>
+              <span>About &amp; Legal Terms</span>
             </button>
           </div>
         </div>
@@ -487,23 +571,8 @@
     <!-- =================================================================== -->
     <main
       class="flex-1 min-w-0 md:pl-[220px]"
-      :class="route === C.ROUTES.LIBRARY ? 'flex min-h-0 flex-col overflow-hidden pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0' : ''"
+      :class="route === C.ROUTES.LIBRARY ? 'flex min-h-0 flex-col overflow-hidden pb-safe md:pb-0' : ''"
     >
-      <!-- Desktop Top-Right Settings Action (Matches Mobile Header Position & Styling) -->
-      <div class="fixed top-3.5 right-6 z-40 hidden md:flex items-center gap-2">
-        <button
-          type="button"
-          @click="openSettings()"
-          aria-label="Open Settings"
-          title="Settings"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm backdrop-blur transition"
-          :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : 'border-hairline bg-surface/90 text-zinc-300 hover:border-zinc-500 hover:text-white'"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
-          </svg>
-        </button>
-      </div>
       <!-- Mobile Pull-to-Refresh Indicator (touch viewports only) -->
       <div
         aria-live="polite"
@@ -531,7 +600,7 @@
 
       <div
         class="mx-auto w-full max-w-6xl"
-        :class="route === C.ROUTES.LIBRARY ? 'flex flex-1 min-h-0 flex-col px-4 pt-3 pb-2 md:px-8 md:pt-6 md:pb-4' : 'px-4 py-5 pb-36 md:px-8 md:py-7 md:pb-24'"
+        :class="route === C.ROUTES.LIBRARY ? 'flex flex-1 min-h-0 flex-col px-4 pt-3 pb-2 md:px-8 md:pt-6 md:pb-4' : 'px-4 py-5 pb-16 pb-safe md:px-8 md:py-7 md:pb-24'"
       >
 
 
@@ -555,16 +624,30 @@
               </div>
               <p class="mt-0.5 text-xs text-zinc-400 md:text-sm">Instant library health snapshot from SQLite cache</p>
             </div>
-            <!-- Desktop Scan Refresh Dropdown (Dashboard) -->
-            <div class="relative hidden md:flex items-center" x-data="{ open: false }" @keydown.escape.window="open = false">
+            <!-- Desktop Action Group: Settings (Left) + Scan Refresh Dropdown (Dashboard) -->
+            <div class="hidden md:flex items-center gap-1.5">
               <button
                 type="button"
-                @click="open = !open"
-                :aria-expanded="open ? 'true' : 'false'"
-                aria-label="Scan library options"
-                title="Scan library"
-                class="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                @click="openSettings()"
+                aria-label="Open Settings"
+                title="Settings"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-lg border transition shadow-sm backdrop-blur"
+                :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-500 hover:text-white'"
               >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
+                </svg>
+              </button>
+
+              <div class="relative flex items-center" x-data="{ open: false }" @keydown.escape.window="open = false">
+                <button
+                  type="button"
+                  @click="open = !open"
+                  :aria-expanded="open ? 'true' : 'false'"
+                  aria-label="Scan library options"
+                  title="Scan library"
+                  class="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                >
                 <svg
                   class="h-4 w-4 shrink-0"
                   :class="(scanTriggering || isScanRunning) ? 'animate-spin text-accent' : 'text-zinc-300'"
@@ -992,16 +1075,30 @@
                 </button>
               </div>
 
-              <!-- Desktop Scan Refresh Icon + Dropdown -->
-              <div class="relative hidden md:flex items-center" x-data="{ open: false }" @keydown.escape.window="open = false">
+              <!-- Desktop Action Group: Settings (Left) + Scan Refresh Dropdown (Library) -->
+              <div class="hidden md:flex items-center gap-1.5">
                 <button
                   type="button"
-                  @click="open = !open"
-                  :aria-expanded="open ? 'true' : 'false'"
-                  aria-label="Scan library options"
-                  title="Scan library"
-                  class="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  @click="openSettings()"
+                  aria-label="Open Settings"
+                  title="Settings"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-lg border transition shadow-sm backdrop-blur"
+                  :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-500 hover:text-white'"
                 >
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
+                  </svg>
+                </button>
+
+                <div class="relative flex items-center" x-data="{ open: false }" @keydown.escape.window="open = false">
+                  <button
+                    type="button"
+                    @click="open = !open"
+                    :aria-expanded="open ? 'true' : 'false'"
+                    aria-label="Scan library options"
+                    title="Scan library"
+                    class="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  >
                   <svg
                     class="h-4 w-4 shrink-0"
                     :class="(scanTriggering || isScanRunning) ? 'animate-spin text-accent' : 'text-zinc-300'"
@@ -3223,13 +3320,27 @@
               <h1 class="text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">Jobs</h1>
               <p class="mt-0.5 text-xs text-zinc-400">Sequential queue, live FFmpeg/mkvmerge telemetry &amp; history</p>
             </div>
-            <button
-              type="button"
-              @click="loadJobs()"
-              class="rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-zinc-300 hover:border-zinc-600"
-            >
-              Refresh
-            </button>
+            <div class="flex items-center gap-1.5">
+              <button
+                type="button"
+                @click="openSettings()"
+                aria-label="Open Settings"
+                title="Settings"
+                class="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-lg border border-hairline bg-surface text-zinc-300 hover:border-zinc-500 hover:text-white transition shadow-sm backdrop-blur"
+                :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : ''"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
+                </svg>
+              </button>
+              <button
+                type="button"
+                @click="loadJobs()"
+                class="rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-zinc-300 hover:border-zinc-600"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
           <!-- Active Job Card -->
@@ -3545,6 +3656,9 @@
                             </svg>
                             <svg x-show="sec.id === C.SETTINGS_SECTIONS.AUTO_CLEANUP" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                               <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"></path>
+                            </svg>
+                            <svg x-show="sec.id === C.SETTINGS_SECTIONS.ABOUT" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path>
                             </svg>
                           </span>
                           <div class="min-w-0">
@@ -4262,11 +4376,18 @@
                                     <p class="truncate text-xs font-medium text-zinc-100" x-text="k.name"></p>
                                     <span class="rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300" x-text="k.key_prefix"></span>
                                   </div>
-                                  <p class="truncate text-[10px] text-zinc-500">
+                                  <p class="truncate text-[10px] text-zinc-400">
                                     <span>Created </span>
-                                    <span x-text="new Date(k.created_at).toLocaleDateString()"></span>
+                                    <span class="text-zinc-200" x-text="F.formatDateTime(k.created_at)"></span>
+                                    <template x-if="k.creator_name">
+                                      <span> by <span class="font-medium text-zinc-200" x-text="k.creator_name"></span></span>
+                                    </template>
+                                    <span> &bull; </span>
                                     <template x-if="k.last_used_at">
-                                      <span> &bull; Last used <span x-text="new Date(k.last_used_at).toLocaleDateString()"></span></span>
+                                      <span>Last used <span class="text-zinc-200" x-text="F.formatDateTime(k.last_used_at)"></span></span>
+                                    </template>
+                                    <template x-if="!k.last_used_at">
+                                      <span class="text-zinc-500 italic">Never used</span>
                                     </template>
                                   </p>
                                 </div>
@@ -4918,10 +5039,18 @@
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <!-- ======================================================= -->
+                <!-- ========================================================= -->
+                <!-- CATEGORY 4: ABOUT & LEGAL TERMS                          -->
+                <!-- ========================================================= -->
+                <div
+                  class="space-y-2.5"
+                  :class="activeSettingsSection === C.SETTINGS_SECTIONS.ABOUT ? 'md:block' : 'md:hidden'"
+                >
+                  <p class="px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">About &amp; Legal</p>
+
                   <!-- Screen 5 Section: About & Legal Terms                   -->
-                  <!-- ======================================================= -->
                   <div
                     class="overflow-hidden rounded-xl border border-hairline bg-surface"
                     :class="activeSettingsSection === C.SETTINGS_SECTIONS.ABOUT ? 'md:block' : 'md:hidden'"
@@ -6768,44 +6897,6 @@
         </div>
       </template>
     </div>
-    <!-- =================================================================== -->
-    <nav
-      x-show="route !== C.ROUTES.EDITOR"
-      aria-label="Mobile navigation"
-      class="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface/95 backdrop-blur pb-safe md:hidden"
-    >
-      <div class="grid grid-cols-2">
-        <button
-          type="button"
-          @click="navigate(C.ROUTES.LIBRARY)"
-          class="flex min-h-[56px] flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition"
-          :class="route === C.ROUTES.LIBRARY ? 'text-indigo-400' : 'text-zinc-500'"
-        >
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M4 6h16M4 12h16M4 18h10"></path>
-          </svg>
-          <span>Library</span>
-        </button>
-
-        <button
-          type="button"
-          @click="navigate(C.ROUTES.JOBS)"
-          class="relative flex min-h-[56px] flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition"
-          :class="route === C.ROUTES.JOBS ? 'text-indigo-400' : 'text-zinc-500'"
-        >
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M12 6v6l4 2"></path>
-            <circle cx="12" cy="12" r="9"></circle>
-          </svg>
-          <span>Jobs</span>
-          <span
-            x-cloak
-            x-show="isJobRunning || jobsState.queued.length > 0"
-            class="absolute top-2.5 right-1/3 h-2 w-2 rounded-full bg-accent animate-pulse"
-          ></span>
-        </button>
-      </div>
-    </nav>
 
     <!-- =================================================================== -->
     <!-- FIRST-RUN ONBOARDING MODAL (auth_mode === 'unconfigured')           -->
@@ -7074,6 +7165,22 @@
           <p>
             <strong>Copy your API key now.</strong> For security reasons, this key will <em>never</em> be displayed again after you close this window.
           </p>
+        </div>
+
+        <!-- Key Metadata (Creation Date/Time, Creator & Status) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-hairline bg-canvas/60 p-3 text-xs">
+          <div>
+            <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Created At</p>
+            <p class="font-medium text-zinc-200" x-text="createdApiKeyModal && F.formatDateTime(createdApiKeyModal.created_at)"></p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Created By</p>
+            <p class="font-medium text-zinc-200" x-text="(createdApiKeyModal && createdApiKeyModal.creator_name) || (authUser && (authUser.display_name || authUser.username)) || 'Admin'"></p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Last Used</p>
+            <p class="font-medium text-zinc-400 italic">Never used</p>
+          </div>
         </div>
 
         <div class="space-y-1.5">

@@ -1559,7 +1559,7 @@ class AuthRepository:
         key_prefix: str,
         key_hash: str,
     ) -> dict[str, Any]:
-        """Store a new hashed API key for a user and return the row."""
+        """Store a new hashed API key for a user and return the row with creator name."""
         now = utc_now_iso()
         with self._db.connect() as conn:
             cursor = conn.execute(
@@ -1571,9 +1571,12 @@ class AuthRepository:
             )
             row = conn.execute(
                 """
-                SELECT id, user_id, name, key_prefix, created_at, last_used_at
-                FROM api_keys
-                WHERE id = ?
+                SELECT
+                    k.id, k.user_id, k.name, k.key_prefix, k.created_at, k.last_used_at,
+                    COALESCE(u.display_name, u.username, 'Admin') AS creator_name
+                FROM api_keys k
+                LEFT JOIN users u ON u.id = k.user_id
+                WHERE k.id = ?
                 """,
                 (int(cursor.lastrowid),),
             ).fetchone()
@@ -1581,14 +1584,17 @@ class AuthRepository:
         return dict(row)
 
     def list_api_keys(self, user_id: int) -> list[dict[str, Any]]:
-        """Return all active API keys for a specific user ordered by creation descending."""
+        """Return all active API keys for a specific user ordered by creation descending with creator name."""
         with self._db.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, user_id, name, key_prefix, created_at, last_used_at
-                FROM api_keys
-                WHERE user_id = ?
-                ORDER BY created_at DESC, id DESC
+                SELECT
+                    k.id, k.user_id, k.name, k.key_prefix, k.created_at, k.last_used_at,
+                    COALESCE(u.display_name, u.username, 'Admin') AS creator_name
+                FROM api_keys k
+                LEFT JOIN users u ON u.id = k.user_id
+                WHERE k.user_id = ?
+                ORDER BY k.created_at DESC, k.id DESC
                 """,
                 (user_id,),
             ).fetchall()

@@ -284,6 +284,7 @@ async def list_api_keys(request: Request) -> ApiKeysListResponse:
                 name=str(r["name"]),
                 key_prefix=str(r["key_prefix"]),
                 created_at=str(r["created_at"]),
+                creator_name=str(r.get("creator_name") or current.display_name or current.username),
                 last_used_at=str(r["last_used_at"]) if r.get("last_used_at") else None,
             )
             for r in rows
@@ -309,6 +310,8 @@ async def create_api_key(
         raise HTTPException(
             status_code=AppConstants.HTTP_BAD_REQUEST, detail=str(exc)
         ) from exc
+    if not res.get("creator_name"):
+        res["creator_name"] = current.display_name or current.username
     return ApiKeyCreateResponse(**res)
 
 

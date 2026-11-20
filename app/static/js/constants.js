@@ -180,6 +180,12 @@ window.MKVForgeConstants = Object.freeze({
           subtitle: "Idle cleanup cadence & job history retention",
           badgeClass: "border-purple-500/35 bg-purple-500/15 text-purple-300",
         }),
+      ]),
+    }),
+    Object.freeze({
+      id: "legal",
+      title: "About & Legal",
+      sections: Object.freeze([
         Object.freeze({
           id: "about",
           title: "About & Legal Terms",

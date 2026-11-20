@@ -54,6 +54,19 @@
     return `${Math.floor(diffSec / UNITS.SEC_PER_DAY)}d ago`;
   }
 
+  function formatDateTime(isoString) {
+    if (!isoString) return "Never";
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   function formatAudioTrackBadge(track) {
     if (!track) return "";
     const parts = [track.codec || "Audio"];
@@ -187,6 +200,7 @@
     formatBytes,
     formatDurationUs,
     formatRelativeTime,
+    formatDateTime,
     formatBitrateBps,
     formatSampleRateHz,
     formatAudioTrackBadge,

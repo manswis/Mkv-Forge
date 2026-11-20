@@ -72,11 +72,13 @@ class TestApiKeyRepositoryAndService:
         assert created["name"] == "Homepage Widget"
         assert created["key_prefix"] == prefix
         assert created["last_used_at"] is None
+        assert created["creator_name"] == "Administrator"
 
         # 2. List API keys
         keys = auth_repo.list_api_keys(user_id)
         assert len(keys) == 1
         assert keys[0]["id"] == created["id"]
+        assert keys[0]["creator_name"] == "Administrator"
 
         # 3. Lookup with joined user
         joined = auth_repo.get_api_key_with_user(key_hash)
@@ -133,6 +135,7 @@ class TestApiKeyRepositoryAndService:
         # Create key through service
         created = service.create_api_key(user_id=user_id, name="Monitoring")
         assert created["name"] == "Monitoring"
+        assert created["creator_name"] == "Bot Master"
         raw_key = created["key"]
         assert raw_key.startswith("mkv_")
 

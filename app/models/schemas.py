@@ -1016,6 +1016,7 @@ class ApiKeySummary(BaseModel):
     name: str
     key_prefix: str
     created_at: str
+    creator_name: str = ""
     last_used_at: str | None = None
 
 
@@ -1041,6 +1042,7 @@ class ApiKeyCreateResponse(BaseModel):
     key: str
     key_prefix: str
     created_at: str
+    creator_name: str = ""
 
 
 class ApiKeysListResponse(BaseModel):

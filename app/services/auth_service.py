@@ -469,6 +469,7 @@ class AuthService:
             "key": raw_key,
             "key_prefix": str(row["key_prefix"]),
             "created_at": str(row["created_at"]),
+            "creator_name": str(row.get("creator_name") or ""),
         }
 
     def list_api_keys(self, user_id: int) -> list[dict[str, Any]]:
