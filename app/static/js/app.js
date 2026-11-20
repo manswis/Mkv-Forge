@@ -293,6 +293,7 @@
       changePasswordForm: { currentPassword: "", newPassword: "", confirmPassword: "" },
       disableAuthOpen: false,
       disableAuthPassword: "",
+      logoutConfirmOpen: false,
       visiblePasswords: {},
 
       isPasswordVisible(fieldKey) {
@@ -850,6 +851,7 @@
           const status = await Api.logout();
           this._applyAuthStatus(status);
           this.settingsModalOpen = false;
+          this.logoutConfirmOpen = false;
           this.authUsers = [];
           this.apiKeys = [];
           this.showToast("Signed out", "info");

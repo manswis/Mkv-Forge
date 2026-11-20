@@ -410,6 +410,8 @@ class TestPhase13AuthOnboardingAndRouteProtection:
         assert "Switch to No-Auth Mode" in html
         assert "API Keys &amp; Integrations" in html
         assert "createdApiKeyModal !== null" in html
+        assert "logoutConfirmOpen" in html
+        assert "currentUserDisplayName" in html
         assert "job.created_by_name || 'Anonymous'" in html
         assert "`by ${job.created_by_name" not in html
         assert "Your session expired" in html
