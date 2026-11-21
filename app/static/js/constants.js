@@ -275,6 +275,7 @@ window.MKVForgeConstants = Object.freeze({
     ACCENT_COLOR: "mkvforge.accentColor",
     FONT_SCALE: "mkvforge.fontScale",
     UI_LANGUAGE: "mkvforge.language",
+    LIBRARY_RETURN_STATE: "mkvforge.libraryReturnState",
   }),
 
   FILTERS: Object.freeze({
@@ -419,6 +420,12 @@ window.MKVForgeConstants = Object.freeze({
   PAGINATION: Object.freeze({
     DEFAULT_PAGE: 1,
     DEFAULT_LIMIT: 50,
+  }),
+
+  SCROLL_RESTORE: Object.freeze({
+    MIN_OFFSET_PX: 0,
+    MAX_RESTORE_ATTEMPTS: 4,
+    RETRY_DELAY_MS: 50,
   }),
 
   UNITS: Object.freeze({

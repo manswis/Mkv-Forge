@@ -48,6 +48,46 @@
       rotationDeg: 0,
     }),
   };
+  const LR = global.MKVForgeLibraryReturn || {
+    normalizeOffset: (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
+    },
+    normalizeHash: (h) => (typeof h === "string" ? h.trim() : ""),
+    isLibraryHash: (h) =>
+      typeof h === "string" &&
+      (h.trim() === "#/library" || h.trim().startsWith("#/library?")),
+    hashesMatch: (a, b) =>
+      typeof a === "string" && typeof b === "string" && a.trim() === b.trim(),
+    createOriginSnapshot: (input) =>
+      input && input.hash
+        ? {
+            hash: String(input.hash).trim(),
+            page: Math.max(1, parseInt(String(input.page || 1), 10) || 1),
+            view:
+              input.view === C.LIBRARY_VIEWS.LIST
+                ? C.LIBRARY_VIEWS.LIST
+                : C.LIBRARY_VIEWS.DIR,
+            folder: input.folder || C.FOLDER_TREE.ROOT_PATH,
+            scrollTop: Math.max(0, Math.round(Number(input.scrollTop) || 0)),
+            windowScrollY: Math.max(
+              0,
+              Math.round(Number(input.windowScrollY) || 0)
+            ),
+            fileId: input.fileId || null,
+          }
+        : null,
+    saveOrigin: (snapshot) => snapshot || null,
+    loadOrigin: () => null,
+    clearOrigin: () => {},
+    applyScrollPosition: ({ container, win, scrollTop, windowScrollY } = {}) => {
+      if (container) container.scrollTop = Math.max(0, Number(scrollTop) || 0);
+      if (win && typeof win.scrollTo === "function") {
+        win.scrollTo(0, Math.max(0, Number(windowScrollY) || 0));
+      }
+      return { appliedContainer: Boolean(container), appliedWindow: Boolean(win), needsRetry: false };
+    },
+  };
 
   const VALID_SORTS = new Set(Object.values(C.SORT_FIELDS));
   const VALID_ORDERS = new Set(Object.values(C.SORT_ORDERS));
@@ -252,6 +292,10 @@
       // Navigation & hash route state
       route: C.ROUTES.DASHBOARD,
       lastLibraryHash: "#/library",
+      _libraryReturnState: LR.loadOrigin(),
+      _pendingLibraryScrollRestore: null,
+      _scrollRestoreTimer: null,
+      _lastLoadedLibraryHash: null,
       scanMenuOpen: false,
 
       // Toast notification
@@ -1779,6 +1823,18 @@
       },
 
       get editorBackLabel() {
+        const origin = this._getLibraryReturnOrigin();
+        if (origin && origin.hash) {
+          const base =
+            origin.view === C.LIBRARY_VIEWS.LIST
+              ? "Back to Library"
+              : `Back to ${FT.getParentFolderName(
+                  origin.folder || (this.editorFile && this.editorFile.folder)
+                )}`;
+          return origin.page > C.PAGINATION.DEFAULT_PAGE
+            ? `${base} (Page ${origin.page})`
+            : base;
+        }
         if (!this.editorFile) return "Back to Parent";
         return `Back to ${FT.getParentFolderName(this.editorFile.folder)}`;
       },
@@ -1862,8 +1918,149 @@
         }
       },
 
+      _buildCurrentLibraryHash() {
+        return buildHash({
+          route: C.ROUTES.LIBRARY,
+          view: this.libraryView,
+          noDolby: this.noDolby,
+          hasMetadata: this.hasMetadata,
+          audioType: this.audioType,
+          audioCodec: this.audioCodec,
+          folder: this.isDirView
+            ? this.currentDir === C.FOLDER_TREE.ROOT_PATH
+              ? ""
+              : this.currentDir
+            : "",
+          q: this.searchQuery,
+          sort: this.sortField,
+          order: this.sortOrder,
+          page: this.page,
+        });
+      },
+
+      _captureLibraryOrigin(fileId = null) {
+        if (this.route !== C.ROUTES.LIBRARY) return null;
+        const hash = this._buildCurrentLibraryHash();
+        const container = this.$refs && this.$refs.libraryScrollContainer;
+        const snapshot = LR.saveOrigin({
+          hash,
+          page: this.page,
+          view: this.libraryView,
+          folder: this.isDirView ? this.currentDir : C.FOLDER_TREE.ROOT_PATH,
+          scrollTop: container ? container.scrollTop : 0,
+          windowScrollY:
+            window.scrollY ||
+            (document.documentElement && document.documentElement.scrollTop) ||
+            0,
+          fileId,
+        });
+        this.lastLibraryHash = hash;
+        this._libraryReturnState = snapshot;
+        return snapshot;
+      },
+
+      _getLibraryReturnOrigin() {
+        if (this._libraryReturnState && this._libraryReturnState.hash) {
+          return this._libraryReturnState;
+        }
+        const loaded = LR.loadOrigin();
+        if (loaded) {
+          this._libraryReturnState = loaded;
+        }
+        return loaded;
+      },
+
+      _cancelPendingScrollRestore() {
+        if (this._scrollRestoreTimer !== null) {
+          clearTimeout(this._scrollRestoreTimer);
+          this._scrollRestoreTimer = null;
+        }
+        this._pendingLibraryScrollRestore = null;
+      },
+
+      _clearLibraryReturnOrigin({ clearPendingScroll = true } = {}) {
+        this._libraryReturnState = null;
+        LR.clearOrigin();
+        if (clearPendingScroll) {
+          this._cancelPendingScrollRestore();
+        }
+      },
+
+      _scheduleLibraryScrollRestore({ consume = true, attempt = 0 } = {}) {
+        const pending = this._pendingLibraryScrollRestore;
+        if (!pending || this.route !== C.ROUTES.LIBRARY) return;
+
+        if (this._scrollRestoreTimer !== null) {
+          clearTimeout(this._scrollRestoreTimer);
+          this._scrollRestoreTimer = null;
+        }
+
+        const runRestore = () => {
+          const currentPending = this._pendingLibraryScrollRestore;
+          if (!currentPending || this.route !== C.ROUTES.LIBRARY) return;
+          const container =
+            (this.$refs && this.$refs.libraryScrollContainer) || null;
+          const result = LR.applyScrollPosition({
+            container,
+            win: typeof window !== "undefined" ? window : null,
+            scrollTop: currentPending.scrollTop,
+            windowScrollY: currentPending.windowScrollY,
+          });
+          const maxAttempts =
+            (C.SCROLL_RESTORE && C.SCROLL_RESTORE.MAX_RESTORE_ATTEMPTS) || 4;
+          const retryDelayMs =
+            (C.SCROLL_RESTORE && C.SCROLL_RESTORE.RETRY_DELAY_MS) || 50;
+          if (result.needsRetry && attempt < maxAttempts) {
+            this._scrollRestoreTimer = setTimeout(() => {
+              this._scrollRestoreTimer = null;
+              this._scheduleLibraryScrollRestore({
+                consume,
+                attempt: attempt + 1,
+              });
+            }, retryDelayMs);
+            return;
+          }
+          if (consume) {
+            this._pendingLibraryScrollRestore = null;
+            this._libraryReturnState = null;
+            LR.clearOrigin();
+          }
+        };
+
+        const scheduleFrame = () => {
+          if (typeof requestAnimationFrame === "function") {
+            requestAnimationFrame(runRestore);
+          } else {
+            runRestore();
+          }
+        };
+
+        if (typeof this.$nextTick === "function") {
+          this.$nextTick(scheduleFrame);
+        } else {
+          scheduleFrame();
+        }
+      },
+
+      returnToLibraryOrigin() {
+        const origin = this._getLibraryReturnOrigin();
+        if (!origin || !origin.hash) return false;
+        this.scanMenuOpen = false;
+        this.closeContextMenu();
+        this.libraryView = origin.view;
+        this.lastLibraryHash = origin.hash;
+        this._pendingLibraryScrollRestore = { ...origin };
+        if (window.location.hash !== origin.hash) {
+          window.location.hash = origin.hash;
+        } else {
+          this._applyHashState(origin.hash, true);
+        }
+        return true;
+      },
+
       _applyHashState(rawHash, shouldLoad) {
         this.closeContextMenu();
+        const prevRoute = this.route;
         const parsed = parseRouteFromHash(rawHash);
         if (parsed.route !== C.ROUTES.SETTINGS) {
           this._lastNonSettingsRoute = parsed.route;
@@ -1874,8 +2071,15 @@
         this.route = parsed.route;
 
         if (parsed.route === C.ROUTES.LIBRARY) {
+          const origin = this._getLibraryReturnOrigin();
           if (parsed.view) {
             this.libraryView = parsed.view;
+          } else if (
+            origin &&
+            LR.hashesMatch(origin.hash, rawHash) &&
+            origin.view
+          ) {
+            this.libraryView = origin.view;
           }
           this.noDolby = parsed.noDolby;
           this.hasMetadata = parsed.hasMetadata;
@@ -1898,6 +2102,15 @@
                 : this.currentDir
               : "",
           });
+          if (
+            !this._pendingLibraryScrollRestore &&
+            prevRoute &&
+            prevRoute !== C.ROUTES.LIBRARY &&
+            origin &&
+            LR.hashesMatch(origin.hash, this.lastLibraryHash)
+          ) {
+            this._pendingLibraryScrollRestore = { ...origin };
+          }
         } else if (parsed.route === C.ROUTES.EDITOR) {
           this.editorFileId = parsed.editorFileId;
         }
@@ -1940,7 +2153,16 @@
         if (this.route === C.ROUTES.DASHBOARD) {
           this.loadDashboard();
         } else if (this.route === C.ROUTES.LIBRARY) {
-          this.loadLibrary({ clearStale: true });
+          const canPreserveRenderedPage =
+            Boolean(this._pendingLibraryScrollRestore) &&
+            this.files.length > 0 &&
+            LR.hashesMatch(this._lastLoadedLibraryHash, this.lastLibraryHash);
+          if (canPreserveRenderedPage) {
+            this._scheduleLibraryScrollRestore({ consume: false });
+            this.loadLibrary({ clearStale: false, preserveSelection: true });
+          } else {
+            this.loadLibrary({ clearStale: true });
+          }
         } else if (this.route === C.ROUTES.JOBS) {
           this.loadJobs();
         } else if (this.route === C.ROUTES.SETTINGS) {
@@ -1954,6 +2176,12 @@
       navigate(targetRoute) {
         this.scanMenuOpen = false;
         this.closeContextMenu();
+        if (
+          this.route === C.ROUTES.LIBRARY &&
+          targetRoute !== C.ROUTES.LIBRARY
+        ) {
+          this._captureLibraryOrigin(null);
+        }
         const nextHash = buildHash({
           route: targetRoute,
           view: this.libraryView,
@@ -1971,6 +2199,12 @@
           order: this.sortOrder,
           page: this.page,
         });
+        if (targetRoute === C.ROUTES.LIBRARY) {
+          const origin = this._getLibraryReturnOrigin();
+          if (origin && LR.hashesMatch(origin.hash, nextHash)) {
+            this._pendingLibraryScrollRestore = { ...origin };
+          }
+        }
         if (window.location.hash !== nextHash) {
           window.location.hash = nextHash;
         } else {
@@ -1982,6 +2216,7 @@
       openLibraryPreset(preset = {}) {
         this.scanMenuOpen = false;
         this.closeContextMenu();
+        this._clearLibraryReturnOrigin();
         const nextNoDolby = Boolean(preset.noDolby);
         const nextHasMetadata = Boolean(preset.hasMetadata);
         const nextAudioType = preset.audioType || "";
@@ -2036,7 +2271,7 @@
           return;
         }
         if (this.route === C.ROUTES.LIBRARY) {
-          this.lastLibraryHash = window.location.hash || "#/library";
+          this._captureLibraryOrigin(file.id);
         }
         const targetHash = `#/${C.ROUTES.EDITOR}/${file.id}`;
         if (window.location.hash !== targetHash) {
@@ -2049,6 +2284,7 @@
       openFolderInLibrary(folderPath) {
         this.scanMenuOpen = false;
         this.closeContextMenu();
+        this._clearLibraryReturnOrigin();
         const normalized = FT.normalizeFolderPath(folderPath);
         this.libraryView = C.LIBRARY_VIEWS.DIR;
         try {
@@ -2089,6 +2325,9 @@
       },
 
       backToParentFolder() {
+        if (this.returnToLibraryOrigin()) {
+          return;
+        }
         if (this.editorFile) {
           this.openFolderInLibrary(this.editorFile.folder);
           return;
@@ -2097,6 +2336,9 @@
       },
 
       backToLibrary() {
+        if (this.returnToLibraryOrigin()) {
+          return;
+        }
         const target = this.lastLibraryHash || "#/library";
         if (window.location.hash !== target) {
           window.location.hash = target;
@@ -2645,6 +2887,13 @@
           };
           this.totalFiles = data.total || 0;
           this.totalPages = data.total_pages || 0;
+          if (this.totalPages > 0 && this.page > this.totalPages) {
+            this.page = this.totalPages;
+            this._syncUrlHash(true);
+            this.loadLibrary({ preserveSelection });
+            return;
+          }
+          this._lastLoadedLibraryHash = this._buildCurrentLibraryHash();
         } catch (err) {
           if (
             reqSeq !== this._libraryRequestSeq ||
@@ -2662,6 +2911,11 @@
             if (this._pendingLibraryReload && this.route === C.ROUTES.LIBRARY) {
               this._pendingLibraryReload = false;
               this.loadLibrary({ preserveSelection: true });
+            } else if (
+              this.route === C.ROUTES.LIBRARY &&
+              this._pendingLibraryScrollRestore
+            ) {
+              this._scheduleLibraryScrollRestore({ consume: true });
             }
           }
         }
@@ -3383,12 +3637,14 @@
           // Safe fallback
         }
         if (this.route !== C.ROUTES.LIBRARY) {
+          this._clearLibraryReturnOrigin();
           this.page = C.PAGINATION.DEFAULT_PAGE;
           this.clearSelection();
           this.navigate(C.ROUTES.LIBRARY);
           return;
         }
         if (!viewChanged) return;
+        this._clearLibraryReturnOrigin();
         this.page = C.PAGINATION.DEFAULT_PAGE;
         this.clearSelection();
         this.closeContextMenu();
@@ -3426,6 +3682,7 @@
 
       openDirectory(folderPath) {
         this.folderBarMenuOpen = false;
+        this._clearLibraryReturnOrigin();
         const normalized = FT.normalizeFolderPath(folderPath);
         this.currentDir = normalized;
         this.page = C.PAGINATION.DEFAULT_PAGE;
@@ -4174,12 +4431,14 @@
         } else if (filterKey === C.FILTERS.HAS_METADATA) {
           this.hasMetadata = !this.hasMetadata;
         }
+        this._clearLibraryReturnOrigin();
         this.page = C.PAGINATION.DEFAULT_PAGE;
         this._syncUrlHash(true);
         this.loadLibrary();
       },
 
       toggleAudioType(soundType) {
+        this._clearLibraryReturnOrigin();
         this.audioType = this.audioType === soundType ? "" : soundType;
         this.page = C.PAGINATION.DEFAULT_PAGE;
         this._syncUrlHash(true);
@@ -4192,6 +4451,7 @@
         }
         this._searchTimer = setTimeout(() => {
           this._searchTimer = null;
+          this._clearLibraryReturnOrigin();
           this.page = C.PAGINATION.DEFAULT_PAGE;
           this._syncUrlHash(true);
           this.loadLibrary();
@@ -4203,6 +4463,7 @@
           clearTimeout(this._searchTimer);
           this._searchTimer = null;
         }
+        this._clearLibraryReturnOrigin();
         this.searchQuery = "";
         this.appliedSearchQuery = "";
         this.page = C.PAGINATION.DEFAULT_PAGE;
@@ -4220,6 +4481,7 @@
           this.sortField = field;
           this.sortOrder = C.SORT_ORDERS.ASC;
         }
+        this._clearLibraryReturnOrigin();
         this.page = C.PAGINATION.DEFAULT_PAGE;
         this._syncUrlHash(true);
         this.loadLibrary();
@@ -4232,6 +4494,7 @@
         ) {
           return;
         }
+        this._clearLibraryReturnOrigin();
         this.page = nextPage;
         this._syncUrlHash(true);
         this.loadLibrary();
