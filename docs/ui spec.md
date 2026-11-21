@@ -124,6 +124,38 @@ Tapping **Advanced Settings** smoothly expands power-user controls without clutt
 * **Output Behavior:**
   * `[ Replace Original ]` (default, atomic swap; for `.mp4` inputs, writes `<stem>.mkv` and removes `.mp4` after success, failing safely if `<stem>.mkv` already exists) | `[ Keep Both (.remux.mkv) ]` (auto-increments `.remux.2.mkv`, etc. on collision).
 
+#### Progressive-Disclosure Convert Audio Modal (Phase 14)
+
+Instead of a global Simple/Advanced Settings switch, audio conversion uses **inline progressive disclosure** so the default path stays 2 taps while audiophiles unlock full control in 1 tap:
+
+1. **Source-Aware `+ Add / Convert` Dropdown (Max 2–3 Recommendations + `Custom conversion…`):**
+   * **AAC 5.1 source:** `E-AC-3 5.1` *(Recommended)*, `AC-3 5.1`, `Custom conversion…`.
+   * **TrueHD / DTS-HD 7.1 source:** `FLAC 7.1` *(Lossless)*, `E-AC-3 5.1` *(AVR/Soundbar)*, `Opus 7.1` *(Plex/Jellyfin)*, `Custom conversion…`.
+   * **E-AC-3 / AC-3 5.1 source:** `AAC 5.1`, `AAC 2.0` *(Stereo)*, `Custom conversion…`.
+   * **2.0 Stereo source:** Top 2 non-identical codecs at `2.0`, plus `Custom conversion…`.
+   * Picking any recommended option opens the modal with **Advanced collapsed**; picking `Custom conversion…` opens the modal with **Advanced expanded**.
+
+2. **Collapsed Default Modal View (90% Happy Path):**
+   * **Source Track** selector (compact read-only pill when only 1 audio track exists; dropdown for multi-audio files).
+   * **Contextual Warning / Info Banner** *(rendered only when a real trade-off applies — see table below)*.
+   * **Single Collapsible Disclosure Bar:** `▸ Advanced   E-AC-3 · Match (5.1) · 640k · eng` (shows active codec, resolved channel layout, bitrate or `Lossless`, and language at a glance).
+   * **Track Title** input (auto-updates from codec + resolved channels + bitrate + language until manually edited), **Set as default**, and **Drop original source track** toggles.
+
+3. **Expanded `▾ Advanced` Panel (Power Users & Audiophiles):**
+   * **Format Pills:** `E-AC-3`, `AC-3`, `AAC`, `Opus`, plus `FLAC` *(shown only when the selected source track is lossless)*.
+   * **Channels Pills:** `Match (<src>)` + valid downmixes (`7.1`, `6.1`, `5.1`, `2.0`, `1.0`) strictly filtered to `<= min(source_channels, codec.max_channels)` — never offers upmixing.
+   * **Bitrate Pills:** Dynamically adapts to `(target_codec, resolved_channels)`; hidden for lossless `FLAC`.
+   * **Language Selector:** ISO 639-2 language dropdown.
+   * All pills use responsive `flex-wrap` with zero fixed widths so mobile and accessibility font scales never overflow.
+
+4. **Contextual User-Facing Warnings & Hints:**
+   * **Atmos / JOC / DTS:X detected (Amber Warning):** *"Re-encoding strips Dolby Atmos / DTS:X height object metadata — only the flat surround bed is kept. Leave the original track checked if your AVR/soundbar supports Atmos."*
+   * **7.1 / 6.1 source → E-AC-3 or AC-3 (Amber Warning):** *"FFmpeg caps Dolby Digital / Plus at 5.1 — this track will downmix <src> → 5.1. Choose FLAC (lossless), Opus, or AAC to preserve <src>."* *(omits FLAC if source is lossy)*.
+   * **AC-3 → E-AC-3 at same channels (Amber Warning):** *"Lossy-to-lossy sidegrade: Dolby devices that play E-AC-3 already play AC-3 natively. Re-encoding reduces quality without adding compatibility."*
+   * **Same codec + same channels (Caution):** *"Re-encoding the same codec and channel layout causes generation loss. Only useful to reduce bitrate or fix compatibility."*
+   * **Explicit downmix (Info):** *"Downmixing <src> → <target> using standard channel coefficients."*
+   * **Opus / FLAC surround (Subtle Info):** Notes LPCM playback over HDMI/eARC (not optical SPDIF); highlights bit-exact lossless preservation on `FLAC`.
+
 #### Sticky Bottom Bar & Guardrails
 
 * Shows a 1-line summary of pending changes (e.g., `+ EAC3 5.1 (Index 0) • Strip Metadata`) and a primary **`Process File`** button.

@@ -119,6 +119,8 @@ async def create_job(
             validate_audio_conversion_pair(
                 payload.config.audio_conversion.source_codec,
                 payload.config.audio_conversion.target_codec,
+                source_channels=payload.config.audio_conversion.source_channels,
+                target_channels=payload.config.audio_conversion.target_channels,
             )
         except InvalidAudioConversionError as exc:
             raise HTTPException(

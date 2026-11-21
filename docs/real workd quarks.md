@@ -43,3 +43,33 @@ All 7 edge cases below (plus additional technical catches) have been folded dire
 
 10. **Accidental Video Uncheck & Virtual Preview Row**
     * Warn before submitting if all video tracks are unchecked, and display a live `[NEW] <Title> • Default` preview row at Audio Index 0 when Dolby conversion is toggled ON.
+
+## Audiophile & Multi-Codec FFmpeg Gotchas (Phase 14)
+
+11. **FFmpeg `eac3` Encoder Hard-Caps at 5.1 (No 7.1 Dependent Substreams)**
+    * Open-source FFmpeg's `eac3` encoder (`ffmpeg -h encoder=eac3`) only supports layouts up to `5.1` (`6 ch`); E-AC-3 7.1 requires Dolby dependent substreams not implemented in FFmpeg. Passing `-ac 8` crashes FFmpeg.
+    * **Fix:** Enforce per-codec `max_channels` (`6` for `eac3`/`ac3`; `8` for `aac`/`opus`/`flac`), surface an explicit inline notice when a `7.1`/`6.1` source targets Dolby, and steer users to `FLAC`, `Opus`, or `AAC` when true 7.1 preservation is desired.
+
+12. **`libopus` Crash on `5.1(side)` / `7.1(wide)` Layouts**
+    * Many MKVs tag 5.1 tracks as `5.1(side)`. FFmpeg's `libopus` rejects `5.1(side)` with `Invalid channel layout 5.1(side) for specified mapping family -1` unless normalized.
+    * **Fix:** Explicitly pass canonical `-channel_layout` (`5.1`, `7.1`, `6.1`, `stereo`, `mono`), pass `-mapping_family 1` for `libopus` when `target_channels > 2`, and normalize sample rate to `-ar 48000`.
+
+13. **Encoder Priming-Delay Lip-Sync Drift on Raw ADTS `.aac` & `.opus`**
+    * Raw ADTS `.aac` discards encoder priming-delay metadata (~21 ms shift), and FFmpeg cannot write raw elementary `.opus`.
+    * **Fix:** Write Stage 1 temp audio into Matroska Audio (`.mka`) for `aac`, `opus`, and `flac` so `mkvmerge` reads sample-accurate codec delay / Opus pre-skip automatically.
+
+14. **Dolby Dynamic Range Compression (DRC) Squashing on AC-3 / E-AC-3 Decode**
+    * When decoding an existing `ac3` or `eac3` source track, FFmpeg applies `-drc_scale 1` by default, compressing loud/quiet dynamics.
+    * **Fix:** Pass `-drc_scale 0` before `-i` whenever the verified source codec is `ac3` or `eac3`; keep FFmpeg's default `-dialnorm -31` (0 dB attenuation) on Dolby encodes.
+
+15. **Lossy → Lossless (`FLAC`) File Bloat Trap & Bit-Depth Preservation**
+    * Converting lossy `AAC`/`AC-3`/`E-AC-3`/`Opus` to `FLAC` inflates track size 5×–10× with zero audio recovery; conversely, forcing `s16` when converting 24-bit TrueHD/DTS-HD MA truncates resolution.
+    * **Fix:** Offer `FLAC` exclusively for lossless sources (`TrueHD`, `DTS-HD MA`, `FLAC`, `PCM`), omit `-b:a`, and preserve native sample format (`s16`/`s32`) and sample rate untouched.
+
+16. **Dolby Atmos / DTS:X Object Metadata Destruction**
+    * Any FFmpeg transcode of TrueHD Atmos, E-AC-3 JOC, or DTS:X strips height/object metadata, retaining only the flat channel bed.
+    * **Fix:** Detect Atmos/JOC/DTS:X hints on the source track and display a prominent amber warning in the Convert modal advising the user not to drop the original track if their AVR/soundbar supports Atmos.
+
+17. **Native `aac` Bitrate Floors & Odd Cinema Layouts (`6.1` DTS-ES, `4.0`, `3.0`)**
+    * FFmpeg's built-in `aac` encoder degrades audibly below ~64 kbps/ch on 5.1/7.1, while `ac3` hard-caps at `640k` (`eac3` supports `768k`). Blu-rays also carry `6.1` (7 ch), `4.0`, and `3.0` tracks.
+    * **Fix:** Maintain a per-`(codec, channel_count)` bitrate ladder (including `768k` for `eac3` 5.1 and `512k–768k` for `aac` 7.1) and format exact channel labels (`7.1`, `6.1`, `5.1`, `4.0`, `3.0`, `2.0`, `1.0`) without clamping `>= 6` to `"5.1"`.

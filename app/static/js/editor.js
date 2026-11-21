@@ -5,9 +5,9 @@
 
   function formatChannelLabel(channels) {
     const count = Number(channels || 0);
-    if (count >= EDITOR.MAX_DOLBY_CHANNELS) return "5.1";
-    if (count === 2) return "2.0";
-    if (count === 1) return "1.0";
+    if (EDITOR.CHANNEL_LABELS && EDITOR.CHANNEL_LABELS[count]) {
+      return EDITOR.CHANNEL_LABELS[count];
+    }
     if (count > 0) return `${count}ch`;
     return "5.1";
   }
@@ -30,11 +30,226 @@
     if (lower.includes("flac") || cid === "A_FLAC") return "flac";
     if (lower.includes("mp3") || lower.includes("layer 3") || cid === "A_MPEG/L3") return "mp3";
     if (lower.includes("pcm") || cid.startsWith("A_PCM")) return "pcm";
+    if (lower.includes("alac") || cid === "A_ALAC") return "alac";
     return lower || null;
+  }
+
+  function isLosslessAudioTrack(track) {
+    if (!track || track.type !== "audio") return false;
+    const raw = String(track.codec || "").trim().toLowerCase();
+    if (raw.includes("dts-hd") || raw.includes("dts_hd") || raw.includes("dtshd")) {
+      return !raw.includes("high resolution") && !raw.includes("hra");
+    }
+    const canonical = canonicalizeAudioCodec(track.codec, track.codec_id);
+    const losslessSet = EDITOR.LOSSLESS_SOURCE_CODECS || ["truehd", "flac", "pcm"];
+    return Boolean(canonical && losslessSet.includes(canonical));
+  }
+
+  function hasObjectAudioMetadata(track) {
+    if (!track || track.type !== "audio") return false;
+    const haystack = `${track.codec || ""} ${track.codec_id || ""} ${track.track_name || ""}`.toLowerCase();
+    return (
+      haystack.includes("atmos") ||
+      haystack.includes("joc") ||
+      haystack.includes("dts:x") ||
+      haystack.includes("dts-x") ||
+      haystack.includes("dtsx")
+    );
   }
 
   function getCodecMeta(targetCodec) {
     return EDITOR.TARGET_CODEC_META[targetCodec] || EDITOR.TARGET_CODEC_META.eac3;
+  }
+
+  function resolveTargetChannels(sourceChannels, targetCodec, requestedChannels = null) {
+    const meta = getCodecMeta(targetCodec);
+    const maxForCodec = Number(meta.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+    const parsedSource = Number(sourceChannels || 0);
+    const effectiveSource = parsedSource > 0 ? parsedSource : EDITOR.MAX_DOLBY_CHANNELS;
+    const ceiling = Math.min(effectiveSource, maxForCodec);
+    if (requestedChannels === null || requestedChannels === undefined || requestedChannels === "") {
+      return ceiling;
+    }
+    const req = Number(requestedChannels);
+    if (!Number.isFinite(req) || req < 1) return ceiling;
+    return Math.min(Math.round(req), ceiling);
+  }
+
+  function getBitrateConfigFor(targetCodec, resolvedChannels) {
+    const meta = getCodecMeta(targetCodec);
+    if (meta.isLossless) {
+      return { options: [], defaultBitrate: null };
+    }
+    const byCh = meta.bitratesByChannels || {};
+    const ch = Number(resolvedChannels || EDITOR.MAX_DOLBY_CHANNELS);
+    if (byCh[ch]) {
+      return {
+        options: Array.from(byCh[ch].options),
+        defaultBitrate: byCh[ch].defaultBitrate,
+      };
+    }
+    // Fall back to nearest defined channel bucket <= ch, else default codec bitrates
+    const definedKeys = Object.keys(byCh)
+      .map((k) => Number(k))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => b - a);
+    const nearest = definedKeys.find((k) => k <= ch) ?? definedKeys[definedKeys.length - 1];
+    if (nearest !== undefined && byCh[nearest]) {
+      return {
+        options: Array.from(byCh[nearest].options),
+        defaultBitrate: byCh[nearest].defaultBitrate,
+      };
+    }
+    return {
+      options: Array.from(meta.bitrates || []),
+      defaultBitrate: meta.defaultBitrate || EDITOR.DEFAULT_BITRATE,
+    };
+  }
+
+  function getAvailableTargetCodecs(sourceTrack) {
+    const lossless = isLosslessAudioTrack(sourceTrack);
+    const ordered = EDITOR.ALL_TARGET_CODECS || ["eac3", "ac3", "aac", "opus", "flac"];
+    return ordered
+      .map((code) => getCodecMeta(code))
+      .filter((meta) => !meta.requiresLosslessSource || lossless);
+  }
+
+  function getAvailableChannelOptions(sourceTrack, targetCodec) {
+    const meta = getCodecMeta(targetCodec);
+    const maxForCodec = Number(meta.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+    const rawSrc = Number((sourceTrack && sourceTrack.audio_channels) || 0);
+    // When source channel metadata is absent, offer Match Source only (never fabricate downmixes/upmixes)
+    if (rawSrc <= 0) {
+      const capLabel = formatChannelLabel(maxForCodec);
+      return [
+        {
+          value: null,
+          resolvedChannels: maxForCodec,
+          label: `Match Source (max ${capLabel})`,
+          shortLabel: "Match",
+          isMatch: true,
+        },
+      ];
+    }
+    const srcChannels = rawSrc;
+    const ceiling = Math.min(srcChannels, maxForCodec);
+    const ceilingLabel = formatChannelLabel(ceiling);
+    const isCapped = ceiling < srcChannels;
+
+    const options = [
+      {
+        value: null,
+        resolvedChannels: ceiling,
+        label: isCapped ? `${ceilingLabel} (Max)` : `Match (${ceilingLabel})`,
+        shortLabel: ceilingLabel,
+        isMatch: !isCapped,
+      },
+    ];
+
+    const standardDownmix = EDITOR.STANDARD_DOWNMIX_CHANNELS || [8, 7, 6, 4, 3, 2, 1];
+    // Offer canonical downmix steps strictly below ceiling (5.1, 2.0, 1.0)
+    const canonicalSteps = [
+      EDITOR.CHANNEL_COUNTS ? EDITOR.CHANNEL_COUNTS.SURROUND_51 : 6,
+      EDITOR.CHANNEL_COUNTS ? EDITOR.CHANNEL_COUNTS.STEREO : 2,
+      EDITOR.CHANNEL_COUNTS ? EDITOR.CHANNEL_COUNTS.MONO : 1,
+    ];
+    standardDownmix.forEach((ch) => {
+      if (ch < ceiling && canonicalSteps.includes(ch)) {
+        const chLabel = formatChannelLabel(ch);
+        options.push({
+          value: ch,
+          resolvedChannels: ch,
+          label: ch === 2 ? `${chLabel} Stereo` : ch === 1 ? `${chLabel} Mono` : chLabel,
+          shortLabel: chLabel,
+          isMatch: false,
+        });
+      }
+    });
+
+    return options;
+  }
+
+  function isConversionCombinationBlocked(sourceTrack, targetCodec, resolvedChannels) {
+    if (!sourceTrack) {
+      return { blocked: true, reason: "Select a base audio track first." };
+    }
+    const meta = getCodecMeta(targetCodec);
+    const rawSrc = Number(sourceTrack.audio_channels || 0);
+    const hasKnownChannels = rawSrc > 0;
+    const srcChannels = hasKnownChannels ? rawSrc : EDITOR.MAX_DOLBY_CHANNELS;
+    const outChannels = resolveTargetChannels(srcChannels, targetCodec, resolvedChannels);
+    const canonicalSrc = canonicalizeAudioCodec(sourceTrack.codec, sourceTrack.codec_id);
+
+    if (meta.requiresLosslessSource && !isLosslessAudioTrack(sourceTrack)) {
+      return {
+        blocked: true,
+        reason: "FLAC is only available for lossless sources (TrueHD, DTS-HD MA, FLAC, PCM).",
+      };
+    }
+
+    const isDownmix = hasKnownChannels && outChannels < srcChannels;
+    if (canonicalSrc && canonicalSrc === targetCodec && !isDownmix) {
+      return {
+        blocked: true,
+        reason: `Source track is already ${meta.displayLabel || meta.label}${hasKnownChannels ? " " + formatChannelLabel(srcChannels) : ""}. Choose another format or downmix channels.`,
+      };
+    }
+
+    if (canonicalSrc === EDITOR.CODEC_AC3 && targetCodec === EDITOR.CODEC_EAC3 && !isDownmix) {
+      return {
+        blocked: true,
+        reason: "Dolby devices that play E-AC-3 already play AC-3 natively — re-encoding AC-3 → E-AC-3 loses quality with no compatibility gain.",
+      };
+    }
+
+    return { blocked: false, reason: null };
+  }
+
+  function getConversionNotices(sourceTrack, targetCodec, resolvedChannels) {
+    if (!sourceTrack) return [];
+    const notices = [];
+    const meta = getCodecMeta(targetCodec);
+    const srcChannels = Number(sourceTrack.audio_channels || 0) || EDITOR.MAX_DOLBY_CHANNELS;
+    const outChannels = resolveTargetChannels(srcChannels, targetCodec, resolvedChannels);
+    const srcLabel = formatChannelLabel(srcChannels);
+    const outLabel = formatChannelLabel(outChannels);
+    const losslessSource = isLosslessAudioTrack(sourceTrack);
+    const maxForCodec = Number(meta.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+
+    if (hasObjectAudioMetadata(sourceTrack)) {
+      notices.push({
+        severity: "warning",
+        message:
+          "Re-encoding strips Dolby Atmos / DTS:X height object metadata — only the flat surround bed is kept. Keep the original track if your AVR/soundbar supports Atmos.",
+      });
+    }
+
+    if (srcChannels > maxForCodec && (targetCodec === EDITOR.CODEC_EAC3 || targetCodec === EDITOR.CODEC_AC3)) {
+      const altList = losslessSource ? "FLAC (lossless), Opus, or AAC" : "Opus or AAC";
+      notices.push({
+        severity: "warning",
+        message: `FFmpeg caps Dolby Digital / Plus at 5.1 — this track will downmix ${srcLabel} → ${outLabel}. Choose ${altList} to preserve ${srcLabel}.`,
+      });
+    } else if (outChannels < srcChannels) {
+      notices.push({
+        severity: "info",
+        message: `Downmixing ${srcLabel} → ${outLabel}${outChannels === 2 ? " Stereo" : ""} using standard channel coefficients.`,
+      });
+    }
+
+    if (targetCodec === EDITOR.CODEC_FLAC && losslessSource) {
+      notices.push({
+        severity: "success",
+        message: `Lossless ${outLabel} PCM conversion — preserves native bit depth and sample rate with zero generation loss (requires HDMI/eARC, not optical SPDIF).`,
+      });
+    } else if (targetCodec === EDITOR.CODEC_OPUS && outChannels > 2) {
+      notices.push({
+        severity: "info",
+        message: `Opus ${outLabel} is decoded to LPCM by Plex / Jellyfin / Infuse over HDMI/eARC (not supported over optical SPDIF).`,
+      });
+    }
+
+    return notices;
   }
 
   function getAllowedTargetsForTrack(track) {
@@ -65,14 +280,16 @@
         eligibleTracks.find((t) => isAac51Track(t)) ||
         eligibleTracks.find((t) => isSurroundTrack(t)) ||
         eligibleTracks[0];
-      const channelLabel = formatChannelLabel(preferredTrack.audio_channels);
+      const outChannels = resolveTargetChannels(preferredTrack.audio_channels, targetCodec, null);
+      const channelLabel = formatChannelLabel(outChannels);
+      const bitrateCfg = getBitrateConfigFor(targetCodec, outChannels);
 
       options.push({
         codec: targetCodec,
         label: `${meta.label} ${channelLabel}`,
         subtitle: meta.subtitle,
-        defaultBitrate: meta.defaultBitrate,
-        bitrates: meta.bitrates,
+        defaultBitrate: bitrateCfg.defaultBitrate || meta.defaultBitrate,
+        bitrates: bitrateCfg.options.length > 0 ? bitrateCfg.options : meta.bitrates,
         preferredSourceTrackId: preferredTrack.id,
         eligibleTracks,
       });
@@ -81,14 +298,102 @@
     return options;
   }
 
-  function buildDefaultAudioTitle(langCode, targetCodec, sourceChannels, bitrate) {
+  function getRecommendedAddAudioOptions(editorState) {
+    if (!editorState) return [];
+    const audioTracks = editorState.tracks.filter((t) => t.type === "audio");
+    if (audioTracks.length === 0) return [];
+
+    // Pick primary base track: default AAC 5.1 -> default surround -> any AAC 5.1 -> any surround -> default -> first
+    const primaryTrack =
+      audioTracks.find((t) => t.default_track && isAac51Track(t)) ||
+      audioTracks.find((t) => t.default_track && Number(t.audio_channels || 0) >= 6) ||
+      audioTracks.find((t) => isAac51Track(t)) ||
+      audioTracks.find((t) => Number(t.audio_channels || 0) >= 6) ||
+      audioTracks.find((t) => t.default_track) ||
+      audioTracks[0];
+
+    const srcChannels = Number(primaryTrack.audio_channels || 0) || EDITOR.MAX_DOLBY_CHANNELS;
+    const canonical = canonicalizeAudioCodec(primaryTrack.codec, primaryTrack.codec_id);
+    const lossless = isLosslessAudioTrack(primaryTrack);
+
+    // Build top 2-3 smart recommendations dynamically from source characteristics
+    const specs = [];
+    if (lossless && srcChannels > EDITOR.MAX_DOLBY_CHANNELS) {
+      specs.push(
+        { codec: EDITOR.CODEC_FLAC, targetChannels: null, badge: "Lossless" },
+        { codec: EDITOR.CODEC_EAC3, targetChannels: null, badge: "AVR / TV" },
+        { codec: EDITOR.CODEC_OPUS, targetChannels: null, badge: "Compact 7.1" }
+      );
+    } else if (lossless) {
+      specs.push(
+        { codec: EDITOR.CODEC_EAC3, targetChannels: null, badge: "Recommended" },
+        { codec: EDITOR.CODEC_FLAC, targetChannels: null, badge: "Lossless" },
+        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Legacy" }
+      );
+    } else if (canonical === EDITOR.CODEC_AAC && srcChannels > EDITOR.MAX_DOLBY_CHANNELS) {
+      specs.push(
+        { codec: EDITOR.CODEC_EAC3, targetChannels: null, badge: "AVR / TV" },
+        { codec: EDITOR.CODEC_OPUS, targetChannels: null, badge: `Keeps ${formatChannelLabel(srcChannels)}` },
+        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Legacy" }
+      );
+    } else if (canonical === EDITOR.CODEC_AAC) {
+      specs.push(
+        { codec: EDITOR.CODEC_EAC3, targetChannels: null, badge: "Recommended" },
+        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Legacy" }
+      );
+    } else if (canonical === EDITOR.CODEC_EAC3) {
+      specs.push(
+        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Optical" },
+        { codec: EDITOR.CODEC_AAC, targetChannels: srcChannels > 2 ? 2 : null, badge: srcChannels > 2 ? "Stereo" : "Universal" }
+      );
+    } else if (canonical === EDITOR.CODEC_AC3) {
+      specs.push(
+        { codec: EDITOR.CODEC_AAC, targetChannels: srcChannels > 2 ? 2 : null, badge: srcChannels > 2 ? "Stereo" : "Universal" },
+        { codec: EDITOR.CODEC_OPUS, targetChannels: null, badge: "Modern" }
+      );
+    } else {
+      specs.push(
+        { codec: EDITOR.CODEC_EAC3, targetChannels: null, badge: "Recommended" },
+        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Legacy" },
+        { codec: EDITOR.CODEC_OPUS, targetChannels: null, badge: "Modern" }
+      );
+    }
+
+    return specs.map((spec) => {
+      const meta = getCodecMeta(spec.codec);
+      const outChannels = resolveTargetChannels(srcChannels, spec.codec, spec.targetChannels);
+      const chLabel = formatChannelLabel(outChannels);
+      const bitrateCfg = getBitrateConfigFor(spec.codec, outChannels);
+      return {
+        key: `${spec.codec}-${spec.targetChannels ?? "match"}`,
+        codec: spec.codec,
+        targetChannels: spec.targetChannels,
+        resolvedChannels: outChannels,
+        label: `${meta.displayLabel || meta.label} ${chLabel}`,
+        subtitle: meta.subtitle,
+        badge: spec.badge || null,
+        defaultBitrate: bitrateCfg.defaultBitrate,
+        bitrates: bitrateCfg.options,
+        isLossless: Boolean(meta.isLossless),
+        preferredSourceTrackId: primaryTrack.id,
+        eligibleTracks: audioTracks,
+      };
+    });
+  }
+
+  function buildDefaultAudioTitle(langCode, targetCodec, targetChannels, bitrate) {
     const normalizedLang = String(langCode || EDITOR.DEFAULT_LANGUAGE).toLowerCase();
     const meta = getCodecMeta(targetCodec);
-    const layout = formatChannelLabel(sourceChannels);
-    const resolvedBitrate = String(bitrate || meta.defaultBitrate || "").trim();
+    const resolvedCh = resolveTargetChannels(targetChannels, targetCodec, targetChannels);
+    const layout = formatChannelLabel(resolvedCh);
     const pieces = [`${meta.label} ${layout}`];
-    if (resolvedBitrate) {
-      pieces.push(resolvedBitrate);
+    if (!meta.isLossless) {
+      const resolvedBitrate = String(
+        bitrate || getBitrateConfigFor(targetCodec, resolvedCh).defaultBitrate || ""
+      ).trim();
+      if (resolvedBitrate) {
+        pieces.push(resolvedBitrate);
+      }
     }
     if (normalizedLang && normalizedLang !== EDITOR.DEFAULT_LANGUAGE) {
       pieces.push(normalizedLang);
@@ -341,6 +646,7 @@
         enabled: false,
         sourceTrackId: null,
         targetCodec: defaultDolbyCodec,
+        targetChannels: null,
         bitrate: defaultDolbyBitrate,
         language: prefs.preferred_language || EDITOR.DEFAULT_LANGUAGE,
         trackTitle: "",
@@ -557,9 +863,12 @@
     const sourceAudio = findSelectedSourceAudio(editorState);
     const showVirtual = Boolean(audioFix.enabled && sourceAudio);
     const meta = getCodecMeta(audioFix.targetCodec);
-    const channelLabel = formatChannelLabel(
-      sourceAudio ? sourceAudio.audio_channels : EDITOR.MAX_DOLBY_CHANNELS
+    const resolvedCh = resolveTargetChannels(
+      sourceAudio ? sourceAudio.audio_channels : EDITOR.MAX_DOLBY_CHANNELS,
+      audioFix.targetCodec,
+      audioFix.targetChannels
     );
+    const channelLabel = formatChannelLabel(resolvedCh);
 
     const externalTracks = Array.isArray(editorState.externalTracks)
       ? editorState.externalTracks
@@ -595,7 +904,8 @@
           title: audioFix.trackTitle || `${meta.label} ${channelLabel}`,
           codecBadge: `${meta.label} ${channelLabel}`,
           language: audioFix.language || EDITOR.DEFAULT_LANGUAGE,
-          bitrate: audioFix.bitrate,
+          bitrate: meta.isLossless ? "Lossless" : audioFix.bitrate,
+          isLossless: Boolean(meta.isLossless),
           setAsDefault: Boolean(audioFix.setAsDefault),
           dropSourceTrack: Boolean(audioFix.dropSourceTrack),
           sourceTrackId: sourceAudio.id,
@@ -781,7 +1091,12 @@
 
     if (editorState.audioFix.enabled && sourceAudio) {
       const meta = getCodecMeta(editorState.audioFix.targetCodec);
-      const ch = formatChannelLabel(sourceAudio.audio_channels);
+      const resolvedCh = resolveTargetChannels(
+        sourceAudio.audio_channels,
+        editorState.audioFix.targetCodec,
+        editorState.audioFix.targetChannels
+      );
+      const ch = formatChannelLabel(resolvedCh);
       parts.push(`+ ${meta.label} ${ch} (from #${sourceAudio.id})`);
       if (editorState.audioFix.dropSourceTrack) {
         parts.push("Drop Base Audio");
@@ -955,19 +1270,36 @@
           enabled: convertEnabled,
           source_track_id: convertEnabled ? sourceAudio.id : null,
           source_audio_index:
-            convertEnabled && sourceAudio.audio_index !== null
-              ? sourceAudio.audio_index
+            convertEnabled &&
+            sourceAudio.audio_index !== null &&
+            sourceAudio.audio_index !== undefined
+              ? Number(sourceAudio.audio_index)
               : 0,
           source_channels:
             convertEnabled && sourceAudio.audio_channels
-              ? sourceAudio.audio_channels
+              ? Number(sourceAudio.audio_channels)
               : null,
           source_codec: convertEnabled ? sourceAudio.codec : null,
           source_minimum_timestamp_ns: convertEnabled
             ? Number(sourceAudio.minimum_timestamp_ns || 0)
             : 0,
           target_codec: editorState.audioFix.targetCodec,
-          bitrate: editorState.audioFix.bitrate,
+          target_channels:
+            convertEnabled &&
+            sourceAudio &&
+            editorState.audioFix.targetChannels !== null &&
+            editorState.audioFix.targetChannels !== undefined
+              ? resolveTargetChannels(
+                  sourceAudio.audio_channels,
+                  editorState.audioFix.targetCodec,
+                  editorState.audioFix.targetChannels
+                )
+              : null,
+          bitrate:
+            convertEnabled &&
+            getCodecMeta(editorState.audioFix.targetCodec).isLossless
+              ? null
+              : editorState.audioFix.bitrate,
           track_title: editorState.audioFix.trackTitle,
           language: editorState.audioFix.language || EDITOR.DEFAULT_LANGUAGE,
           set_as_default: Boolean(editorState.audioFix.setAsDefault),
@@ -999,9 +1331,18 @@
   global.MKVForgeEditor = Object.freeze({
     formatChannelLabel,
     canonicalizeAudioCodec,
+    isLosslessAudioTrack,
+    hasObjectAudioMetadata,
     getCodecMeta,
+    resolveTargetChannels,
+    getBitrateConfigFor,
+    getAvailableTargetCodecs,
+    getAvailableChannelOptions,
+    isConversionCombinationBlocked,
+    getConversionNotices,
     getAllowedTargetsForTrack,
     getAvailableAddAudioOptions,
+    getRecommendedAddAudioOptions,
     buildDefaultAudioTitle,
     buildDefaultExternalTitle,
     isAac51Track,

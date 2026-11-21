@@ -135,4 +135,28 @@ class TestIndexHtmlStructure:
         assert "Fmt.formatDateTime(k.last_used_at)" in html
         assert "Fmt.formatDateTime(createdApiKeyModal.created_at)" in html
 
+    def test_phase14_convert_audio_progressive_disclosure_landmarks(self) -> None:
+        html = _read_index_html()
+        app_js = APP_JS_PATH.read_text(encoding="utf-8")
+
+        # + Add / Convert dropdown renders source-aware recommendations + Custom conversion
+        assert "editorRecommendedAudioOptions" in html
+        assert "openCustomAddAudio()" in html
+
+        # Progressive disclosure Convert Audio modal landmarks
+        assert "addAudioDraft && editorDraftCodecMeta" in html
+        assert "addAudioDraft.advancedOpen = !addAudioDraft.advancedOpen" in html
+        assert "editorDraftAdvancedSummary" in html
+        assert "editorDraftAvailableCodecs" in html
+        assert "editorDraftChannelOptions" in html
+        assert "editorDraftBitrateConfig" in html
+        assert "editorDraftNotices" in html
+        assert "editorDraftBlockStatus" in html
+        assert "max-h-[90dvh] overflow-y-auto" in html
+
+        # Controller handlers exist in app.js
+        assert "openCustomAddAudio()" in app_js
+        assert "onDraftTargetCodecChange(" in app_js
+        assert "onDraftChannelsChange(" in app_js
+
 

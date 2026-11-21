@@ -61,17 +61,20 @@ Clicking any file opens the **Track & Metadata Editor**:
   * **Reorder Tracks:** Up/down controls (mobile-friendly tap buttons, not drag-only) to define output track order.
   * **Virtual Preview Row:** When "Add Converted Audio Track" is ON, render a live preview row at Audio Index 0 (`[NEW] <Title> • Default`) in the track list.
 
-### 3.3 AAC 5.1 → AC3 / EAC3 Track Addition
+### 3.3 Capability-Driven Audio Conversion Matrix (Phase 14)
 
-* Dedicated **"Add Converted Audio Track"** panel in the editor (auto-highlighted when an AAC 5.1 track is detected):
-  * **Enable Toggle:** Off by default (one-tap enable).
-  * **Source Track Selector:** Choose which audio track to transcode (defaults to first AAC 5.1 track).
-  * **Target Codec:** `EAC3 (Dolby Digital Plus)` or `AC3 (Dolby Digital)`.
-  * **Bitrate:** `640k` (default), `448k`, `384k`.
-  * **Track Title:** Editable text input (default: `<Language> EAC3 5.1` or `<Language> AC3 5.1`).
-  * **Track Language:** Inherits from source track, editable.
-  * **Channel Preservation:** Derive FFmpeg `-ac` from the source track's channel count capped at `6` (`min(source_channels, 6)`), avoiding fake upmixing of stereo sources.
-  * **Placement & Default Flag Demotion:** Automatically inserted at **Audio Index 0** with `--default-track-flag 0:yes`, while explicitly clearing the default flag (`--default-track-flag <id>:no`) on existing audio tracks (unless overridden) so players never see double default audio tracks. User may optionally drop the original AAC track.
+* Unified **Convert Audio** workflow inside the Editor's `+ Add / Convert` menu (auto-highlighting optimal recommendations for the file's actual source tracks, with a progressive-disclosure **Advanced** panel for power users):
+  * **Supported Target Codecs & Hardware/Encoder Limits:**
+    * **`eac3` (Dolby Digital Plus):** FFmpeg `eac3` encoder, max **5.1 (6 ch)** *(FFmpeg does not implement E-AC-3 dependent substreams required for 7.1)*, sample rates `{48000, 44100, 32000}` (fallback `48000`). Bitrates by layout: 5.1 → `448k / 640k (default) / 768k`; 3.0–4.0 → `256k / 384k (default) / 448k`; 2.0 → `192k / 256k (default) / 320k`; 1.0 → `96k / 128k (default) / 192k`.
+    * **`ac3` (Dolby Digital):** FFmpeg `ac3` encoder, max **5.1 (6 ch)** *(ATSC A/52A spec limit)*, max bitrate **`640k`**, sample rates `{48000, 44100, 32000}` (fallback `48000`). Bitrates by layout: 5.1 → `384k / 448k (default) / 640k`; 3.0–4.0 → `256k / 384k (default) / 448k`; 2.0 → `192k / 256k (default) / 320k`; 1.0 → `96k / 128k (default) / 192k`.
+    * **`aac` (Universal AAC):** FFmpeg `aac` encoder, max **7.1 (8 ch)**. Bitrates scaled to avoid native-AAC low-bitrate artifacts: 7.1 → `512k / 640k (default) / 768k`; 6.1 → `448k / 512k (default) / 640k`; 5.1 → `384k / 448k (default) / 512k`; 3.0–4.0 → `256k / 320k (default) / 384k`; 2.0 → `192k / 256k (default) / 320k`; 1.0 → `96k / 128k (default) / 192k`.
+    * **`opus` (Modern High-Efficiency):** FFmpeg `libopus` encoder, max **7.1 (8 ch)**, native `48000 Hz`, explicit `-mapping_family 1` for multichannel (`> 2 ch`). Bitrates by layout: 7.1 → `384k / 448k (default) / 512k`; 6.1 → `320k / 384k (default) / 448k`; 5.1 → `256k / 320k (default) / 384k`; 3.0–4.0 → `192k / 256k (default) / 320k`; 2.0 → `128k / 192k (default) / 256k`; 1.0 → `64k / 96k (default) / 128k`.
+    * **`flac` (Lossless PCM):** FFmpeg `flac` encoder, max **7.1 (8 ch)**, **only offered for lossless sources** (`TrueHD`, `DTS-HD MA`, `FLAC`, `PCM`) to prevent lossy→lossless file bloat. No bitrate parameter; preserves native bit depth (`16-bit` / `24-bit`) and sample rate untouched.
+  * **Channel Selection (`target_channels`):**
+    * Defaults to **`Match Source`** (`target_channels = None` → `min(source_channels, codec.max_channels)`).
+    * Supports explicit downmix selection (`7.1`, `6.1`, `5.1`, `4.0`, `3.0`, `2.0`, `1.0`) strictly bounded by `1 <= target_channels <= min(source_channels, codec.max_channels)` — **never upmixes**.
+    * Exact channel layout labels (`8 → 7.1`, `7 → 6.1`, `6 → 5.1`, `4 → 4.0`, `3 → 3.0`, `2 → 2.0`, `1 → 1.0`) drive auto-generated track titles (e.g. `FLAC 7.1 • eng • muxed`, `EAC3 5.1 • 768k • eng • muxed`, `AAC 2.0 • 256k • eng • muxed`).
+  * **Placement & Default Flag Demotion:** Automatically inserted at **Audio Index 0** with `--default-track-flag 0:yes`, while explicitly clearing the default flag (`--default-track-flag <id>:no`) on existing audio tracks (unless overridden) so players never see double default audio tracks. User may optionally drop the original source track.
 
 ### 3.4 Two-Stage Processing Pipeline & Atomic Writes
 
@@ -80,12 +83,15 @@ Jobs execute sequentially in a single-worker background queue (1 active job at a
 1. **Pre-Flight Checks:**
    * **Duplicate Job Guard:** Reject `POST /api/jobs` with `409 Conflict` if `filepath` already has a `queued` or `running` job.
    * **`.mp4` Target Collision Guard:** If processing an `.mp4` in *Replace Original* mode and `<stem>.mkv` already exists on disk, fail safely rather than overwriting `<stem>.mkv`.
-   * **Disk Space Check:** Verify free space on the target file's parent directory is at least `1.1 * input_file_size + estimated_audio_bytes + 100 MB` (when audio conversion is enabled; `1.1 * input_file_size + 100 MB` otherwise). Fail fast with a clear UI error if insufficient.
+   * **Disk Space Check:** Verify free space on the target file's parent directory is at least `1.1 * input_file_size + estimated_audio_bytes + 100 MB` (when audio conversion is enabled, using bitrate-based sizing for lossy codecs and conservative lossless PCM ceiling for `flac`; `1.1 * input_file_size + 100 MB` otherwise). Fail fast with a clear UI error if insufficient.
 
 2. **Stage 1 — Audio Transcode (only if conversion is enabled):**
-   * Map the selected source track by relative audio index (`-map 0:a:<N>`) derived from `mkvmerge -J` audio tracks in order, and verify codec + channel count against `ffprobe` before starting.
-   * Run:
-     `ffmpeg -y -i "<input>" -map 0:a:<N> -c:a <eac3|ac3> -b:a <bitrate> -ac <channels> -progress pipe:1 -nostats "<same_dir>/<filename>.mkvforge.<eac3|ac3>"`
+   * Map the selected source track by relative audio index (`-map 0:a:<N>`) derived from `mkvmerge -J` audio tracks in order, and verify codec, channel count, and sample rate against `ffprobe` before starting.
+   * Apply audiophile FFmpeg safeguards:
+     * **Full Dolby Dynamic Range on Decode:** Pass `-drc_scale 0` *before* `-i` whenever the verified source codec is `ac3` or `eac3`.
+     * **Canonical Channel Layout Normalization:** Pass explicit `-channel_layout` (`7.1`, `6.1`, `5.1`, `4.0`, `3.0`, `stereo`, `mono`) so `5.1(side)` / `7.1(wide)` sources never fail encoder validation; pass `-mapping_family 1` and `-ar 48000` for `libopus` when `channels > 2`.
+     * **Sample-Accurate Temp Container:** Write Stage 1 output for `aac`, `opus`, and `flac` into Matroska Audio (`.mka`) so `mkvmerge` preserves exact encoder priming delay / Opus pre-skip (preventing ~21 ms lip-sync drift); elementary `.eac3` / `.ac3` (or `.mka`) for Dolby streams.
+     * **Lossless Integrity:** Omit `-b:a` and preserve native bit depth (`s16`/`s32`) and sample rate when encoding `flac`.
    * Store `<temp_audio_file>` in the **same directory** as the source file (avoiding root overlayfs exhaustion on long movies) and delete it in a `finally` block after Stage 2 completes, fails, or is cancelled.
 
 3. **Stage 2 — MKV Remux:**

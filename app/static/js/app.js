@@ -1731,6 +1731,16 @@
         return Ed.getAvailableAddAudioOptions(this.editor);
       },
 
+      get editorRecommendedAudioOptions() {
+        return Ed.getRecommendedAddAudioOptions(this.editor).map((opt) => ({
+          ...opt,
+          defaultBitrate: this._resolveDefaultBitrateForDraft(
+            opt.codec,
+            opt.resolvedChannels
+          ),
+        }));
+      },
+
       get editorDraftOption() {
         if (!this.addAudioDraft) return null;
         return (
@@ -1738,6 +1748,11 @@
             (opt) => opt.codec === this.addAudioDraft.targetCodec
           ) || null
         );
+      },
+
+      get editorDraftCodecMeta() {
+        if (!this.addAudioDraft) return null;
+        return Ed.getCodecMeta(this.addAudioDraft.targetCodec);
       },
 
       get editorDraftSourceTrack() {
@@ -1749,6 +1764,72 @@
               t.id === Number(this.addAudioDraft.sourceTrackId)
           ) || null
         );
+      },
+
+      get editorDraftAvailableCodecs() {
+        return Ed.getAvailableTargetCodecs(this.editorDraftSourceTrack);
+      },
+
+      get editorDraftChannelOptions() {
+        if (!this.addAudioDraft) return [];
+        return Ed.getAvailableChannelOptions(
+          this.editorDraftSourceTrack,
+          this.addAudioDraft.targetCodec
+        );
+      },
+
+      get editorDraftResolvedChannels() {
+        if (!this.addAudioDraft) return C.EDITOR.MAX_DOLBY_CHANNELS;
+        const src = this.editorDraftSourceTrack;
+        return Ed.resolveTargetChannels(
+          src ? src.audio_channels : C.EDITOR.MAX_DOLBY_CHANNELS,
+          this.addAudioDraft.targetCodec,
+          this.addAudioDraft.targetChannels
+        );
+      },
+
+      get editorDraftBitrateConfig() {
+        if (!this.addAudioDraft) return { options: [], defaultBitrate: null };
+        return Ed.getBitrateConfigFor(
+          this.addAudioDraft.targetCodec,
+          this.editorDraftResolvedChannels
+        );
+      },
+
+      get editorDraftNotices() {
+        if (!this.addAudioDraft) return [];
+        return Ed.getConversionNotices(
+          this.editorDraftSourceTrack,
+          this.addAudioDraft.targetCodec,
+          this.editorDraftResolvedChannels
+        );
+      },
+
+      get editorDraftBlockStatus() {
+        if (!this.addAudioDraft) return { blocked: false, reason: null };
+        return Ed.isConversionCombinationBlocked(
+          this.editorDraftSourceTrack,
+          this.addAudioDraft.targetCodec,
+          this.editorDraftResolvedChannels
+        );
+      },
+
+      get editorDraftAdvancedSummary() {
+        if (!this.addAudioDraft) return "";
+        const meta = this.editorDraftCodecMeta;
+        const codecName = (meta && (meta.displayLabel || meta.label)) || "";
+        const resolvedCh = this.editorDraftResolvedChannels;
+        const chLabel = Ed.formatChannelLabel(resolvedCh);
+        const src = this.editorDraftSourceTrack;
+        const srcCh = Number((src && src.audio_channels) || 0) || C.EDITOR.MAX_DOLBY_CHANNELS;
+        const chText =
+          this.addAudioDraft.targetChannels === null && resolvedCh === srcCh
+            ? `Match (${chLabel})`
+            : chLabel;
+        const rateText =
+          meta && meta.isLossless ? "Lossless" : this.addAudioDraft.bitrate || "";
+        const langText = this.addAudioDraft.language || C.EDITOR.DEFAULT_LANGUAGE;
+        return [codecName, chText, rateText, langText].filter(Boolean).join(" · ");
       },
 
       get editorDisplayTracks() {
@@ -2983,53 +3064,98 @@
         }
       },
 
-      // Editor actions (+ Add Audio dropdown -> Base Audio picker modal -> Inline track)
-      openAddAudioChoice(option) {
+      // Editor actions (+ Add Audio dropdown -> Progressive-Disclosure modal -> Inline track)
+      _resolveDefaultBitrateForDraft(targetCodec, resolvedChannels) {
+        const cfg = Ed.getBitrateConfigFor(targetCodec, resolvedChannels);
+        if (!cfg.options || cfg.options.length === 0) return null;
+        const isDolby51 =
+          (targetCodec === C.EDITOR.CODEC_EAC3 ||
+            targetCodec === C.EDITOR.CODEC_AC3) &&
+          resolvedChannels === C.EDITOR.MAX_DOLBY_CHANNELS;
+        if (
+          isDolby51 &&
+          cfg.options.includes(this.userSettings.default_dolby_bitrate)
+        ) {
+          return this.userSettings.default_dolby_bitrate;
+        }
+        return cfg.defaultBitrate;
+      },
+
+      openAddAudioChoice(option, { expandAdvanced = false } = {}) {
         if (!this.editor || !option || this.isEditorFileBusy) return;
         this.addAudioMenuOpen = false;
+        const tracks =
+          Array.isArray(option.eligibleTracks) && option.eligibleTracks.length > 0
+            ? option.eligibleTracks
+            : this.editorAudioTracks;
         const preferred =
-          option.eligibleTracks.find(
-            (t) => t.id === option.preferredSourceTrackId
-          ) || option.eligibleTracks[0];
+          tracks.find((t) => t.id === option.preferredSourceTrackId) || tracks[0];
         const sourceLang = preferred
           ? preferred.language || C.EDITOR.DEFAULT_LANGUAGE
           : C.EDITOR.DEFAULT_LANGUAGE;
         const sourceChannels = preferred
           ? Number(preferred.audio_channels || C.EDITOR.MAX_DOLBY_CHANNELS)
           : C.EDITOR.MAX_DOLBY_CHANNELS;
-
-        const isDolbyTarget =
-          option.codec === C.EDITOR.CODEC_EAC3 ||
-          option.codec === C.EDITOR.CODEC_AC3;
-        const preferredBitrate =
-          isDolbyTarget &&
-          Array.isArray(option.bitrates) &&
-          option.bitrates.includes(this.userSettings.default_dolby_bitrate)
-            ? this.userSettings.default_dolby_bitrate
-            : option.defaultBitrate;
+        const requestedChannels =
+          option.targetChannels !== undefined ? option.targetChannels : null;
+        const resolvedChannels = Ed.resolveTargetChannels(
+          sourceChannels,
+          option.codec,
+          requestedChannels
+        );
+        const preferredBitrate = this._resolveDefaultBitrateForDraft(
+          option.codec,
+          resolvedChannels
+        );
 
         this.addAudioDraft = {
           targetCodec: option.codec,
+          targetChannels: requestedChannels,
           sourceTrackId: preferred ? preferred.id : null,
           bitrate: preferredBitrate,
           language: sourceLang,
           trackTitle: Ed.buildDefaultAudioTitle(
             sourceLang,
             option.codec,
-            sourceChannels,
+            resolvedChannels,
             preferredBitrate
           ),
           titleManuallyEdited: false,
           setAsDefault: true,
           dropSourceTrack: false,
+          advancedOpen: Boolean(expandAdvanced),
         };
         this.addAudioModalOpen = true;
+      },
+
+      openCustomAddAudio() {
+        if (!this.editor || this.isEditorFileBusy) return;
+        const recommended = this.editorRecommendedAudioOptions;
+        if (recommended.length > 0) {
+          this.openAddAudioChoice(recommended[0], { expandAdvanced: true });
+          return;
+        }
+        const firstAudio = this.editorAudioTracks[0];
+        if (!firstAudio) return;
+        this.openAddAudioChoice(
+          {
+            codec: C.EDITOR.CODEC_EAC3,
+            targetChannels: null,
+            preferredSourceTrackId: firstAudio.id,
+            eligibleTracks: this.editorAudioTracks,
+          },
+          { expandAdvanced: true }
+        );
       },
 
       editAddedAudio() {
         if (!this.editor || !this.editor.audioFix.enabled || this.isEditorFileBusy) return;
         this.addAudioMenuOpen = false;
-        this.addAudioDraft = { ...this.editor.audioFix };
+        this.addAudioDraft = {
+          targetChannels: null,
+          ...this.editor.audioFix,
+          advancedOpen: false,
+        };
         this.addAudioModalOpen = true;
       },
 
@@ -3040,12 +3166,11 @@
 
       _refreshDraftAudioTitle() {
         if (!this.addAudioDraft || this.addAudioDraft.titleManuallyEdited) return;
-        const src = this.editorDraftSourceTrack;
-        const ch = src ? src.audio_channels : C.EDITOR.MAX_DOLBY_CHANNELS;
+        const resolvedCh = this.editorDraftResolvedChannels;
         this.addAudioDraft.trackTitle = Ed.buildDefaultAudioTitle(
           this.addAudioDraft.language,
           this.addAudioDraft.targetCodec,
-          ch,
+          resolvedCh,
           this.addAudioDraft.bitrate
         );
       },
@@ -3056,7 +3181,83 @@
         if (src) {
           this.addAudioDraft.language =
             src.language || C.EDITOR.DEFAULT_LANGUAGE;
+          const meta = Ed.getCodecMeta(this.addAudioDraft.targetCodec);
+          if (meta.requiresLosslessSource && !Ed.isLosslessAudioTrack(src)) {
+            const fallback = Ed.getAvailableTargetCodecs(src).find(
+              (c) =>
+                !Ed.isConversionCombinationBlocked(
+                  src,
+                  c.codec,
+                  this.addAudioDraft.targetChannels
+                ).blocked
+            );
+            this.addAudioDraft.targetCodec = fallback
+              ? fallback.codec
+              : C.EDITOR.CODEC_EAC3;
+          }
+          const srcCh = Number(src.audio_channels || C.EDITOR.MAX_DOLBY_CHANNELS);
+          const maxCh = Math.min(
+            srcCh,
+            Ed.getCodecMeta(this.addAudioDraft.targetCodec).maxChannels ||
+              C.EDITOR.MAX_DOLBY_CHANNELS
+          );
+          if (
+            this.addAudioDraft.targetChannels !== null &&
+            this.addAudioDraft.targetChannels >= maxCh
+          ) {
+            this.addAudioDraft.targetChannels = null;
+          }
+          const resolvedCh = this.editorDraftResolvedChannels;
+          const rateCfg = Ed.getBitrateConfigFor(
+            this.addAudioDraft.targetCodec,
+            resolvedCh
+          );
+          if (rateCfg.options.length === 0) {
+            this.addAudioDraft.bitrate = null;
+          } else if (!rateCfg.options.includes(this.addAudioDraft.bitrate)) {
+            this.addAudioDraft.bitrate = this._resolveDefaultBitrateForDraft(
+              this.addAudioDraft.targetCodec,
+              resolvedCh
+            );
+          }
         }
+        this._refreshDraftAudioTitle();
+      },
+
+      onDraftTargetCodecChange(nextCodec) {
+        if (!this.addAudioDraft || !nextCodec) return;
+        this.addAudioDraft.targetCodec = nextCodec;
+        const src = this.editorDraftSourceTrack;
+        const srcCh = Number((src && src.audio_channels) || C.EDITOR.MAX_DOLBY_CHANNELS);
+        const maxCh = Math.min(
+          srcCh,
+          Ed.getCodecMeta(nextCodec).maxChannels || C.EDITOR.MAX_DOLBY_CHANNELS
+        );
+        if (
+          this.addAudioDraft.targetChannels !== null &&
+          this.addAudioDraft.targetChannels >= maxCh
+        ) {
+          this.addAudioDraft.targetChannels = null;
+        }
+        const resolvedCh = this.editorDraftResolvedChannels;
+        this.addAudioDraft.bitrate = this._resolveDefaultBitrateForDraft(
+          nextCodec,
+          resolvedCh
+        );
+        this._refreshDraftAudioTitle();
+      },
+
+      onDraftChannelsChange(nextChannelValue) {
+        if (!this.addAudioDraft) return;
+        this.addAudioDraft.targetChannels =
+          nextChannelValue === null || nextChannelValue === undefined
+            ? null
+            : Number(nextChannelValue);
+        const resolvedCh = this.editorDraftResolvedChannels;
+        this.addAudioDraft.bitrate = this._resolveDefaultBitrateForDraft(
+          this.addAudioDraft.targetCodec,
+          resolvedCh
+        );
         this._refreshDraftAudioTitle();
       },
 
@@ -3087,11 +3288,15 @@
           return "";
         }
         const src = Ed.findSelectedSourceAudio(this.editor);
-        const ch = src ? src.audio_channels : C.EDITOR.MAX_DOLBY_CHANNELS;
+        const resolvedCh = Ed.resolveTargetChannels(
+          src ? src.audio_channels : C.EDITOR.MAX_DOLBY_CHANNELS,
+          this.editor.audioFix.targetCodec,
+          this.editor.audioFix.targetChannels
+        );
         return Ed.buildDefaultAudioTitle(
           this.editor.audioFix.language,
           this.editor.audioFix.targetCodec,
-          ch,
+          resolvedCh,
           this.editor.audioFix.bitrate
         );
       },
@@ -3113,8 +3318,14 @@
           this.showToast("Please choose a base audio track.", "error");
           return;
         }
+        const status = this.editorDraftBlockStatus;
+        if (status && status.blocked) {
+          this.showToast(status.reason || "Invalid conversion combination.", "error");
+          return;
+        }
+        const { advancedOpen: _ignoreUiFlag, ...persistedDraft } = this.addAudioDraft;
         this.editor.audioFix = {
-          ...this.addAudioDraft,
+          ...persistedDraft,
           enabled: true,
         };
         this.closeAddAudioModal();

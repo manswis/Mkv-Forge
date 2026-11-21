@@ -404,6 +404,68 @@ Goal: Add lightweight, 100%-offline local user management with zero-friction opt
   - [x] Test hybrid settings isolation (User A changing `theme_mode` / `font_scale` / `confirm_cancel_job` does not affect User B, while `auto_cleanup_*` / `job_history_retention_days` updates apply system-wide).
   - [x] Test job user attribution (`created_by_name` persists on `POST /api/jobs`, survives user deletion, and surfaces in `GET /api/jobs` and `GET /api/dashboard`).
 
+---
+
+## Phase 14: Generic Audiophile Audio Conversion Matrix & Progressive-Disclosure UI
+
+Goal: Evolve MKV Forge's hardcoded 5.1 Dolby converter into a capability-driven, audiophile-grade multi-codec audio conversion engine (`E-AC-3`, `AC-3`, `AAC`, `Opus`, `FLAC`) with user-selectable channel matching/downmixing (`Match Source`, `7.1`, `6.1`, `5.1`, `2.0`, `1.0`), per-`(codec, channel)` smart bitrate ladders, FFmpeg audiophile safeguards (`.mka` priming-delay preservation, `-drc_scale 0`, `libopus` layout normalization), and a clean **Progressive-Disclosure UI** (smart source-aware defaults collapsed by default; full audiophile controls 1 tap away).
+
+- [x] **14.1 Backend Audio Capability Matrix & Schema Contract (`app/config.py`, `app/models/schemas.py`)**
+  - [x] Define a centralized `AUDIO_CODEC_CAPABILITIES` constant matrix in `AppConstants`:
+    - `eac3`: encoder `eac3`, max channels `6` (5.1), temp ext `.eac3`, sample rates `{48000, 44100, 32000}` (fallback `48000`), lossy, per-channel bitrates (including `768k` for 5.1).
+    - `ac3`: encoder `ac3`, max channels `6` (5.1), temp ext `.ac3`, sample rates `{48000, 44100, 32000}` (fallback `48000`), lossy, max bitrate `640k`.
+    - `aac`: encoder `aac`, max channels `8` (7.1), temp ext `.mka`, lossy, per-channel bitrates (`96k`–`768k`).
+    - `opus`: encoder `libopus`, max channels `8` (7.1), temp ext `.mka`, fixed sample rate `48000`, `-mapping_family 1` when `channels > 2`, lossy, per-channel bitrates (`64k`–`512k`).
+    - `flac`: encoder `flac`, max channels `8` (7.1), temp ext `.mka`, lossless (`requires_lossless_source = True`), no bitrate, preserves native bit depth (`s16`/`s32`) and sample rate.
+  - [x] Add `ALLOWED_TARGET_CODECS = ("eac3", "ac3", "aac", "opus", "flac")`, expanded `BITRATE_BPS_MAP` (`64k`, `96k`, `128k`, `160k`, `192k`, `256k`, `320k`, `384k`, `448k`, `512k`, `640k`, `768k`), and `CHANNEL_LAYOUT_MAP` (`1 → mono`, `2 → stereo`, `3 → 3.0`, `4 → 4.0`, `6 → 5.1`, `7 → 6.1`, `8 → 7.1`).
+  - [x] Extend `AudioConversionConfig` in `app/models/schemas.py`:
+    - Expand `target_codec` to `Literal["eac3", "ac3", "aac", "opus", "flac"]`.
+    - Make `bitrate: str | None` optional (ignored/omitted for `flac`, validated against codec's allowed bitrate set for lossy codecs; rejects e.g. `768k` on `ac3`).
+    - Add `target_channels: int | None = Field(default=None, ge=1, le=8)` (`None` = match source capped at `codec.max_channels`).
+    - Add model validator enforcing: no upmixing when `source_channels` is known, `target_channels <= codec.max_channels`, and rejecting `flac` when `source_codec` is clearly lossy unless explicitly overridden.
+
+- [x] **14.2 Audiophile Stage 1 FFmpeg Runner, Pre-Flight Sizing & Job Summary (`app/services/ffmpeg_runner.py`, `app/services/preflight.py`, `app/services/job_worker.py`, `app/services/job_summary.py`, `app/utils/paths.py`)**
+  - [x] Replace `compute_target_channels(source_channels)` with codec-aware `compute_target_channels(source_channels, target_codec, requested_channels=None)` enforcing `1 <= resolved <= min(source_channels, codec.max_channels)` (never upmixes).
+  - [x] Update `resolve_target_sample_rate(source_sample_rate, target_codec)` to return `48000` for `opus`, Dolby-safe fallback `48000` for `eac3`/`ac3`, and `None` (preserve native rate) for `aac` and `flac`.
+  - [x] Update `build_ffmpeg_command(...)`:
+    - Pass `-drc_scale 0` **before** `-i` whenever `source_codec` is `ac3` or `eac3` to preserve full native dynamic range on decode.
+    - Select FFmpeg encoder (`libopus` for `opus`, etc.) and output container extension (`.mka` via `-f matroska` for `aac`, `opus`, `flac` so exact priming delay / Opus pre-skip is preserved; `.eac3`/`.ac3` for Dolby).
+    - Apply canonical `-channel_layout` (`7.1`, `6.1`, `5.1`, `4.0`, `3.0`, `stereo`, `mono`) and `-mapping_family 1` for `libopus` when `target_channels > 2`.
+    - Omit `-b:a` for `flac` and never downgrade sample format (preserves 24-bit TrueHD/DTS-HD MA).
+  - [x] Update `preflight.py` disk space estimation to handle `flac` (conservative lossless ceiling based on `duration_us * target_channels * 48000 * 3 bytes`) and all new lossy bitrates up to `768k`.
+  - [x] Update `job_worker.py` & `job_summary.py` to pass `target_channels`, `source_codec`, and format clean stage/summary pills (e.g. `Encoding FLAC 7.1`, `Encoding Opus 7.1 • 448k`, `Encoding EAC3 5.1 • 768k`).
+
+- [x] **14.3 Frontend Capability Engine & Pure Helpers (`app/static/js/constants.js`, `app/static/js/editor.js`, `app/static/js/app.js`)**
+  - [x] Extract dedicated audio capability constants into `constants.js` (`TARGET_CODEC_META`, per-channel bitrate ladders, channel layout labels `7.1 / 6.1 / 5.1 / 4.0 / 3.0 / 2.0 / 1.0`, lossless source codec set, Atmos/DTS:X detection patterns).
+  - [x] Update `editor.js` pure helpers (zero magic numbers):
+    - `formatChannelLabel(channels)` returning exact labels (`8 → 7.1`, `7 → 6.1`, `6 → 5.1`, `4 → 4.0`, `3 → 3.0`, `2 → 2.0`, `1 → 1.0`).
+    - `isLosslessAudioTrack(track)` and `hasObjectAudioMetadata(track)` (Atmos / JOC / DTS:X detection).
+    - `getRecommendedAddAudioOptions(editorState)` returning the top 2–3 source-aware recommendations + `Custom conversion…` trigger.
+    - `getAvailableTargetCodecs(sourceTrack)` (includes `flac` only for lossless sources) and `getAvailableChannelOptions(sourceTrack, targetCodec)` (`Match (<src>)` + valid downmixes, never upmixing).
+    - `getBitrateOptionsFor(targetCodec, targetChannels)` returning `{ options, defaultBitrate }` (or `null` for lossless `flac`).
+    - `getConversionNotices(sourceTrack, targetCodec, targetChannels)` returning structured `{ severity, message }` warnings (Atmos strip, 7.1→5.1 Dolby cap, AC-3→E-AC-3 sidegrade, same-codec re-encode, downmix info, Opus/FLAC HDMI/eARC LPCM note).
+    - Update `buildDefaultAudioTitle(...)` & `buildJobRequestPayload(...)` to include `target_channels` and omit `bitrate` for `flac`.
+
+- [x] **14.4 Progressive-Disclosure Convert Audio Modal & Dropdown UI (`app/static/index.html`)**
+  - [x] Update `+ Add / Convert` dropdown to show the 2–3 dynamic source-aware recommendations (with `Recommended` / `Lossless` pills) plus a subtle `Custom conversion…` option.
+  - [x] Refactor the **Convert Audio** modal for clean progressive disclosure:
+    - Always-visible compact controls: Source Track selector, dynamic **Contextual Warning/Info Banner** (hidden when optimal), single collapsible **`▸ Advanced`** bar displaying live summary (`E-AC-3 · Match (5.1) · 640k · eng` or `FLAC · Match (7.1) · Lossless · eng`), Track Title input, `Set as default`, and `Drop original source track`.
+    - Expanded **`▾ Advanced`** panel: responsive `flex-wrap` pills for **Format**, **Channels**, **Bitrate** (auto-hidden for `FLAC`), and **Language** selector.
+    - Auto-expand Advanced when launched via `Custom conversion…`; stay collapsed by default when launched from a quick recommendation.
+  - [x] Update the inline `[NEW]` virtual preview row in the Tracks card to display exact output layout & `Lossless` vs bitrate badge (e.g. `FLAC 7.1 • Lossless • eng • muxed`).
+
+- [x] **14.5 Exhaustive Unit & Integration Tests**
+  - [x] **Backend unit tests (`tests/unit/test_ffmpeg_runner.py`, `tests/unit/test_preflight.py`, `tests/unit/test_job_summary.py`):**
+    - Positive tests for all 5 codecs (`eac3`, `ac3`, `aac`, `opus`, `flac`) across `7.1`, `6.1`, `5.1`, `4.0`, `3.0`, `2.0`, `1.0`.
+    - Verify `.mka` temp output for `aac`/`opus`/`flac`, `-mapping_family 1` + `-ar 48000` for `libopus` > 2ch, `-drc_scale 0` before `-i` for `ac3`/`eac3` sources only, `-b:a` omitted for `flac`, and `768k` accepted on `eac3` but rejected on `ac3`.
+    - Negative & edge cases: upmix rejection (`2.0 → 5.1`), `eac3`/`ac3` > 6ch rejection (`target_channels=8`), invalid bitrates, lossy→`flac` validation, `null`/0 channel inputs.
+  - [x] **Frontend pure logic & UI tests (`tests/unit/test_audio_matrix.py`, `tests/unit/test_index_html_structure.py`):**
+    - Node VM tests verifying `formatChannelLabel` (`7.1`/`6.1`/`5.1`/`4.0`/`3.0`/`2.0`/`1.0`), `getRecommendedAddAudioOptions` across AAC 5.1 / TrueHD 7.1 / EAC3 5.1 / Stereo 2.0, `FLAC` hidden for lossy sources, `getConversionNotices` for every warning condition (Atmos, 7.1→5.1 Dolby cap, AC-3→E-AC-3 sidegrade, downmix, same-codec), and `buildJobRequestPayload` serialization.
+    - HTML tag balance + progressive-disclosure modal landmarks (`advancedOpen` / disclosure summary bar / warning banner).
+  - [x] **End-to-end API integration tests (`tests/integration/test_phase14_audio_conversion.py`):**
+    - Verify `POST /api/jobs` accepts valid `opus 7.1`, `flac 7.1`, `eac3 5.1 @ 768k`, and `aac 2.0` downmix payloads and rejects invalid combinations with `422`.
+
+
 
 
 

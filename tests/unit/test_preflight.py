@@ -42,6 +42,38 @@ class TestDiskSpaceCalculations:
         with pytest.raises(ValueError, match="Unsupported audio bitrate"):
             estimate_audio_size_bytes(1_000_000, "999k")
 
+    def test_estimate_audio_size_supports_768k_and_lossless_flac(self) -> None:
+        # 1000s at 768,000 bps = 96,000,000 bytes
+        assert estimate_audio_size_bytes(1_000_000_000, "768k", target_codec="eac3") == 96_000_000
+
+        # FLAC lossless ceiling: duration_sec * channels * 48000 * 3
+        flac_71_bytes = estimate_audio_size_bytes(
+            10_000_000,  # 10 seconds
+            None,
+            target_codec="flac",
+            channels=8,
+        )
+        assert (
+            flac_71_bytes
+            == 10 * 8 * AppConstants.FLAC_ESTIMATED_SAMPLE_RATE * AppConstants.FLAC_ESTIMATED_BYTES_PER_SAMPLE
+        )
+
+        # FLAC with unknown duration uses conservative fallback
+        flac_unknown = estimate_audio_size_bytes(0, None, target_codec="flac", channels=8)
+        assert flac_unknown == AppConstants.UNKNOWN_DURATION_AUDIO_ESTIMATE_BYTES
+
+        # FLAC calculate_required_disk_bytes integrates cleanly with None bitrate
+        req, est = calculate_required_disk_bytes(
+            input_size_bytes=1_000_000,
+            audio_conversion_enabled=True,
+            duration_us=10_000_000,
+            bitrate=None,
+            target_codec="flac",
+            channels=8,
+        )
+        assert est == flac_71_bytes
+        assert req == 1_100_000 + flac_71_bytes + AppConstants.DISK_SPACE_BUFFER_BYTES
+
     def test_calculate_required_disk_bytes_with_and_without_conversion(self) -> None:
         req_no_conv, est_no_conv = calculate_required_disk_bytes(
             input_size_bytes=1_000_000,
@@ -187,3 +219,62 @@ class TestAudioConversionCodecMatrix:
     ) -> None:
         with pytest.raises(InvalidAudioConversionError):
             validate_audio_conversion_pair(source_codec, target_codec)
+
+    @pytest.mark.parametrize(
+        ("source_codec", "target_codec", "source_ch", "target_ch"),
+        [
+            ("TrueHD", "flac", 8, 8),
+            ("TrueHD Atmos", "flac", 8, 6),
+            ("DTS-HD Master Audio", "flac", 8, 8),
+            ("PCM", "flac", 6, 6),
+            ("AAC", "opus", 8, 8),
+            ("AAC", "aac", 8, 2),      # Explicit same-codec downmix allowed
+            ("E-AC-3", "eac3", 6, 2),   # Explicit same-codec downmix allowed
+            ("E-AC-3", "eac3", 8, None),  # 7.1 -> 5.1 Dolby cap downmix allowed
+            ("AC-3", "eac3", 6, 2),     # Explicit downmix allowed
+            ("FLAC", "flac", 8, 2),    # Lossless downmix allowed
+        ],
+    )
+    def test_phase14_allows_lossless_flac_opus_and_explicit_downmix(
+        self,
+        source_codec: str,
+        target_codec: str,
+        source_ch: int,
+        target_ch: int,
+    ) -> None:
+        validate_audio_conversion_pair(
+            source_codec,
+            target_codec,
+            source_channels=source_ch,
+            target_channels=target_ch,
+        )
+
+    @pytest.mark.parametrize(
+        ("source_codec", "target_codec", "source_ch", "target_ch", "match"),
+        [
+            ("AAC", "flac", 6, 6, "lossless"),
+            ("E-AC-3", "flac", 6, 6, "lossless"),
+            ("DTS", "flac", 6, 6, "lossless"),
+            ("DTS-HD High Resolution Audio", "flac", 8, 8, "lossless"),
+            ("AAC", "aac", 6, 6, "already AAC"),
+            ("Opus", "opus", 6, 6, "already OPUS"),
+            ("AAC", "opus", 2, 6, "Cannot upmix"),
+            ("TrueHD", "eac3", 8, 8, "supports at most 6"),
+            ("TrueHD", "ac3", 8, 7, "supports at most 6"),
+        ],
+    )
+    def test_phase14_rejects_lossy_to_flac_upmix_and_codec_cap_violations(
+        self,
+        source_codec: str,
+        target_codec: str,
+        source_ch: int,
+        target_ch: int,
+        match: str,
+    ) -> None:
+        with pytest.raises(InvalidAudioConversionError, match=match):
+            validate_audio_conversion_pair(
+                source_codec,
+                target_codec,
+                source_channels=source_ch,
+                target_channels=target_ch,
+            )

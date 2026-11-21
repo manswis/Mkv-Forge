@@ -120,3 +120,93 @@ class TestSummarizeJobChanges:
         mode, changes = summarize_job_changes(bad_json, filepath="movies/X.mkv")
         assert mode is None
         assert changes == []
+
+    @pytest.mark.parametrize(
+        ("audio_cfg", "expected_label"),
+        [
+            (
+                {
+                    "enabled": True,
+                    "source_channels": 8,
+                    "target_channels": 8,
+                    "target_codec": "flac",
+                    "bitrate": None,
+                    "language": "eng",
+                    "set_as_default": True,
+                },
+                "+ FLAC 7.1 (Lossless • eng) • Default",
+            ),
+            (
+                {
+                    "enabled": True,
+                    "source_channels": 8,
+                    "target_channels": 8,
+                    "target_codec": "opus",
+                    "bitrate": "448k",
+                    "language": "eng",
+                    "set_as_default": False,
+                },
+                "+ Opus 7.1 (448k • eng)",
+            ),
+            (
+                {
+                    "enabled": True,
+                    "source_channels": 8,
+                    "target_channels": None,
+                    "target_codec": "eac3",
+                    "bitrate": "768k",
+                    "language": "eng",
+                    "set_as_default": True,
+                },
+                "+ EAC3 5.1 (768k • eng) • Default",
+            ),
+            (
+                {
+                    "enabled": True,
+                    "source_channels": 6,
+                    "target_channels": 2,
+                    "target_codec": "aac",
+                    "bitrate": "256k",
+                    "language": "jpn",
+                    "set_as_default": False,
+                },
+                "+ AAC 2.0 (256k • jpn)",
+            ),
+            (
+                {
+                    "enabled": True,
+                    "source_channels": 7,
+                    "target_channels": 7,
+                    "target_codec": "opus",
+                    "bitrate": "384k",
+                    "language": "und",
+                    "set_as_default": False,
+                },
+                "+ Opus 6.1 (384k)",
+            ),
+            (
+                {
+                    "enabled": True,
+                    "source_channels": 4,
+                    "target_channels": 1,
+                    "target_codec": "ac3",
+                    "bitrate": "192k",
+                    "language": "eng",
+                    "set_as_default": False,
+                },
+                "+ AC3 1.0 (192k • eng)",
+            ),
+        ],
+    )
+    def test_phase14_codecs_lossless_and_target_channel_labels(
+        self, audio_cfg: dict, expected_label: str
+    ) -> None:
+        cfg = {
+            "container": {"title": None, "strip_global_tags": False},
+            "audio_conversion": audio_cfg,
+            "tracks": [{"id": 0, "type": "video", "enabled": True}],
+            "output_mode": "replace",
+        }
+        _mode, changes = summarize_job_changes(json.dumps(cfg), filepath="movies/M.mkv")
+        pairs = [(c.kind, c.label) for c in changes]
+        assert ("added", expected_label) in pairs

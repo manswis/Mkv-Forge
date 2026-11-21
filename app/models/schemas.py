@@ -614,7 +614,7 @@ class ContainerMetadataConfig(BaseModel):
 
 
 class AudioConversionConfig(BaseModel):
-    """Stage 1 FFmpeg AAC -> EAC3/AC3 audio conversion settings."""
+    """Stage 1 FFmpeg capability-driven audio conversion settings."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -624,12 +624,47 @@ class AudioConversionConfig(BaseModel):
     source_channels: int | None = Field(default=None, ge=1)
     source_codec: str | None = None
     source_minimum_timestamp_ns: int = 0
-    target_codec: Literal["eac3", "ac3", "aac"] = "eac3"
-    bitrate: Literal["640k", "448k", "384k", "320k", "256k", "192k", "128k"] = "640k"
+    target_codec: Literal["eac3", "ac3", "aac", "opus", "flac"] = "eac3"
+    target_channels: int | None = Field(
+        default=None,
+        ge=AppConstants.MIN_AUDIO_CHANNELS,
+        le=AppConstants.MAX_AUDIO_CHANNELS,
+    )
+    bitrate: str | None = "640k"
     track_title: str = "EAC3 5.1"
     language: str = "eng"
     set_as_default: bool = True
     drop_source_track: bool = False
+
+    @model_validator(mode="after")
+    def _validate_audio_matrix_constraints(self) -> "AudioConversionConfig":
+        if not self.enabled:
+            return self
+        max_channels = AppConstants.AUDIO_CODEC_MAX_CHANNELS.get(
+            self.target_codec, AppConstants.MAX_DOLBY_CHANNELS
+        )
+        if self.target_channels is not None:
+            if self.target_channels > max_channels:
+                raise ValueError(
+                    f"Codec {self.target_codec!r} supports at most {max_channels} channels "
+                    f"(got {self.target_channels})"
+                )
+            if (
+                self.source_channels is not None
+                and self.target_channels > self.source_channels
+            ):
+                raise ValueError(
+                    f"Cannot upmix audio from {self.source_channels} to {self.target_channels} channels"
+                )
+        if self.target_codec not in AppConstants.LOSSLESS_TARGET_CODECS:
+            allowed_rates = AppConstants.AUDIO_CODEC_ALLOWED_BITRATES.get(
+                self.target_codec, frozenset()
+            )
+            if not self.bitrate or self.bitrate not in allowed_rates:
+                raise ValueError(
+                    f"Unsupported bitrate {self.bitrate!r} for target codec {self.target_codec!r}"
+                )
+        return self
 
 
 class TrackEditConfig(BaseModel):

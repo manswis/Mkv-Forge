@@ -367,6 +367,7 @@ async def execute_two_stage_pipeline(
                     audio_index=audio_cfg.source_audio_index,
                     target_codec=audio_cfg.target_codec,
                     bitrate=audio_cfg.bitrate,
+                    target_channels=audio_cfg.target_channels,
                     duration_us=duration_us,
                     expected_codec=audio_cfg.source_codec,
                     expected_channels=audio_cfg.source_channels,

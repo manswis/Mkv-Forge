@@ -125,15 +125,35 @@ class AppConstants:
     US_PER_SEC: int = 1_000_000
     BITS_PER_BYTE: int = 8
     BYTES_PER_MIB: int = 1024 * 1024
-    CHANNELS_51: int = 6
     CHANNELS_71: int = 8
+    CHANNELS_61: int = 7
+    CHANNELS_51: int = 6
+    CHANNELS_50: int = 5
+    CHANNELS_40: int = 4
+    CHANNELS_30: int = 3
     CHANNELS_STEREO: int = 2
     CHANNELS_MONO: int = 1
     MIN_AUDIO_CHANNELS: int = 1
     MAX_DOLBY_CHANNELS: int = 6
+    MAX_AUDIO_CHANNELS: int = 8
     CHANNEL_LAYOUT_51: str = "5.1"
+    CHANNEL_LAYOUT_MAP: Mapping[int, str] = {
+        1: "mono",
+        2: "stereo",
+        3: "3.0",
+        4: "quad",
+        5: "5.0",
+        6: "5.1",
+        7: "6.1",
+        8: "7.1",
+    }
     DOLBY_SUPPORTED_SAMPLE_RATES: frozenset[int] = frozenset({48_000, 44_100, 32_000})
     DOLBY_FALLBACK_SAMPLE_RATE: int = 48_000
+    OPUS_SAMPLE_RATE: int = 48_000
+    OPUS_MULTICHANNEL_MAPPING_FAMILY: int = 1
+    OPUS_MAX_MONO_BITRATE: str = "256k"
+    OPUS_MAX_MONO_BPS: int = 256_000
+    DOLBY_DECODE_DRC_SCALE_OFF: str = "0"
     RES_2160P_MIN_HEIGHT: int = 2000
     RES_2160P_MIN_WIDTH: int = 3500
     RES_1080P_MIN_HEIGHT: int = 1000
@@ -317,11 +337,33 @@ class AppConstants:
     TARGET_CODEC_EAC3: str = "eac3"
     TARGET_CODEC_AC3: str = "ac3"
     TARGET_CODEC_AAC: str = "aac"
-    ALLOWED_TARGET_CODECS: frozenset[str] = frozenset({"eac3", "ac3", "aac"})
+    TARGET_CODEC_OPUS: str = "opus"
+    TARGET_CODEC_FLAC: str = "flac"
+    ALLOWED_TARGET_CODECS: frozenset[str] = frozenset(
+        {"eac3", "ac3", "aac", "opus", "flac"}
+    )
+    LOSSLESS_TARGET_CODECS: frozenset[str] = frozenset({"flac"})
+    LOSSLESS_SOURCE_CODECS: frozenset[str] = frozenset({"truehd", "flac", "pcm", "alac"})
+    AUDIO_CODEC_FFMPEG_ENCODER_MAP: Mapping[str, str] = {
+        "eac3": "eac3",
+        "ac3": "ac3",
+        "aac": "aac",
+        "opus": "libopus",
+        "flac": "flac",
+    }
+    AUDIO_CODEC_MAX_CHANNELS: Mapping[str, int] = {
+        "eac3": 6,
+        "ac3": 6,
+        "aac": 8,
+        "opus": 8,
+        "flac": 8,
+    }
     TEMP_AUDIO_EXT_MAP: Mapping[str, str] = {
         "eac3": "eac3",
         "ac3": "ac3",
         "aac": "mka",
+        "opus": "mka",
+        "flac": "mka",
     }
     DEFAULT_TARGET_CODEC: str = "eac3"
     DEFAULT_BITRATE: str = "640k"
@@ -329,14 +371,36 @@ class AppConstants:
     OUTPUT_MODE_KEEP_BOTH: str = "keep_both"
     OUTPUT_MODE_SAVE_AS: str = "save_as"
     BITRATE_BPS_MAP: Mapping[str, int] = {
+        "768k": 768_000,
         "640k": 640_000,
+        "512k": 512_000,
         "448k": 448_000,
         "384k": 384_000,
         "320k": 320_000,
         "256k": 256_000,
         "192k": 192_000,
+        "160k": 160_000,
         "128k": 128_000,
+        "96k": 96_000,
+        "64k": 64_000,
     }
+    AUDIO_CODEC_ALLOWED_BITRATES: Mapping[str, frozenset[str]] = {
+        "eac3": frozenset(
+            {"96k", "128k", "192k", "256k", "320k", "384k", "448k", "640k", "768k"}
+        ),
+        "ac3": frozenset(
+            {"96k", "128k", "192k", "256k", "320k", "384k", "448k", "640k"}
+        ),
+        "aac": frozenset(
+            {"96k", "128k", "192k", "256k", "320k", "384k", "448k", "512k", "640k", "768k"}
+        ),
+        "opus": frozenset(
+            {"64k", "96k", "128k", "160k", "192k", "256k", "320k", "384k", "448k", "512k"}
+        ),
+        "flac": frozenset(),
+    }
+    FLAC_ESTIMATED_SAMPLE_RATE: int = 48_000
+    FLAC_ESTIMATED_BYTES_PER_SAMPLE: int = 3
 
     # Pagination, sorting & dashboard
     DEFAULT_PAGE: int = 1

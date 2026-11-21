@@ -14,6 +14,8 @@ _CODEC_DISPLAY_MAP: dict[str, str] = {
     AppConstants.TARGET_CODEC_EAC3: "EAC3",
     AppConstants.TARGET_CODEC_AC3: "AC3",
     AppConstants.TARGET_CODEC_AAC: "AAC",
+    AppConstants.TARGET_CODEC_OPUS: "Opus",
+    AppConstants.TARGET_CODEC_FLAC: "FLAC",
 }
 
 _TRACK_TYPE_LABEL_MAP: dict[str, str] = {
@@ -23,21 +25,39 @@ _TRACK_TYPE_LABEL_MAP: dict[str, str] = {
 }
 
 
-def _format_channels_short(channels: Any) -> str:
-    """Format channel count capped at 5.1 (6ch) into a concise badge label."""
+def _format_channels_short(
+    channels: Any,
+    *,
+    target_codec: str = AppConstants.TARGET_CODEC_EAC3,
+) -> str:
+    """Format effective output channel count into a concise audiophile badge label."""
     try:
         count = int(channels)
     except (TypeError, ValueError):
         return "5.1"
-    if count >= AppConstants.MAX_DOLBY_CHANNELS:
+    if count <= 0:
         return "5.1"
-    if count == AppConstants.CHANNELS_STEREO:
+    max_for_codec = AppConstants.AUDIO_CODEC_MAX_CHANNELS.get(
+        target_codec, AppConstants.MAX_DOLBY_CHANNELS
+    )
+    effective = min(count, max_for_codec)
+    if effective == AppConstants.CHANNELS_71:
+        return "7.1"
+    if effective == AppConstants.CHANNELS_61:
+        return "6.1"
+    if effective == AppConstants.CHANNELS_51:
+        return "5.1"
+    if effective == AppConstants.CHANNELS_50:
+        return "5.0"
+    if effective == AppConstants.CHANNELS_40:
+        return "4.0"
+    if effective == AppConstants.CHANNELS_30:
+        return "3.0"
+    if effective == AppConstants.CHANNELS_STEREO:
         return "2.0"
-    if count == AppConstants.CHANNELS_MONO:
+    if effective == AppConstants.CHANNELS_MONO:
         return "1.0"
-    if count > 0:
-        return f"{count}ch"
-    return "5.1"
+    return f"{effective}ch"
 
 
 def _basename(path_str: str | None) -> str:
@@ -73,8 +93,18 @@ def summarize_job_changes(
     if isinstance(audio_cfg, dict) and bool(audio_cfg.get("enabled")):
         target_codec = str(audio_cfg.get("target_codec") or "eac3").lower()
         codec_label = _CODEC_DISPLAY_MAP.get(target_codec, target_codec.upper())
-        layout = _format_channels_short(audio_cfg.get("source_channels"))
-        bitrate = str(audio_cfg.get("bitrate") or "").strip()
+        raw_channels = (
+            audio_cfg.get("target_channels")
+            if audio_cfg.get("target_channels") is not None
+            else audio_cfg.get("source_channels")
+        )
+        layout = _format_channels_short(raw_channels, target_codec=target_codec)
+        is_lossless = target_codec in AppConstants.LOSSLESS_TARGET_CODECS
+        bitrate = (
+            "Lossless"
+            if is_lossless
+            else str(audio_cfg.get("bitrate") or "").strip()
+        )
         lang = str(audio_cfg.get("language") or "").strip()
         meta_bits = [bit for bit in (bitrate, lang) if bit and bit != AppConstants.DEFAULT_LANGUAGE]
         detail = f" ({' • '.join(meta_bits)})" if meta_bits else ""
