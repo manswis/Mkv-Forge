@@ -111,3 +111,28 @@ class TestIndexHtmlStructure:
 
         assert 'x-show="sec.id === C.SETTINGS_SECTIONS.ABOUT"' in html
         assert "CATEGORY 4: ABOUT & LEGAL TERMS" in html
+
+    def test_editor_displays_video_and_audio_track_sizes_when_available(self) -> None:
+        html = _read_index_html()
+
+        assert (
+            "(row.track.type === 'video' || row.track.type === 'audio') && row.track.size_bytes > 0"
+            in html
+        )
+        assert 'x-text="Fmt.formatBytes(row.track.size_bytes)"' in html
+
+    def test_api_keys_card_is_inside_local_auth_panel_and_uses_fmt_formatter(self) -> None:
+        html = _read_index_html()
+
+        local_panel_start = html.index('<!-- Local Auth Mode Panel -->')
+        api_keys_card_pos = html.index('<!-- API Keys & Integrations -->', local_panel_start)
+        disable_card_pos = html.index('<!-- Switch Back to No-Auth Mode -->', local_panel_start)
+
+        # API Keys card is scoped inside Local Auth Mode Panel (hidden in Anonymous mode)
+        assert local_panel_start < api_keys_card_pos < disable_card_pos
+        assert "F.formatDateTime(" not in html
+        assert "Fmt.formatDateTime(k.created_at)" in html
+        assert "Fmt.formatDateTime(k.last_used_at)" in html
+        assert "Fmt.formatDateTime(createdApiKeyModal.created_at)" in html
+
+

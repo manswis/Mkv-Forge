@@ -2949,6 +2949,11 @@
                                   x-text="Ed.formatTrackBadge(row.track)"
                                 ></span>
                                 <span
+                                  x-show="(row.track.type === 'video' || row.track.type === 'audio') && row.track.size_bytes > 0"
+                                  class="font-mono text-[11px] text-zinc-400"
+                                  x-text="Fmt.formatBytes(row.track.size_bytes)"
+                                ></span>
+                                <span
                                   x-show="row.isDroppedByAudioFix"
                                   class="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300"
                                 >
@@ -4384,13 +4389,13 @@
                                   </div>
                                   <p class="truncate text-[10px] text-zinc-400">
                                     <span>Created </span>
-                                    <span class="text-zinc-200" x-text="F.formatDateTime(k.created_at)"></span>
+                                    <span class="text-zinc-200" x-text="Fmt.formatDateTime(k.created_at)"></span>
                                     <template x-if="k.creator_name">
                                       <span> by <span class="font-medium text-zinc-200" x-text="k.creator_name"></span></span>
                                     </template>
                                     <span> &bull; </span>
                                     <template x-if="k.last_used_at">
-                                      <span>Last used <span class="text-zinc-200" x-text="F.formatDateTime(k.last_used_at)"></span></span>
+                                      <span>Last used <span class="text-zinc-200" x-text="Fmt.formatDateTime(k.last_used_at)"></span></span>
                                     </template>
                                     <template x-if="!k.last_used_at">
                                       <span class="text-zinc-500 italic">Never used</span>
@@ -7251,7 +7256,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-hairline bg-canvas/60 p-3 text-xs">
           <div>
             <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Created At</p>
-            <p class="font-medium text-zinc-200" x-text="createdApiKeyModal && F.formatDateTime(createdApiKeyModal.created_at)"></p>
+            <p class="font-medium text-zinc-200" x-text="createdApiKeyModal && Fmt.formatDateTime(createdApiKeyModal.created_at)"></p>
           </div>
           <div>
             <p class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Created By</p>

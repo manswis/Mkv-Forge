@@ -17,6 +17,7 @@ from app.services.probe_parser import (
     _convert_min_timestamp_ns_to_ms,
     _format_channel_layout,
     _safe_int,
+    extract_track_size_bytes,
     parse_mkvmerge_json,
 )
 
@@ -215,6 +216,7 @@ def extract_media_file_info(
             "bitrate_bps": bitrate_bps if bitrate_bps and bitrate_bps > 0 else None,
             "frame_count": frame_count if frame_count and frame_count > 0 else None,
             "sync_delay_ms": sync_delay_ms,
+            "size_bytes": extract_track_size_bytes(props),
         }
 
         if track_type == "video":

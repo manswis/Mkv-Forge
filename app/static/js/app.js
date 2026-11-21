@@ -742,6 +742,7 @@
           this.loadMaintenanceStatus();
           if (this.isLocalAuthEnabled && this.authAuthenticated) {
             this.loadAuthUsers();
+            this.loadApiKeys();
           }
         } else if (this.route === C.ROUTES.EDITOR && this.editorFileId) {
           this.loadEditor(this.editorFileId);
@@ -2168,6 +2169,10 @@
         } else if (this.route === C.ROUTES.SETTINGS) {
           this.loadUserSettings();
           this.loadMaintenanceStatus();
+          if (this.isLocalAuthEnabled && this.authAuthenticated) {
+            this.loadAuthUsers();
+            this.loadApiKeys();
+          }
         } else if (this.route === C.ROUTES.EDITOR && this.editorFileId) {
           this.loadEditor(this.editorFileId);
         }

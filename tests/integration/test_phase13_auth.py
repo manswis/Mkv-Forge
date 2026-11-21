@@ -390,6 +390,26 @@ class TestPhase13AuthOnboardingAndRouteProtection:
             assert revoked_res.status_code == AppConstants.HTTP_UNAUTHORIZED
             assert revoked_res.json()["detail"] == "Invalid or revoked API key"
 
+    async def test_anonymous_mode_allows_api_without_key_and_gates_key_management(
+        self, api_client: httpx.AsyncClient
+    ) -> None:
+        """When authentication is disabled, APIs work without a key and key CRUD requires local auth."""
+        setup = await api_client.post("/api/auth/setup", json={"mode": "anonymous"})
+        assert setup.status_code == AppConstants.HTTP_OK
+        assert setup.json()["auth_mode"] == AppConstants.AUTH_MODE_ANONYMOUS
+
+        # Dashboard API works without any API key in Anonymous mode
+        dash_res = await api_client.get("/api/dashboard")
+        assert dash_res.status_code == AppConstants.HTTP_OK
+
+        # Key management endpoints require local authentication
+        list_res = await api_client.get("/api/auth/api-keys")
+        assert list_res.status_code == AppConstants.HTTP_UNAUTHORIZED
+        create_res = await api_client.post(
+            "/api/auth/api-keys", json={"name": "Homepage"}
+        )
+        assert create_res.status_code == AppConstants.HTTP_UNAUTHORIZED
+
     async def test_phase13_ui_landmarks_present(
         self, api_client: httpx.AsyncClient
     ) -> None:

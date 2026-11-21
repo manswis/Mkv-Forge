@@ -82,6 +82,7 @@ class ParsedTrackInfo(BaseModel):
     pixel_dimensions: str | None = None
     minimum_timestamp_ns: int = 0
     sync_delay_ms: int = 0
+    size_bytes: int | None = None
 
 
 class MediaFileListItem(BaseModel):
@@ -292,6 +293,7 @@ class DetailedTrackInfo(BaseModel):
     bitrate_bps: int | None = None
     frame_count: int | None = None
     sync_delay_ms: int = 0
+    size_bytes: int | None = None
     # Video-specific
     pixel_dimensions: str | None = None
     display_dimensions: str | None = None

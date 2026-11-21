@@ -285,6 +285,13 @@
         pixel_dimensions: t.pixel_dimensions || null,
         minimum_timestamp_ns: Number(t.minimum_timestamp_ns || 0),
         sync_delay_ms: Number(t.sync_delay_ms || 0),
+        size_bytes:
+          t.size_bytes !== null &&
+          t.size_bytes !== undefined &&
+          Number.isFinite(Number(t.size_bytes)) &&
+          Number(t.size_bytes) > 0
+            ? Number(t.size_bytes)
+            : null,
         enabled: true,
       }));
 

@@ -256,3 +256,77 @@ class TestParseMkvmergeJson:
         assert ("Track #0", "TITLE", "Track Spam Title") in tags
         # Statistics tags and format encoder are filtered out
         assert all(t.key not in ("BPS", "DURATION", "NUMBER_OF_FRAMES", "ENCODER") for t in probe.tag_entries)
+
+    def test_extracts_video_and_audio_track_size_bytes_when_available_and_none_when_missing(
+        self,
+    ) -> None:
+        payload = {
+            "container": {"type": "Matroska", "properties": {"duration": 3_600_000_000_000}},
+            "tracks": [
+                {
+                    "id": 0,
+                    "type": "video",
+                    "codec": "MPEG-H/HEVC/H.265",
+                    "properties": {
+                        "pixel_dimensions": "1920x1080",
+                        "tag_number_of_bytes": "5843921842",
+                    },
+                },
+                {
+                    "id": 1,
+                    "type": "audio",
+                    "codec": "E-AC-3",
+                    "properties": {
+                        "audio_channels": 6,
+                        "language": "eng",
+                        "tag_number_of_bytes-eng": "412891008",
+                    },
+                },
+                {
+                    "id": 2,
+                    "type": "audio",
+                    "codec": "AAC",
+                    "properties": {
+                        "audio_channels": 2,
+                        "language": "hin",
+                        # Missing statistics tags -> must remain None
+                    },
+                },
+                {
+                    "id": 3,
+                    "type": "audio",
+                    "codec": "AC-3",
+                    "properties": {
+                        "audio_channels": 6,
+                        "tag_number_of_bytes": "not-a-number",
+                    },
+                },
+                {
+                    "id": 4,
+                    "type": "video",
+                    "codec": "AVC/H.264",
+                    "properties": {
+                        "tag_number_of_bytes": 0,
+                    },
+                },
+                {
+                    "id": 5,
+                    "type": "subtitles",
+                    "codec": "SubRip/SRT",
+                    "properties": {
+                        "tag_number_of_bytes": -42,
+                    },
+                },
+            ],
+        }
+
+        probe = parse_mkvmerge_json(payload)
+        by_id = {t.id: t for t in probe.tracks}
+
+        assert by_id[0].size_bytes == 5_843_921_842
+        assert by_id[1].size_bytes == 412_891_008
+        assert by_id[2].size_bytes is None
+        assert by_id[3].size_bytes is None
+        assert by_id[4].size_bytes is None
+        assert by_id[5].size_bytes is None
+

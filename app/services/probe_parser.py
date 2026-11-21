@@ -27,6 +27,9 @@ _STATISTICS_TAG_KEYS: frozenset[str] = frozenset(
     }
 )
 
+_TRACK_SIZE_TAG_KEY = "tag_number_of_bytes"
+_TRACK_SIZE_TAG_PREFIX = "tag_number_of_bytes-"
+
 _IGNORED_FORMAT_TAG_KEYS: frozenset[str] = frozenset(
     {
         "encoder",
@@ -72,6 +75,23 @@ def _safe_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def extract_track_size_bytes(props: dict[str, Any]) -> int | None:
+    """Extract track size in bytes from Matroska statistics tags if already present.
+
+    Checks `tag_number_of_bytes` first, then language-suffixed variants such as
+    `tag_number_of_bytes-eng`. Returns None when unavailable or non-positive.
+    """
+    direct = _safe_int(props.get(_TRACK_SIZE_TAG_KEY))
+    if direct is not None and direct > 0:
+        return direct
+    for raw_k, raw_v in props.items():
+        if isinstance(raw_k, str) and raw_k.lower().startswith(_TRACK_SIZE_TAG_PREFIX):
+            parsed = _safe_int(raw_v)
+            if parsed is not None and parsed > 0:
+                return parsed
+    return None
 
 
 def _convert_duration_ns_to_us(duration_ns: Any) -> int:
@@ -532,6 +552,7 @@ def parse_mkvmerge_json(payload: dict[str, Any]) -> ParsedMediaProbe:
                 pixel_dimensions=pixel_dimensions,
                 minimum_timestamp_ns=minimum_timestamp_ns,
                 sync_delay_ms=sync_delay_ms,
+                size_bytes=extract_track_size_bytes(props),
             )
         )
 
