@@ -452,10 +452,27 @@ class TestDesignSystemTokensAndPrimitives:
 
         # Verify zero external CDN/font/script/stylesheet URLs in index.html & CSS
         html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
-        assert re.search(r"<(?:link|script)[^>]+https?://", html) is None
+        assert re.search(r"<(?:link|script|img)[^>]+https?://", html) is None
         compiled_css = COMPILED_CSS_PATH.read_text(encoding="utf-8")
         assert re.search(r"url\(\s*['\"]?https?://", compiled_css) is None
         assert "@import" not in compiled_css
+
+        # Strict allowlist for outbound links / XML namespaces in JS constants
+        allowed_outbound_urls = {
+            "https://github.com/manswis/Mkv-Forge",
+            "https://github.com/manswis/Mkv-Forge/releases",
+            "https://buymeacoffee.com/cranbear",
+            "http://www.w3.org/2000/svg",
+            "http://www.w3.org/1999/xhtml",
+        }
+        constants_text = (js_dir / "constants.js").read_text(encoding="utf-8")
+        found_urls = set(re.findall(r"https?://[^\s\"'`]+", constants_text))
+        assert found_urls <= allowed_outbound_urls, f"Unexpected external URL in constants.js: {found_urls - allowed_outbound_urls}"
+        assert "https://buymeacoffee.com/cranbear" in found_urls
+        assert ':href="C.APP.BUY_ME_A_COFFEE_URL"' in html
+        assert "whitespace-nowrap text-xs text-ink-muted" in html
+        funding_yml = (ROOT_DIR / ".github" / "FUNDING.yml").read_text(encoding="utf-8")
+        assert "buy_me_a_coffee: cranbear" in funding_yml
 
     def test_mobile_spacing_clamped_add_audio_menu_and_smart_fill_copy(self) -> None:
         html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
@@ -521,3 +538,53 @@ class TestDesignSystemTokensAndPrimitives:
         assert "Object.values(C.STORAGE_KEYS).forEach" in app_js
         assert "this.dashStorageLens = C.DASHBOARD_LENSES.STORAGE_DEFAULT;" in app_js
         assert "this.dashAudioLens = C.DASHBOARD_LENSES.AUDIO_DEFAULT;" in app_js
+
+    def test_settings_library_explorer_section_and_logical_item_placement(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+        constants_js = (ROOT_DIR / "app" / "static" / "js" / "constants.js").read_text(encoding="utf-8")
+
+        # 1. Dedicated Library & Explorer section registered in constants.js & index.html
+        assert 'LIBRARY_EXPLORER: "library_explorer"' in constants_js
+        assert 'title: "Library & Explorer"' in constants_js
+        assert 'subtitle: "Theme, accent color, font scale & interface language"' in constants_js
+        assert 'title: "Output, Metadata & Safety"' in constants_js
+        assert "toggleMobileSettingsSection(C.SETTINGS_SECTIONS.LIBRARY_EXPLORER)" in html
+
+        # 2. Appearance & Display contains only visual items; Library & Explorer contains the 6 file-browser items
+        app_sec_start = html.index("<!-- Section 1: Appearance & Display")
+        lib_sec_start = html.index("<!-- Section 1a: Library & Explorer -->", app_sec_start)
+        acc_sec_start = html.index("<!-- Section 1b: Account & Sign-In", lib_sec_start)
+        app_sec_block = html[app_sec_start:lib_sec_start]
+        lib_sec_block = html[lib_sec_start:acc_sec_start]
+
+        assert "Theme Mode" in app_sec_block
+        assert "Accent Color" in app_sec_block
+        assert "Font Size Scale" in app_sec_block
+        assert "Interface Language" in app_sec_block
+        assert "Default Library View" not in app_sec_block
+
+        # Ordered top-to-bottom inside Library & Explorer: View -> Layout -> Cover Art -> Video Metadata -> Page Limit -> Media Files Only
+        p_view = lib_sec_block.index("Default Library View")
+        p_layout = lib_sec_block.index("Default Folder Layout")
+        p_cover = lib_sec_block.index("Grid View Cover Art")
+        p_vmeta = lib_sec_block.index("Show Extended Video Metadata")
+        p_page = lib_sec_block.index("Files Per Page")
+        p_media_only = lib_sec_block.index("Show Media Files Only")
+        assert p_view < p_layout < p_cover < p_vmeta < p_page < p_media_only
+
+        # 3. Audio & Track Defaults puts Preferred Track Language first
+        audio_sec_start = html.index("<!-- Section 2B: Audio & Track Defaults -->")
+        out_sec_start = html.index("<!-- Section 3: Output, Metadata & Safety -->", audio_sec_start)
+        audio_sec_block = html[audio_sec_start:out_sec_start]
+        assert (
+            audio_sec_block.index("Preferred Track Language")
+            < audio_sec_block.index("Default Dolby Codec")
+            < audio_sec_block.index("Default Dolby Bitrate")
+        )
+
+        # 4. Output, Metadata & Safety is split into two labeled cards
+        out_sec_end = html.index("<!-- CATEGORY 3: STORAGE & SYSTEM", out_sec_start)
+        out_sec_block = html[out_sec_start:out_sec_end]
+        assert "Remux Output &amp; Metadata Cleanup" in out_sec_block
+        assert "Safety &amp; Confirmation Prompts" in out_sec_block
+        assert out_sec_block.count("ui-list-group") == 2

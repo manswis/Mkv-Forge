@@ -7,6 +7,7 @@ window.MKVForgeConstants = Object.freeze({
     AUTHOR: "Manoj Biswas",
     GITHUB_URL: "https://github.com/manswis/Mkv-Forge",
     RELEASES_URL: "https://github.com/manswis/Mkv-Forge/releases",
+    BUY_ME_A_COFFEE_URL: "https://buymeacoffee.com/cranbear",
     LICENSE: "MIT",
   }),
 
@@ -126,6 +127,7 @@ window.MKVForgeConstants = Object.freeze({
 
   SETTINGS_SECTIONS: Object.freeze({
     APPEARANCE: "appearance",
+    LIBRARY_EXPLORER: "library_explorer",
     ACCOUNT: "account",
     PLAYBACK_PROFILE: "playback_profile",
     AUDIO_TRACKS: "audio_tracks",
@@ -143,8 +145,14 @@ window.MKVForgeConstants = Object.freeze({
         Object.freeze({
           id: "appearance",
           title: "Appearance & Display",
-          subtitle: "Theme, accent color, font scale & library layout",
+          subtitle: "Theme, accent color, font scale & interface language",
           badgeClass: "border-subtle bg-inset text-accent",
+        }),
+        Object.freeze({
+          id: "library_explorer",
+          title: "Library & Explorer",
+          subtitle: "Folder layout, cover art, video badges & file filters",
+          badgeClass: "border-subtle bg-inset text-[var(--color-status-info)]",
         }),
         Object.freeze({
           id: "account",
@@ -167,13 +175,13 @@ window.MKVForgeConstants = Object.freeze({
         Object.freeze({
           id: "audio_tracks",
           title: "Audio & Track Defaults",
-          subtitle: "Default Dolby codec, bitrate & track language",
+          subtitle: "Preferred track language, default Dolby codec & bitrate",
           badgeClass: "border-subtle bg-inset text-[var(--color-status-ok)]",
         }),
         Object.freeze({
           id: "output_metadata",
-          title: "Output & Metadata",
-          subtitle: "Default output file behavior & global tag stripping",
+          title: "Output, Metadata & Safety",
+          subtitle: "Output mode, metadata cleanup & confirmation prompts",
           badgeClass: "border-subtle bg-inset text-[var(--color-status-info)]",
         }),
       ]),
