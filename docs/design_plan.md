@@ -134,17 +134,17 @@ Target regions in `app/static/index.html`:
 - Floating Toast Stack (`L547–606`)
 - Global Floating Context Menu (`L7209–7344`)
 
-- [ ] **2.1 Desktop Sidebar Polish (`L68–245`)**
-  - [ ] Replace boxed borders on nav items with quiet hover fills and a crisp active-item surface + subtle left accent indicator.
-  - [ ] Group navigation cleanly (`Dashboard`, `Library`, `Audio Test`, `Jobs` — preserving exact test ordering `Library → Audio Test → Jobs`) with tighter visual rhythm and refined footer (`Settings`, `Scan`, `Account/Sign Out`).
-- [ ] **2.2 Mobile Header, Overflow Menu & Bottom Tab Bar (`L246–546`)**
-  - [ ] Tighten top bar height and quiet bottom hairline; ensure every mobile button/menu row meets `min-h-[44px]`.
-  - [ ] Refine 3-dot overflow menu into crisp hairline-divided groups (preserving exact ordering `Full Re-scan → Audio Test Generator → Select` and footer `About → User → Sign Out`).
-  - [ ] Polish bottom tab bar active indicator and docked live activity pill with clean safe-area clearance (`pb-safe`).
-- [ ] **2.3 Toasts & Context Menu (`L547–606`, `L7209–7344`)**
-  - [ ] Align toast cards and right-click context menus onto `--color-elevated` + `--color-border-default` with tight padding and crisp keyboard/hover focus states.
-- [ ] **2.4 Phase 2 Verification**
-  - [ ] Compile CSS + run `pytest -q tests/unit` + inspect Desktop & Mobile (Dark & Light).
+- [x] **2.1 Desktop Sidebar Polish (`L68–245`)**
+  - [x] Replace boxed borders on nav items with `.ui-nav-item` quiet hover fills and `.ui-nav-item-active` subtle `2.5px` left accent indicator bar.
+  - [x] Group navigation cleanly (`Library → Audio Test → Jobs` preserving exact landmark ordering) with monochrome `.ui-tag` counts, `text-[var(--color-accent-fg)]` on solid `bg-accent` pills/monograms, and refined footer.
+- [x] **2.2 Mobile Header, Overflow Menu & Bottom Tab Bar (`L246–546`)**
+  - [x] Tighten top bar with quiet `border-subtle` hairline; upgrade mobile header controls and overflow menu rows to `44px` (`h-11`/`min-h-[44px]`) touch targets.
+  - [x] Refine 3-dot overflow menu onto `.ui-menu-panel` (`bg-elevated border border-default shadow-elevated`) with hairline `.ui-menu-divider` groups (preserving exact ordering `Full Re-scan → Audio Test Generator → Select` and footer `About → User → Sign Out`).
+  - [x] Polish docked mobile live activity strip on `bg-elevated/95` with `text-xs` typography (zero `text-[10px]`).
+- [x] **2.3 Toasts & Context Menu (`L547–606`, `L7209–7344`)**
+  - [x] Upgrade floating toasts and right-click context menus onto `bg-elevated/95`, `border-default`, `shadow-elevated`, and `3px` semantic status bars for crisp Light & Dark separation.
+- [x] **2.4 Phase 2 Verification**
+  - [x] Recompile CSS via `./scripts/build_css.sh`, verify zero stray `text-[10px]` / zero hardcoded `text-white` on `bg-accent` in `tests/unit/test_design_system.py`, and pass `pytest -q tests/unit`.
 
 ---
 

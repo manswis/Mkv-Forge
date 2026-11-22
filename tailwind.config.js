@@ -7,7 +7,7 @@ module.exports = {
   safelist: [
     {
       pattern:
-        /^ui-(panel|list-group|row|btn|segmented|tag|status|input|select|sheet|num|section-title|page-title|meta)/,
+        /^ui-(panel|list-group|row|btn|segmented|tag|status|input|select|sheet|num|section-title|page-title|meta|nav|menu)/,
     },
   ],
   theme: {

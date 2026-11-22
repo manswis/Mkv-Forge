@@ -42,7 +42,7 @@
       } catch (_e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.1" />
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.2" />
   <script defer src="/static/js/constants.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
@@ -68,35 +68,35 @@
     <!-- =================================================================== -->
     <!-- Desktop Sidebar (md and above: slim 220px)                          -->
     <!-- =================================================================== -->
-    <aside class="hidden md:flex md:w-[220px] md:shrink-0 md:flex-col md:fixed md:inset-y-0 md:left-0 border-r border-hairline bg-surface">
+    <aside class="hidden md:flex md:w-[220px] md:shrink-0 md:flex-col md:fixed md:inset-y-0 md:left-0 border-r border-subtle bg-surface">
       <button
         type="button"
         @click="navigate(C.ROUTES.DASHBOARD)"
         aria-label="Go to Dashboard"
         title="Go to Dashboard"
-        class="flex w-full items-center gap-2.5 px-5 py-5 border-b border-hairline text-left transition hover:bg-zinc-800/45 focus:outline-none focus-visible:bg-zinc-800/60"
-        :class="route === C.ROUTES.DASHBOARD ? 'bg-accent/10' : ''"
+        class="group flex w-full items-center gap-2.5 px-4 py-4 border-b border-subtle text-left transition hover:bg-[var(--color-hover-fill)] focus:outline-none focus-visible:bg-[var(--color-active-fill)]"
+        :class="route === C.ROUTES.DASHBOARD ? 'bg-[var(--color-active-fill)]' : ''"
       >
         <img
           src="/static/img/app-icon.svg?v=0.1.0-p12.2"
           alt="MKV Forge"
-          class="h-8 w-8 shrink-0 object-contain drop-shadow-sm transition group-hover:scale-105"
+          class="h-8 w-8 shrink-0 object-contain transition group-hover:scale-105"
         />
         <div class="min-w-0">
-          <p class="truncate text-sm font-semibold tracking-tight text-zinc-100">MKV Forge</p>
-          <p class="truncate text-[11px] text-zinc-500">Media Remux &amp; Dolby</p>
+          <p class="truncate text-sm font-semibold tracking-tight text-ink-primary">MKV Forge</p>
+          <p class="truncate text-xs text-ink-muted">Media Remux &amp; Audio</p>
         </div>
       </button>
 
-      <nav class="flex-1 space-y-1 px-3 py-4" aria-label="Primary navigation">
+      <nav class="flex-1 space-y-0.5 px-2.5 py-3" aria-label="Primary navigation">
         <button
           type="button"
           @click="navigate(C.ROUTES.LIBRARY)"
-          class="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition"
-          :class="(route === C.ROUTES.LIBRARY || route === C.ROUTES.EDITOR) ? 'bg-accent/15 text-indigo-300 border border-accent/25' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 border border-transparent'"
+          class="ui-nav-item"
+          :class="(route === C.ROUTES.LIBRARY || route === C.ROUTES.EDITOR) ? 'ui-nav-item-active' : ''"
         >
-          <span class="flex items-center gap-3">
-            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0" :class="(route === C.ROUTES.LIBRARY || route === C.ROUTES.EDITOR) ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M4 6h16M4 12h16M4 18h10"></path>
             </svg>
             <span>Library</span>
@@ -104,7 +104,7 @@
           <span
             x-cloak
             x-show="dashboard.stats.total_files > 0"
-            class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-zinc-400"
+            class="ui-tag font-mono text-xs"
             x-text="dashboard.stats.total_files"
           ></span>
         </button>
@@ -112,11 +112,11 @@
         <button
           type="button"
           @click="openTestMediaModal()"
-          class="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition"
-          :class="testMediaModalOpen ? 'bg-accent/15 text-indigo-300 border border-accent/25' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 border border-transparent'"
+          class="ui-nav-item"
+          :class="testMediaModalOpen ? 'ui-nav-item-active' : ''"
         >
-          <span class="flex items-center gap-3">
-            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0" :class="testMediaModalOpen ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
               <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
@@ -128,11 +128,11 @@
         <button
           type="button"
           @click="navigate(C.ROUTES.JOBS)"
-          class="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition"
-          :class="route === C.ROUTES.JOBS ? 'bg-accent/15 text-indigo-300 border border-accent/25' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 border border-transparent'"
+          class="ui-nav-item"
+          :class="route === C.ROUTES.JOBS ? 'ui-nav-item-active' : ''"
         >
-          <span class="flex items-center gap-3">
-            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.JOBS ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M12 6v6l4 2"></path>
               <circle cx="12" cy="12" r="9"></circle>
             </svg>
@@ -141,50 +141,50 @@
           <span
             x-cloak
             x-show="isJobRunning || jobsState.queued.length > 0"
-            class="inline-flex items-center gap-1.5 rounded-full bg-accent/20 px-2 py-0.5 font-mono text-[10px] font-medium text-indigo-300"
+            class="inline-flex items-center gap-1.5 rounded-full bg-accent px-2 py-0.5 font-mono text-xs font-semibold text-[var(--color-accent-fg)]"
           >
-            <span class="inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse"></span>
+            <span class="inline-flex h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>
             <span x-text="isJobRunning ? `${activeJobPercent}%` : `${jobsState.queued.length}Q`"></span>
           </span>
         </button>
       </nav>
 
       <!-- Docked Live Activity Widget (Desktop Sidebar: never overlaps main content or Process File) -->
-      <div x-cloak x-show="showGlobalPill" x-transition class="px-3 pb-3">
+      <div x-cloak x-show="showGlobalPill" x-transition class="px-2.5 pb-3">
         <button
           type="button"
           @click="handleGlobalPillClick()"
           aria-label="View active job or scan progress"
-          class="w-full rounded-xl border border-accent/35 bg-canvas/85 p-3 text-left transition hover:border-accent"
+          class="w-full rounded-ui-md border border-default bg-inset p-3 text-left transition hover:border-strong"
         >
           <div class="flex items-center justify-between gap-2">
-            <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-300">
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-accent">
               <span class="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse"></span>
               <span x-text="isJobRunning ? 'Active Job' : 'Library Scan'"></span>
             </span>
-            <span class="font-mono text-[11px] font-semibold text-zinc-100" x-text="`${globalPillPercent}%`"></span>
+            <span class="font-mono text-xs font-semibold text-ink-primary" x-text="`${globalPillPercent}%`"></span>
           </div>
-          <p class="mt-1.5 truncate font-mono text-[11px] text-zinc-300" :title="globalPillText" x-text="globalPillText"></p>
+          <p class="mt-1.5 truncate font-mono text-xs text-ink-secondary" :title="globalPillText" x-text="globalPillText"></p>
           <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface">
             <div
               class="h-full rounded-full bg-accent transition-all duration-200"
               :style="`width: ${globalPillPercent}%`"
             ></div>
           </div>
-          <p class="mt-1.5 text-[10px] text-zinc-500" x-text="isJobRunning ? 'Click to open Live Jobs Drawer →' : 'Click to view Library →'"></p>
+          <p class="mt-1.5 text-xs text-ink-muted" x-text="isJobRunning ? 'Open Live Jobs Drawer →' : 'View Library →'"></p>
         </button>
       </div>
 
       <!-- Pinned Sidebar Footer (Version, Name, About & User Profile) -->
-      <footer class="border-t border-hairline px-4 py-3 bg-surface space-y-2.5">
-        <div class="space-y-1">
+      <footer class="border-t border-subtle px-4 py-3 bg-surface space-y-2.5">
+        <div class="space-y-0.5">
           <!-- Line 1: Version -->
           <a
             :href="C.APP.RELEASES_URL"
             target="_blank"
             rel="noopener noreferrer"
             title="View Release Notes on GitHub"
-            class="block truncate font-mono text-[11px] text-zinc-400 transition hover:text-indigo-400 hover:underline"
+            class="block truncate font-mono text-xs text-ink-muted transition hover:text-accent hover:underline"
             x-text="`v${dashboard.app_version || C.APP.VERSION}`"
           ></a>
 
@@ -194,7 +194,7 @@
             target="_blank"
             rel="noopener noreferrer"
             title="Open MKV Forge on GitHub"
-            class="block truncate text-sm font-semibold tracking-tight text-zinc-100 transition hover:text-indigo-300"
+            class="block truncate text-sm font-semibold tracking-tight text-ink-primary transition hover:text-accent"
             x-text="dashboard.app_name || C.APP.NAME"
           ></a>
 
@@ -203,22 +203,22 @@
             type="button"
             @click="openSettings(); activeSettingsSection = C.SETTINGS_SECTIONS.ABOUT; mobileSettingsSection = C.SETTINGS_SECTIONS.ABOUT;"
             title="About MKV Forge & Legal Terms"
-            class="block truncate text-[11px] text-zinc-500 transition hover:text-zinc-300 hover:underline text-left"
+            class="block truncate text-xs text-ink-muted transition hover:text-ink-primary hover:underline text-left"
           >
             About &amp; Legal Terms
           </button>
         </div>
 
         <!-- User Profile & Logout -->
-        <div class="border-t border-hairline/60 pt-2">
+        <div class="border-t border-subtle pt-2.5">
           <div class="flex items-center justify-between gap-2">
             <div class="flex min-w-0 items-center gap-2">
-              <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-semibold text-accent">
+              <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-[var(--color-accent-fg)]">
                 <span x-text="(currentUserDisplayName || 'A').charAt(0).toUpperCase()"></span>
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-medium text-zinc-200" :title="currentUserDisplayName" x-text="currentUserDisplayName"></p>
-                <p x-show="isLocalAuthEnabled && authUser" class="truncate font-mono text-[10px] text-zinc-500" x-text="`@${authUser.username}`"></p>
+                <p class="truncate text-xs font-medium text-ink-primary" :title="currentUserDisplayName" x-text="currentUserDisplayName"></p>
+                <p x-show="isLocalAuthEnabled && authUser" class="truncate font-mono text-xs text-ink-muted" x-text="`@${authUser.username}`"></p>
               </div>
             </div>
 
@@ -229,7 +229,7 @@
               @click="openLogoutConfirm()"
               aria-label="Sign out"
               title="Sign out"
-              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-hairline bg-canvas text-zinc-400 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-ink-secondary transition hover:border-[var(--color-status-err-border)] hover:bg-[var(--color-status-err-bg)] hover:text-[var(--color-status-err)]"
             >
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -246,21 +246,21 @@
     <!-- =================================================================== -->
     <!-- Mobile Top Header + Docked Live Activity Strip (below md)           -->
     <!-- =================================================================== -->
-    <header class="sticky top-0 z-30 shrink-0 border-b border-hairline bg-canvas/95 backdrop-blur md:hidden">
-      <div class="flex items-center justify-between gap-3 px-4 py-3">
+    <header class="sticky top-0 z-30 shrink-0 border-b border-subtle bg-canvas/95 backdrop-blur-md md:hidden">
+      <div class="flex items-center justify-between gap-3 px-4 py-2">
         <button
           type="button"
           @click="navigate(C.ROUTES.DASHBOARD)"
           aria-label="Go to Dashboard"
           title="Go to Dashboard"
-          class="flex min-w-0 items-center gap-2.5 rounded-lg py-0.5 pr-1.5 text-left transition hover:opacity-90 focus:outline-none"
+          class="flex min-h-[44px] min-w-0 items-center gap-2.5 rounded-ui-sm pr-1.5 text-left transition hover:opacity-90 focus:outline-none"
         >
           <img
             src="/static/img/app-icon.svg?v=0.1.0-p12.2"
             alt="MKV Forge"
-            class="h-7 w-7 shrink-0 object-contain drop-shadow-sm"
+            class="h-7 w-7 shrink-0 object-contain"
           />
-          <span class="truncate text-base font-semibold tracking-tight text-zinc-100" x-text="dashboard.app_name || C.APP.NAME"></span>
+          <span class="truncate text-base font-semibold tracking-tight text-ink-primary" x-text="dashboard.app_name || C.APP.NAME"></span>
         </button>
 
         <div class="relative flex shrink-0 items-center gap-1.5">
@@ -269,8 +269,8 @@
             @click="openSettings()"
             aria-label="Open Settings"
             title="Settings"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border transition"
-            :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-600 hover:text-white'"
+            class="inline-flex h-11 w-11 items-center justify-center rounded-ui-sm border transition"
+            :class="isSettingsOpen ? 'border-transparent bg-accent text-[var(--color-accent-fg)]' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:text-ink-primary'"
           >
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
@@ -283,7 +283,7 @@
             :aria-expanded="scanMenuOpen ? 'true' : 'false'"
             aria-label="Navigation and library actions menu"
             title="Menu"
-            class="relative inline-flex min-h-[36px] min-w-[36px] items-center justify-center gap-1 rounded-lg border border-hairline bg-surface px-2 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-600 hover:text-white"
+            class="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-ui-sm border border-subtle bg-surface px-2.5 text-xs font-medium text-ink-primary transition hover:border-default"
           >
             <span
               x-cloak
@@ -303,10 +303,10 @@
             >
               <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
             </svg>
-            <span x-show="isScanRunning" x-cloak class="font-mono text-[11px] text-indigo-300" x-text="`${scanPercent}%`"></span>
+            <span x-show="isScanRunning" x-cloak class="font-mono text-xs text-accent" x-text="`${scanPercent}%`"></span>
             <svg
               x-show="!scanTriggering && !isScanRunning"
-              class="h-4 w-4 shrink-0 text-zinc-300"
+              class="h-4 w-4 shrink-0 text-ink-secondary"
               viewBox="0 0 24 24"
               fill="currentColor"
               aria-hidden="true"
@@ -322,18 +322,18 @@
             @click.outside="scanMenuOpen = false"
             role="menu"
             aria-label="Navigation and actions"
-            class="absolute right-0 top-11 z-40 max-h-[calc(100dvh-5rem)] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-hairline bg-surface py-1.5 shadow-2xl"
+            class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-12 z-40 max-h-[calc(100dvh-5rem)] w-60 max-w-[calc(100vw-2rem)] overflow-y-auto"
           >
             <!-- Primary Navigation Links (Before Any Other Item) -->
             <button
               type="button"
               role="menuitem"
               @click="scanMenuOpen = false; navigate(C.ROUTES.LIBRARY)"
-              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-              :class="route === C.ROUTES.LIBRARY ? 'bg-accent/15 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+              class="ui-menu-item"
+              :class="route === C.ROUTES.LIBRARY ? 'ui-menu-item-active' : ''"
             >
               <span class="flex items-center gap-2.5">
-                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.LIBRARY ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.LIBRARY ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M4 6h16M4 12h16M4 18h10"></path>
                 </svg>
                 <span>Library</span>
@@ -341,7 +341,7 @@
               <span
                 x-cloak
                 x-show="dashboard.stats.total_files > 0"
-                class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"
+                class="ui-tag font-mono text-xs"
                 x-text="dashboard.stats.total_files"
               ></span>
             </button>
@@ -350,11 +350,11 @@
               type="button"
               role="menuitem"
               @click="scanMenuOpen = false; navigate(C.ROUTES.JOBS)"
-              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-              :class="route === C.ROUTES.JOBS ? 'bg-accent/15 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+              class="ui-menu-item"
+              :class="route === C.ROUTES.JOBS ? 'ui-menu-item-active' : ''"
             >
               <span class="flex items-center gap-2.5">
-                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.JOBS ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.JOBS ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M12 6v6l4 2"></path>
                   <circle cx="12" cy="12" r="9"></circle>
                 </svg>
@@ -363,9 +363,9 @@
               <span
                 x-cloak
                 x-show="isJobRunning || jobsState.queued.length > 0"
-                class="inline-flex items-center gap-1.5 rounded-full bg-accent/20 px-2 py-0.5 font-mono text-[10px] font-medium text-indigo-300"
+                class="inline-flex items-center gap-1.5 rounded-full bg-accent px-2 py-0.5 font-mono text-xs font-semibold text-[var(--color-accent-fg)]"
               >
-                <span class="inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse"></span>
+                <span class="inline-flex h-1.5 w-1.5 rounded-full bg-current animate-pulse"></span>
                 <span x-text="isJobRunning ? `${activeJobPercent}%` : `${jobsState.queued.length}Q`"></span>
               </span>
             </button>
@@ -374,11 +374,11 @@
               type="button"
               role="menuitem"
               @click="scanMenuOpen = false; navigate(C.ROUTES.DASHBOARD)"
-              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-              :class="route === C.ROUTES.DASHBOARD ? 'bg-accent/15 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+              class="ui-menu-item"
+              :class="route === C.ROUTES.DASHBOARD ? 'ui-menu-item-active' : ''"
             >
               <span class="flex items-center gap-2.5">
-                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.DASHBOARD ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <svg class="h-4 w-4 shrink-0" :class="route === C.ROUTES.DASHBOARD ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
@@ -386,119 +386,127 @@
               </span>
             </button>
 
-            <div class="my-1 border-t border-hairline"></div>
+            <div class="ui-menu-divider"></div>
             <button
               type="button"
               role="menuitem"
               @click="setLibraryView(C.LIBRARY_VIEWS.DIR)"
-              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-              :class="libraryView === C.LIBRARY_VIEWS.DIR ? 'bg-accent/10 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+              class="ui-menu-item"
+              :class="libraryView === C.LIBRARY_VIEWS.DIR ? 'ui-menu-item-active' : ''"
             >
               <span class="flex items-center gap-2.5">
-                <svg class="h-4 w-4 shrink-0" :class="libraryView === C.LIBRARY_VIEWS.DIR ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg class="h-4 w-4 shrink-0" :class="libraryView === C.LIBRARY_VIEWS.DIR ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path>
                 </svg>
                 <span>Folders</span>
               </span>
-              <span x-show="libraryView === C.LIBRARY_VIEWS.DIR" class="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+              <span x-show="libraryView === C.LIBRARY_VIEWS.DIR" class="h-1.5 w-1.5 rounded-full bg-accent"></span>
             </button>
             <button
               type="button"
               role="menuitem"
               @click="setLibraryView(C.LIBRARY_VIEWS.LIST)"
-              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-              :class="libraryView === C.LIBRARY_VIEWS.LIST ? 'bg-accent/10 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+              class="ui-menu-item"
+              :class="libraryView === C.LIBRARY_VIEWS.LIST ? 'ui-menu-item-active' : ''"
             >
               <span class="flex items-center gap-2.5">
-                <svg class="h-4 w-4 shrink-0" :class="libraryView === C.LIBRARY_VIEWS.LIST ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg class="h-4 w-4 shrink-0" :class="libraryView === C.LIBRARY_VIEWS.LIST ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"></path>
                 </svg>
                 <span>All Files</span>
               </span>
-              <span x-show="libraryView === C.LIBRARY_VIEWS.LIST" class="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+              <span x-show="libraryView === C.LIBRARY_VIEWS.LIST" class="h-1.5 w-1.5 rounded-full bg-accent"></span>
             </button>
 
-            <div class="my-1 border-t border-hairline"></div>
+            <div class="ui-menu-divider"></div>
 
             <button
               type="button"
               role="menuitem"
               @click="triggerScan(false)"
               :disabled="scanTriggering || isScanRunning"
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+              class="ui-menu-item"
             >
-              <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
-              </svg>
-              <span>Incremental Scan</span>
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
+                </svg>
+                <span>Incremental Scan</span>
+              </span>
             </button>
             <button
               type="button"
               role="menuitem"
               @click="triggerScan(true)"
               :disabled="scanTriggering || isScanRunning"
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-amber-300 transition hover:bg-zinc-800 hover:text-amber-200 disabled:opacity-50"
+              class="ui-menu-item text-[var(--color-status-warn)]"
             >
-              <svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path>
-              </svg>
-              <span>Full Re-scan</span>
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0 text-[var(--color-status-warn)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path>
+                </svg>
+                <span>Full Re-scan</span>
+              </span>
             </button>
 
-            <div class="my-1 border-t border-hairline"></div>
+            <div class="ui-menu-divider"></div>
 
             <button
               type="button"
               role="menuitem"
               @click="openTestMediaModal()"
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+              class="ui-menu-item"
             >
-              <svg class="h-4 w-4 shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-              </svg>
-              <span>Audio Test Generator</span>
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+                <span>Audio Test Generator</span>
+              </span>
             </button>
 
-            <div class="my-1 border-t border-hairline"></div>
+            <div class="ui-menu-divider"></div>
 
             <button
               type="button"
               role="menuitem"
               @click="toggleMobileSelectFromMenu()"
-              class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-              :class="mobileSelectMode ? 'bg-accent/10 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+              class="ui-menu-item"
+              :class="mobileSelectMode ? 'ui-menu-item-active' : ''"
             >
               <span class="flex items-center gap-2.5">
-                <svg class="h-4 w-4 shrink-0" :class="mobileSelectMode ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <svg class="h-4 w-4 shrink-0" :class="mobileSelectMode ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
                 </svg>
                 <span x-text="mobileSelectMode ? 'Done Selecting' : 'Select'"></span>
               </span>
-              <span x-show="mobileSelectMode" class="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+              <span x-show="mobileSelectMode" class="h-1.5 w-1.5 rounded-full bg-accent"></span>
             </button>
-            <div class="my-1 border-t border-hairline"></div>
+            <div class="ui-menu-divider"></div>
 
             <button
               type="button"
               role="menuitem"
               @click="scanMenuOpen = false; openSettings(); activeSettingsSection = C.SETTINGS_SECTIONS.ABOUT; mobileSettingsSection = C.SETTINGS_SECTIONS.ABOUT;"
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+              class="ui-menu-item text-ink-secondary"
             >
-              <svg class="h-4 w-4 shrink-0 text-blue-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path>
-              </svg>
-              <span>About &amp; Legal Terms</span>
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path>
+                </svg>
+                <span>About &amp; Legal Terms</span>
+              </span>
             </button>
 
             <!-- Current User + Sign Out (always last) -->
-            <div class="my-1 border-t border-hairline"></div>
+            <div class="ui-menu-divider"></div>
             <div class="flex items-center gap-2.5 px-3 py-2">
-              <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-semibold text-accent" x-text="(currentUserDisplayName || 'A').charAt(0).toUpperCase()"></span>
+              <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-[var(--color-accent-fg)]" x-text="(currentUserDisplayName || 'A').charAt(0).toUpperCase()"></span>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-medium text-zinc-100" :title="currentUserDisplayName" x-text="currentUserDisplayName"></p>
-                <p x-show="isLocalAuthEnabled && authUser" class="truncate font-mono text-[10px] text-zinc-500" x-text="authUser ? `@${authUser.username}` : ''"></p>
+                <p class="truncate text-xs font-medium text-ink-primary" :title="currentUserDisplayName" x-text="currentUserDisplayName"></p>
+                <p x-show="isLocalAuthEnabled && authUser" class="truncate font-mono text-xs text-ink-muted" x-text="authUser ? `@${authUser.username}` : ''"></p>
               </div>
             </div>
             <button
@@ -506,14 +514,16 @@
               type="button"
               role="menuitem"
               @click="openLogoutConfirm()"
-              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
+              class="ui-menu-item ui-menu-item-danger"
             >
-              <svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-              </svg>
-              <span>Sign Out</span>
+              <span class="flex items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Sign Out</span>
+              </span>
             </button>
           </div>
         </div>
@@ -526,16 +536,16 @@
         type="button"
         @click="handleGlobalPillClick()"
         aria-label="Open live progress details"
-        class="block w-full border-t border-accent/25 bg-surface/95 text-left transition hover:bg-zinc-900"
+        class="block w-full border-t border-subtle bg-elevated/95 text-left transition hover:bg-[var(--color-hover-fill)]"
       >
         <div class="flex items-center justify-between gap-2.5 px-4 py-2">
           <div class="flex min-w-0 flex-1 items-center gap-2">
             <span class="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse"></span>
-            <span class="truncate font-mono text-[11px] font-medium text-zinc-100" x-text="globalPillText"></span>
+            <span class="truncate font-mono text-xs font-medium text-ink-primary" x-text="globalPillText"></span>
           </div>
-          <span class="shrink-0 text-[11px] font-medium text-indigo-300">View →</span>
+          <span class="shrink-0 text-xs font-medium text-accent">View →</span>
         </div>
-        <div class="h-1 w-full overflow-hidden bg-canvas">
+        <div class="h-1 w-full overflow-hidden bg-inset">
           <div
             class="h-full bg-accent transition-all duration-200"
             :style="`width: ${globalPillPercent}%`"
@@ -562,19 +572,19 @@
           x-transition:leave-start="opacity-100 translate-x-0"
           x-transition:leave-end="opacity-0 translate-x-6 -translate-y-1"
           :role="t.type === 'error' ? 'alert' : 'status'"
-          class="pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-lg border px-4 py-3 text-xs font-medium shadow-2xl shadow-black/50 backdrop-blur md:w-[22rem]"
+          class="pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-lg border px-4 py-3 border-default border-l-[3px] bg-elevated/95 text-xs font-medium text-ink-primary shadow-elevated backdrop-blur-md md:w-[22rem]"
           :class="{
-            'border-emerald-500/40 bg-emerald-950/90 text-emerald-100': t.type === 'success',
-            'border-red-500/45 bg-red-950/90 text-red-100': t.type === 'error',
-            'border-accent/40 bg-surface/95 text-indigo-100': t.type === 'info'
+            'border-l-[var(--color-status-ok)]': t.type === 'success',
+            'border-l-[var(--color-status-err)]': t.type === 'error',
+            'border-l-[var(--color-accent)]': t.type === 'info'
           }"
         >
           <span
             class="mt-px inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
             :class="{
-              'bg-emerald-500/25 text-emerald-300': t.type === 'success',
-              'bg-red-500/25 text-red-300': t.type === 'error',
-              'bg-accent/25 text-indigo-300': t.type === 'info'
+              'bg-[var(--color-status-ok-bg)] text-[var(--color-status-ok)]': t.type === 'success',
+              'bg-[var(--color-status-err-bg)] text-[var(--color-status-err)]': t.type === 'error',
+              'bg-accent/15 text-accent': t.type === 'info'
             }"
             aria-hidden="true"
           >
@@ -582,11 +592,11 @@
             <svg x-show="t.type === 'error'" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
             <svg x-show="t.type === 'info'" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path></svg>
           </span>
-          <p class="min-w-0 flex-1 break-words leading-snug [overflow-wrap:anywhere]" x-text="t.message"></p>
+          <p class="min-w-0 flex-1 break-words leading-snug text-ink-primary [overflow-wrap:anywhere]" x-text="t.message"></p>
           <button
             type="button"
             @click="dismissToast(t.id)"
-            class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-current opacity-60 transition hover:bg-white/10 hover:opacity-100"
+            class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
             aria-label="Dismiss notification"
           >
             ✕
@@ -594,9 +604,9 @@
           <span
             class="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 origin-left animate-toast-progress"
             :class="{
-              'bg-emerald-400/70': t.type === 'success',
-              'bg-red-400/70': t.type === 'error',
-              'bg-accent/70': t.type === 'info'
+              'bg-[var(--color-status-ok)]': t.type === 'success',
+              'bg-[var(--color-status-err)]': t.type === 'error',
+              'bg-accent': t.type === 'info'
             }"
             :style="`animation-duration: ${t.durationMs}ms`"
           ></span>
@@ -7223,14 +7233,14 @@
         role="menu"
         aria-label="Item actions"
         :style="contextMenu ? `top:${contextMenu.top}px;left:${contextMenu.left}px;width:${C.CONTEXT_MENU.MENU_WIDTH_PX}px;` : ''"
-        class="fixed overflow-hidden rounded-xl border border-hairline bg-surface/95 py-1.5 shadow-2xl backdrop-blur"
+        class="ui-menu-panel fixed overflow-hidden border border-default bg-elevated/95 shadow-elevated backdrop-blur-md"
       >
         <div
           x-show="contextMenu && contextMenu.title"
-          class="border-b border-hairline px-3 py-1.5"
+          class="border-b border-subtle px-3 py-2"
         >
           <p
-            class="truncate font-mono text-[11px] font-medium text-zinc-400"
+            class="truncate font-mono text-xs font-medium text-ink-secondary"
             :title="contextMenu ? contextMenu.title : ''"
             x-text="contextMenu ? contextMenu.title : ''"
           ></p>
@@ -7242,13 +7252,15 @@
           role="menuitem"
           x-show="isContextMenuFileBusy"
           @click="runContextMenuAction('view_progress')"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-indigo-200 transition hover:bg-accent/20 hover:text-white"
+          class="ui-menu-item text-accent"
         >
-          <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
-            <path class="opacity-90" fill="currentColor" d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3z"></path>
-          </svg>
-          <span>View Live Progress</span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 animate-spin text-accent" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle class="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
+              <path class="opacity-90" fill="currentColor" d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3z"></path>
+            </svg>
+            <span>View Live Progress</span>
+          </span>
         </button>
 
         <!-- File-only Info (read-only metadata inspection; disabled while scanning) -->
@@ -7258,12 +7270,14 @@
           x-show="contextMenu && contextMenu.kind === 'file'"
           @click="runContextMenuAction('info')"
           :disabled="isContextMenuFileScanning"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-menu-item"
         >
-          <svg class="h-4 w-4 shrink-0 text-sky-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path>
-          </svg>
-          <span>Info</span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-[var(--color-status-info)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path>
+            </svg>
+            <span>Info</span>
+          </span>
         </button>
 
         <!-- File-only Refresh / Re-scan (allowed on 'error' rows to retry!) -->
@@ -7273,12 +7287,14 @@
           x-show="contextMenu && contextMenu.kind === 'file'"
           @click="runContextMenuAction('rescan')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isRescanning(contextMenu.file.id))"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-menu-item"
         >
-          <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
-          </svg>
-          <span x-text="isContextMenuFileScanError ? '↻ Re-scan' : 'Refresh'"></span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
+            </svg>
+            <span x-text="isContextMenuFileScanError ? '↻ Re-scan' : 'Refresh'"></span>
+          </span>
         </button>
 
         <!-- File-only Duplicate -->
@@ -7288,12 +7304,14 @@
           x-show="contextMenu && contextMenu.kind === 'file'"
           @click="runContextMenuAction('duplicate')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isDuplicating(contextMenu.file.id))"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-menu-item"
         >
-          <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path>
-          </svg>
-          <span>Duplicate</span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path>
+            </svg>
+            <span>Duplicate</span>
+          </span>
         </button>
 
         <!-- Rename -->
@@ -7302,12 +7320,14 @@
           role="menuitem"
           @click="runContextMenuAction('rename')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-menu-item"
         >
-          <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M18.41 5.8L17.2 4.59c-.78-.78-2.05-.78-2.83 0l-2.68 2.68L3 15.96V20h4.04l8.74-8.74 2.63-2.63c.79-.78.79-2.05 0-2.83zM6.21 18H5v-1.21l8.66-8.66 1.21 1.21L6.21 18zM11 20l4-4h6v4H11z"></path>
-          </svg>
-          <span>Rename…</span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.41 5.8L17.2 4.59c-.78-.78-2.05-.78-2.83 0l-2.68 2.68L3 15.96V20h4.04l8.74-8.74 2.63-2.63c.79-.78.79-2.05 0-2.83zM6.21 18H5v-1.21l8.66-8.66 1.21 1.21L6.21 18zM11 20l4-4h6v4H11z"></path>
+            </svg>
+            <span>Rename…</span>
+          </span>
         </button>
 
         <!-- Move -->
@@ -7316,15 +7336,17 @@
           role="menuitem"
           @click="runContextMenuAction('move')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-menu-item"
         >
-          <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z"></path>
-          </svg>
-          <span>Move…</span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z"></path>
+            </svg>
+            <span>Move…</span>
+          </span>
         </button>
 
-        <div class="my-1 border-t border-hairline"></div>
+        <div class="ui-menu-divider"></div>
 
         <!-- Delete (disabled while scanning; allowed on 'error' rows) -->
         <button
@@ -7332,12 +7354,14 @@
           role="menuitem"
           @click="runContextMenuAction('delete')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning"
-          class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-300 transition hover:bg-red-500/15 hover:text-red-200 disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-menu-item ui-menu-item-danger"
         >
-          <svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
-          </svg>
-          <span>Delete…</span>
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
+            </svg>
+            <span>Delete…</span>
+          </span>
         </button>
       </div>
     </div>

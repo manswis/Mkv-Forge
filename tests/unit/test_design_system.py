@@ -114,6 +114,13 @@ class TestDesignSystemTokensAndPrimitives:
             ".ui-input",
             ".ui-select",
             ".ui-sheet",
+            ".ui-nav-item",
+            ".ui-nav-item-active",
+            ".ui-menu-panel",
+            ".ui-menu-item",
+            ".ui-menu-item-active",
+            ".ui-menu-item-danger",
+            ".ui-menu-divider",
         )
         for selector in required_primitives:
             assert selector in input_css, f"Missing primitive in input.css: {selector}"
@@ -213,3 +220,36 @@ class TestDesignSystemTokensAndPrimitives:
             if accent in ("amber", "emerald"):
                 assert fg == "#09090b"
                 assert ratio >= 7.0
+
+    def test_phase2_shell_chrome_elevation_contrast_and_typography_hygiene(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+
+        # Extract Phase 2 ranges: Desktop Sidebar + Mobile Header/Menu + Toast Stack + Context Menu
+        shell_start = html.index("<!-- Desktop Sidebar")
+        shell_end = html.index("<!-- Main Content Viewport")
+        shell_block = html[shell_start:shell_end]
+
+        ctx_start = html.index("<!-- Global Floating Context Menu")
+        ctx_end = html.index("<!-- File Info / Full Media Metadata Modal", ctx_start)
+        ctx_block = html[ctx_start:ctx_end]
+
+        phase2_html = shell_block + "\n" + ctx_block
+
+        # Guardrail 3: Zero stray text-[10px] inside Phase 2 blocks
+        assert "text-[10px]" not in phase2_html
+
+        # Guardrail 1: Zero hardcoded text-white paired with solid bg-accent in Phase 2 blocks
+        assert "text-[var(--color-accent-fg)]" in shell_block
+        for line in phase2_html.splitlines():
+            if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
+                assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"
+
+        # Guardrail 2: Floating menus and toasts use elevated surface + default border + elevated shadow
+        assert "bg-elevated border border-default shadow-elevated" in shell_block
+        assert "border-default border-l-[3px] bg-elevated/95" in shell_block
+        assert "shadow-elevated" in shell_block
+        assert "border border-default bg-elevated/95 shadow-elevated" in ctx_block
+
+        # Verify mobile touch target ergonomics (>= 44px) on top header buttons
+        assert "h-11 w-11" in shell_block
+        assert "min-h-[44px]" in shell_block
