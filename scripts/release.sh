@@ -18,6 +18,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
+PYTHON_BIN="python3"
+if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+fi
+
 COMMIT_MSG=""
 RELEASE_TAG=""
 PUSH_CHANGES=1
@@ -70,21 +75,36 @@ if [[ -z "${COMMIT_MSG// }" ]]; then
   exit 1
 fi
 
-# 1. If -t <tag> was supplied, normalize with release_version.py, verify git tag, and sync files
+# 1. If -t <tag> was supplied, validate/normalize WITHOUT mutating files yet
+CLEAN_VER=""
+RESUMING_LOCAL_TAG=0
 if [[ -n "${RELEASE_TAG}" ]]; then
-  # Automatically normalizes 1.0.1 -> v1.0.1 and syncs version in config.py, constants.js, Dockerfile
-  SYNC_OUTPUT="$(python3 "${ROOT_DIR}/scripts/release_version.py" --tag "${RELEASE_TAG}")"
-  echo "==> ${SYNC_OUTPUT}"
-  CLEAN_VER="$(python3 "${ROOT_DIR}/scripts/release_version.py" --current)"
-  RELEASE_TAG="v${CLEAN_VER}"
+  NORM_OUTPUT="$("${PYTHON_BIN}" "${ROOT_DIR}/scripts/release_version.py" --normalize "${RELEASE_TAG}")"
+  read -r RELEASE_TAG CLEAN_VER <<< "${NORM_OUTPUT}"
 
   if git rev-parse -q --verify "refs/tags/${RELEASE_TAG}" >/dev/null; then
-    echo "Error: Git tag '${RELEASE_TAG}' already exists locally." >&2
-    exit 1
+    TAG_COMMIT="$(git rev-list -n 1 "${RELEASE_TAG}")"
+    HEAD_COMMIT="$(git rev-parse HEAD)"
+    IS_CLEAN=0
+    if [[ -z "$(git status --porcelain)" ]]; then
+      IS_CLEAN=1
+    fi
+
+    if [[ "${PUSH_CHANGES}" -eq 1 && "${IS_CLEAN}" -eq 1 && "${TAG_COMMIT}" == "${HEAD_COMMIT}" ]]; then
+      if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+        echo "Error: Release tag '${RELEASE_TAG}' already exists on origin. Bump to a newer version." >&2
+        exit 1
+      fi
+      RESUMING_LOCAL_TAG=1
+      echo "==> Local tag '${RELEASE_TAG}' already points to HEAD and is not on origin yet; resuming publish..."
+    else
+      echo "Error: Git tag '${RELEASE_TAG}' already exists locally." >&2
+      exit 1
+    fi
   fi
 fi
 
-# 2. Run unit tests before staging/committing
+# 2. Run unit tests BEFORE mutating version files or committing
 if [[ "${RUN_TESTS}" -eq 1 ]]; then
   echo "==> Running unit test suite..."
   TEST_OK=0
@@ -93,56 +113,52 @@ if [[ "${RUN_TESTS}" -eq 1 ]]; then
   elif command -v pytest >/dev/null 2>&1; then
     pytest tests/unit && TEST_OK=1
   else
-    python3 -m pytest tests/unit && TEST_OK=1
+    "${PYTHON_BIN}" -m pytest tests/unit && TEST_OK=1
   fi
 
   if [[ "${TEST_OK}" -ne 1 ]]; then
-    echo ""
-    echo "Notice: Local pytest environment is missing async test plugins (e.g. pytest-asyncio)."
-    echo "Notice: All unit tests run automatically in a clean environment in GitHub Actions on push."
-    read -r -p "Do you want to proceed with release and let CI verify tests? [y/N] " PROCEED
-    if [[ ! "${PROCEED}" =~ ^[Yy]$ ]]; then
-      echo "Aborted." >&2
-      exit 1
-    fi
+    echo "" >&2
+    echo "Error: Unit tests failed. Fix failing tests before releasing (or pass --skip-tests to override)." >&2
+    exit 1
   fi
 fi
 
-# 3. Stage changes and verify there is something to commit
-git add -A
-
-if git diff --cached --quiet; then
+# 3. Sync version files, stage, commit, and create annotated tag (skipped when resuming an unpushed local tag)
+if [[ "${RESUMING_LOCAL_TAG}" -eq 0 ]]; then
   if [[ -n "${RELEASE_TAG}" ]]; then
-    echo "==> Working tree already clean at version ${RELEASE_TAG}; tagging current HEAD..."
-  else
-    echo "Nothing to commit (working tree is clean)."
-    exit 0
+    SYNC_OUTPUT="$("${PYTHON_BIN}" "${ROOT_DIR}/scripts/release_version.py" --tag "${RELEASE_TAG}")"
+    echo "==> ${SYNC_OUTPUT}"
   fi
-else
-  echo "==> Committing changes..."
-  git commit -m "${COMMIT_MSG}"
+
+  git add -A
+
+  if git diff --cached --quiet; then
+    if [[ -n "${RELEASE_TAG}" ]]; then
+      echo "==> Working tree already clean at version ${RELEASE_TAG}; tagging current HEAD..."
+    else
+      echo "Nothing to commit (working tree is clean)."
+      exit 0
+    fi
+  else
+    echo "==> Committing changes..."
+    git commit -m "${COMMIT_MSG}"
+  fi
+
+  if [[ -n "${RELEASE_TAG}" ]]; then
+    echo "==> Creating annotated tag ${RELEASE_TAG}..."
+    git tag -a "${RELEASE_TAG}" -m "${COMMIT_MSG}"
+  fi
 fi
 
-# 4. Create annotated release tag if -t <vX.Y.Z> was provided
-if [[ -n "${RELEASE_TAG}" ]]; then
-  echo "==> Creating annotated tag ${RELEASE_TAG}..."
-  git tag -a "${RELEASE_TAG}" -m "${COMMIT_MSG}"
-fi
-
-# 5. Push commit (and tag, if created) to origin
+# 4. Push commit (and tag, if created) to origin
 if [[ "${PUSH_CHANGES}" -eq 1 ]]; then
   CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
   echo "==> Pushing branch '${CURRENT_BRANCH}' to origin..."
   git push origin "${CURRENT_BRANCH}"
   if [[ -n "${RELEASE_TAG}" ]]; then
-    echo "==> Pushing release tag '${RELEASE_TAG}' to origin (triggers :latest Docker build & GitHub Release)..."
+    echo "==> Pushing release tag '${RELEASE_TAG}' to origin..."
     git push origin "${RELEASE_TAG}"
-
-    # If GitHub CLI ('gh') is authenticated locally, also create the release right away
-    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-      echo "==> Creating GitHub Release via 'gh' CLI..."
-      gh release create "${RELEASE_TAG}" --title "MKV Forge ${CLEAN_VER}" --notes "${COMMIT_MSG}" --generate-notes || true
-    fi
+    echo "==> GitHub Actions will run unit tests, publish multi-arch ':latest' Docker images, and create GitHub Release 'MKV Forge ${CLEAN_VER}' automatically."
   fi
 fi
 

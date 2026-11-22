@@ -140,7 +140,114 @@ class TestReleaseVersionSync:
 
     def test_cli_main_current_and_invalid_tag_exit_codes(self) -> None:
         assert release_version_main(["--current"]) == 0
+        assert release_version_main(["--normalize", "1.2.3"]) == 0
+        assert release_version_main(["--normalize", "invalid-tag"]) == 1
         assert release_version_main(["--tag", "invalid-tag"]) == 1
+
+    def test_release_script_no_push_resume_and_abort_on_test_failure(
+        self, tmp_path: Path
+    ) -> None:
+        """Verify release.sh supports --no-push resume, blocks duplicate remote tags, and aborts cleanly on failing tests."""
+        origin_dir = tmp_path / "origin.git"
+        work_dir = tmp_path / "repo"
+        work_dir.mkdir()
+
+        def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", *args],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+        _git(tmp_path, "init", "--bare", str(origin_dir))
+        _git(work_dir, "init", "-b", "main")
+        _git(work_dir, "config", "user.email", "test@example.com")
+        _git(work_dir, "config", "user.name", "Test User")
+        _git(work_dir, "remote", "add", "origin", str(origin_dir))
+
+        # Copy version-bearing files + release scripts into isolated repo
+        _copy_version_targets_to_tmp(work_dir)
+        scripts_dir = work_dir / "scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        for name in ("release.sh", "release_version.py"):
+            src = ReleaseVersionConstants.REPO_ROOT / "scripts" / name
+            dst = scripts_dir / name
+            shutil.copy2(src, dst)
+
+        # Create a minimal unit test in isolated repo
+        unit_dir = work_dir / "tests" / "unit"
+        unit_dir.mkdir(parents=True, exist_ok=True)
+        sample_test = unit_dir / "test_smoke.py"
+        sample_test.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+        _git(work_dir, "add", "-A")
+        _git(work_dir, "commit", "-m", "Initial commit")
+        _git(work_dir, "push", "-u", "origin", "main")
+
+        # 1. Failing unit test aborts BEFORE modifying version files
+        sample_test.write_text("def test_fail():\n    assert False\n", encoding="utf-8")
+        before_version = read_current_version(work_dir)
+        failed_run = subprocess.run(
+            ["bash", "scripts/release.sh", "-m", "Should abort", "-t", "9.9.9", "--no-push"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+        )
+        assert failed_run.returncode != 0
+        assert "Unit tests failed" in failed_run.stderr
+        assert read_current_version(work_dir) == before_version
+
+        # Restore passing test and commit
+        sample_test.write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+        _git(work_dir, "add", "-A")
+        _git(work_dir, "commit", "-m", "Fix test")
+
+        # 2. --no-push commits & creates local tag v9.9.9 without pushing to origin
+        no_push_run = subprocess.run(
+            ["bash", "scripts/release.sh", "-m", "Release 9.9.9", "-t", "9.9.9", "--no-push"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "Creating annotated tag v9.9.9" in no_push_run.stdout
+        assert read_current_version(work_dir) == "9.9.9"
+        remote_tags_before = _git(work_dir, "ls-remote", "--tags", "origin").stdout
+        assert "refs/tags/v9.9.9" not in remote_tags_before
+
+        # 3. Re-running without --no-push smoothly resumes publishing the unpushed local tag
+        resume_run = subprocess.run(
+            ["bash", "scripts/release.sh", "-m", "Release 9.9.9", "-t", "9.9.9", "--skip-tests"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert "resuming publish" in resume_run.stdout
+        remote_tags_after = _git(work_dir, "ls-remote", "--tags", "origin").stdout
+        assert "refs/tags/v9.9.9" in remote_tags_after
+
+        # 4. Re-running once tag exists on origin fails safely
+        dup_run = subprocess.run(
+            ["bash", "scripts/release.sh", "-m", "Release 9.9.9", "-t", "9.9.9", "--skip-tests"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+        )
+        assert dup_run.returncode != 0
+        assert "already exists on origin" in dup_run.stderr
+
+        # 5. Malformed tag fails immediately without mutating version files
+        bad_tag_run = subprocess.run(
+            ["bash", "scripts/release.sh", "-m", "Bad tag", "-t", "not-a-semver", "--skip-tests"],
+            cwd=work_dir,
+            capture_output=True,
+            text=True,
+        )
+        assert bad_tag_run.returncode != 0
+        assert read_current_version(work_dir) == "9.9.9"
 
     def test_resolve_app_version_honors_env_override_and_falls_back_on_blank(
         self,

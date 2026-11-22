@@ -36,7 +36,7 @@ class ReleaseVersionConstants:
     EXPECTED_DOCKERFILE_MATCHES: int = 2
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class VersionSyncResult:
     """Summary of synchronized version fields across project files."""
 
@@ -160,6 +160,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Print the current DEFAULT_APP_VERSION and exit.",
     )
     group.add_argument(
+        "--normalize",
+        type=str,
+        help="Validate tag (vX.Y.Z or X.Y.Z) and print '<normalized_tag> <version>' without modifying files.",
+    )
+    group.add_argument(
         "-t",
         "--tag",
         type=str,
@@ -170,6 +175,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.current:
             print(read_current_version())
+            return 0
+        if args.normalize is not None:
+            normalized_tag, version = normalize_release_tag(args.normalize)
+            print(f"{normalized_tag} {version}")
             return 0
         result = sync_project_version(args.tag)
         print(f"Synchronized project version to {result.version} (tag {result.tag})")
