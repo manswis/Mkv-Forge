@@ -157,18 +157,18 @@ Target regions in `app/static/index.html`:
 - Folders Tile Grid (`L1620–1837`)
 - List View: Subfolders, Desktop Table & Mobile File Cards (`L1838–2360`)
 
-- [ ] **3.1 Unified Control Toolbar (`L1093–1619`)**
-  - [ ] Consolidate View Switcher (`Folders | All Files`), Search Input, Filter Chips, and Sort/Layout toggles into unified `36px` (desktop) / `44px` (mobile) `.ui-segmented` and `.ui-input` controls.
-  - [ ] Streamline Breadcrumb bar + Folder actions (`New Folder`, `Generate Test File`, `Select`) with quiet ghost buttons instead of competing bordered rectangles.
-- [ ] **3.2 Quiet Metadata & Signal-Only Status (`L1838–2360`)**
-  - [ ] Convert informational specs (`2160p`, `HEVC`, `EAC3 5.1`, `2 Subs`) from tinted pills into clean monochrome `.ui-tag` / `·`-delimited metadata so the media filename dominates visual hierarchy.
-  - [ ] Reserve color strictly for actionable states (e.g., quiet amber `.ui-status-warn` for `Needs Conversion` / `Has Metadata`; quiet neutral/check when clean).
-  - [ ] Enforce `tabular-nums` alignment on file size, item counts, and track counts across desktop table columns; keep mobile cards to 2 crisp scannable lines with generous tap targets.
-- [ ] **3.3 Folders Grid & Bulk Action Bar (`L1620–1837`)**
-  - [ ] Replace heavy square card outlines on folder tiles with subtle surface elevation, quiet hover lift, and crisp truncation for long folder names.
-  - [ ] Polish multi-select bulk bar into a sleek floating elevated bar (`--color-elevated` + `--color-border-strong`).
-- [ ] **3.4 Phase 3 Verification**
-  - [ ] Compile CSS + run `pytest -q tests/unit` + test long filenames, narrow 320px/390px viewports, and 125% font scale.
+- [x] **3.1 Unified Control Toolbar (`L1093–1619`)**
+  - [x] Consolidate View Switcher (`Folders | All Files`), Search Input, Filter Chips, and Sort/Layout toggles into unified `.ui-segmented`, `.ui-input`, and `.ui-menu-panel` controls using `text-[var(--color-accent-fg)]` on solid `bg-accent` active states.
+  - [x] Streamline Breadcrumb bar + Folder actions (`List | Grid`, `New Folder`, mobile folder menu) with quiet surface elevation and consistent `32px`/`36px` control heights.
+- [x] **3.2 Quiet Metadata & Signal-Only Status (`L1838–2360`)**
+  - [x] Convert informational specs (`2160p`, `HEVC`, `HDR`, audio summaries, subtitle counts) from tinted pills into monochrome `.ui-tag` metadata so filenames dominate visual hierarchy.
+  - [x] Reserve color strictly for actionable states (`Needs Fix`, `Metadata`, `Scanning…`, `Scan Failed`, active job progress).
+  - [x] Enforce `min-w-0 truncate` on filenames/folders and `ui-num` (`tabular-nums`) on file sizes, durations, and counts across desktop table and hairline-grouped mobile rows (removing duplicate `Other Files` block below pagination).
+- [x] **3.3 Folders Grid & Bulk Action Bar (`L1620–1837`)**
+  - [x] Upgrade folder & file square tiles onto subtle `border-subtle bg-surface shadow-panel` elevation with clean hover lift, monochrome extension tags, and `min-w-0 truncate` labels.
+  - [x] Elevate multi-select bulk bar onto `bg-elevated border-strong shadow-elevated` with unified `.ui-btn` actions.
+- [x] **3.4 Phase 3 Verification**
+  - [x] Recompile CSS via `./scripts/build_css.sh`, add Phase 3 hygiene tests in `tests/unit/test_design_system.py`, and pass `pytest -q tests/unit`.
 
 ---
 

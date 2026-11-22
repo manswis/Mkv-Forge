@@ -42,7 +42,7 @@
       } catch (_e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.2" />
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.3" />
   <script defer src="/static/js/constants.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
@@ -1106,22 +1106,23 @@
         <section x-cloak x-show="route === C.ROUTES.LIBRARY" class="flex flex-1 min-h-0 flex-col gap-3 md:gap-4">
           <!-- Library Top Header + View Switcher (Desktop Only; Mobile uses Top 3-dot Menu & Search Bar) -->
           <div class="hidden shrink-0 md:flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 class="text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">Library</h1>
-              <p class="mt-0.5 text-xs text-zinc-400">
-                <span class="font-mono text-zinc-200" x-text="totalFiles"></span>
+            <div class="min-w-0">
+              <h1 class="ui-page-title md:text-xl">Library</h1>
+              <p class="mt-0.5 truncate text-xs text-ink-secondary">
+                <span class="ui-num font-mono font-medium text-ink-primary" x-text="totalFiles"></span>
                 <span x-text="isGlobalSearchActive ? 'matching files across /' : (isDirView ? `files in ${currentDir}` : 'matching files')"></span>
               </p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
               <!-- Directory vs. All Files View Switcher -->
-              <div class="inline-flex rounded-lg border border-hairline bg-surface p-0.5" role="group" aria-label="Library view mode">
+              <div class="ui-segmented" role="group" aria-label="Library view mode">
                 <button
                   type="button"
                   @click="setLibraryView(C.LIBRARY_VIEWS.DIR)"
-                  class="inline-flex min-h-[34px] items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition"
-                  :class="isDirView ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                  :aria-pressed="isDirView ? 'true' : 'false'"
+                  class="ui-segmented-item min-h-[32px] px-3"
+                  :class="isDirView ? 'ui-segmented-item-active' : ''"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path>
@@ -1131,8 +1132,9 @@
                 <button
                   type="button"
                   @click="setLibraryView(C.LIBRARY_VIEWS.LIST)"
-                  class="inline-flex min-h-[34px] items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition"
-                  :class="!isDirView ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                  :aria-pressed="!isDirView ? 'true' : 'false'"
+                  class="ui-segmented-item min-h-[32px] px-3"
+                  :class="!isDirView ? 'ui-segmented-item-active' : ''"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z"></path>
@@ -1148,8 +1150,8 @@
                   @click="openSettings()"
                   aria-label="Open Settings"
                   title="Settings"
-                  class="inline-flex h-9 w-9 items-center justify-center rounded-lg border transition shadow-sm backdrop-blur"
-                  :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-500 hover:text-white'"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-ui-sm border transition"
+                  :class="isSettingsOpen ? 'border-transparent bg-accent text-[var(--color-accent-fg)]' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:text-ink-primary'"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
@@ -1163,19 +1165,19 @@
                     :aria-expanded="open ? 'true' : 'false'"
                     aria-label="Scan library options"
                     title="Scan library"
-                    class="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                    class="inline-flex h-9 items-center gap-1 rounded-ui-sm border border-subtle bg-surface px-2.5 text-xs font-medium text-ink-primary transition hover:border-default"
                   >
                   <svg
                     class="h-4 w-4 shrink-0"
-                    :class="(scanTriggering || isScanRunning) ? 'animate-spin text-accent' : 'text-zinc-300'"
+                    :class="(scanTriggering || isScanRunning) ? 'animate-spin text-accent' : 'text-ink-secondary'"
                     viewBox="0 0 24 24"
                     fill="currentColor"
                     aria-hidden="true"
                   >
                     <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
                   </svg>
-                  <span x-show="isScanRunning" class="font-mono text-[11px] text-indigo-300" x-text="`${scanPercent}%`"></span>
-                  <svg class="h-3.5 w-3.5 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <span x-show="isScanRunning" class="ui-num font-mono text-xs text-accent" x-text="`${scanPercent}%`"></span>
+                  <svg class="h-3.5 w-3.5 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M7 10l5 5 5-5z"></path>
                   </svg>
                 </button>
@@ -1187,21 +1189,21 @@
                   @click.outside="open = false"
                   role="menu"
                   aria-label="Library scan options"
-                  class="absolute right-0 top-10 z-40 w-52 overflow-hidden rounded-xl border border-hairline bg-surface py-1.5 shadow-2xl"
+                  class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-56 overflow-hidden"
                 >
                   <button
                     type="button"
                     role="menuitem"
                     @click="open = false; triggerScan(false)"
                     :disabled="scanTriggering || isScanRunning"
-                    class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+                    class="ui-menu-item justify-start"
                   >
-                    <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
                     </svg>
-                    <div>
-                      <p class="leading-tight">Incremental Scan</p>
-                      <p class="text-[10px] font-normal text-zinc-500">New &amp; modified files</p>
+                    <div class="min-w-0">
+                      <p class="leading-tight text-ink-primary">Incremental Scan</p>
+                      <p class="text-xs font-normal text-ink-muted">New &amp; modified files</p>
                     </div>
                   </button>
                   <button
@@ -1209,14 +1211,14 @@
                     role="menuitem"
                     @click="open = false; triggerScan(true)"
                     :disabled="scanTriggering || isScanRunning"
-                    class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-amber-300 transition hover:bg-zinc-800 hover:text-amber-200 disabled:opacity-50"
+                    class="ui-menu-item justify-start text-[var(--color-status-warn)]"
                   >
-                    <svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg class="h-4 w-4 shrink-0 text-[var(--color-status-warn)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path>
                     </svg>
-                    <div>
+                    <div class="min-w-0">
                       <p class="leading-tight">Full Re-scan</p>
-                      <p class="text-[10px] font-normal text-zinc-500">Re-probe all files</p>
+                      <p class="text-xs font-normal text-ink-muted">Re-probe all files</p>
                     </div>
                   </button>
                 </div>
@@ -1229,16 +1231,16 @@
           <div
             x-cloak
             x-show="isScanRunning"
-            class="rounded-xl border border-accent/30 bg-accent/10 p-3.5"
+            class="ui-panel border-default p-3.5"
           >
             <div class="flex items-center justify-between gap-2 text-xs">
-              <span class="font-medium text-indigo-200">
-                Scanning <span class="font-mono" x-text="scanProgress.scanned"></span> / <span class="font-mono" x-text="scanProgress.total"></span> files
-                <span x-show="scanProgress.skipped > 0" class="text-indigo-300/75" x-text="`(${scanProgress.skipped} skipped)`"></span>
+              <span class="font-medium text-ink-primary">
+                Scanning <span class="ui-num font-mono" x-text="scanProgress.scanned"></span> / <span class="ui-num font-mono" x-text="scanProgress.total"></span> files
+                <span x-show="scanProgress.skipped > 0" class="text-ink-muted" x-text="`(${scanProgress.skipped} skipped)`"></span>
               </span>
-              <span class="font-mono text-indigo-300" x-text="`${scanPercent}%`"></span>
+              <span class="ui-num font-mono font-semibold text-accent" x-text="`${scanPercent}%`"></span>
             </div>
-            <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-canvas/80">
+            <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-inset">
               <div
                 class="h-full rounded-full bg-accent transition-all duration-200"
                 :style="`width: ${scanPercent}%`"
@@ -1246,14 +1248,14 @@
             </div>
             <p
               x-show="scanProgress.current_file"
-              class="mt-1.5 truncate font-mono text-[11px] text-indigo-200/70"
+              class="mt-1.5 truncate font-mono text-xs text-ink-muted"
               x-text="scanProgress.current_file"
             ></p>
           </div>
 
           <!-- Global Recursive Search (always searches from storage root /) -->
           <div class="relative min-w-0">
-            <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
             </svg>
             <input
@@ -1263,7 +1265,7 @@
               @input="onSearchInput()"
               :placeholder="librarySearchPlaceholder"
               aria-label="Search library recursively"
-              class="h-11 w-full rounded-xl border border-hairline bg-surface pl-10 pr-10 text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              class="ui-input h-11 rounded-ui-md pl-10 pr-10 text-sm"
             />
             <button
               type="button"
@@ -1271,7 +1273,7 @@
               x-show="searchQuery.length > 0"
               @click="clearSearch()"
               aria-label="Clear search"
-              class="absolute right-2.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+              class="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
             >
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path>
@@ -1285,13 +1287,13 @@
               <button
                 type="button"
                 @click="toggleWorkflowChip(chip.key)"
-                class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition"
-                :class="chip.active ? 'border-accent bg-accent/20 text-indigo-200' : 'border-hairline bg-surface text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'"
+                class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border px-2.5 py-1 text-xs font-medium transition"
+                :class="chip.active ? 'border-transparent bg-accent text-[var(--color-accent-fg)] font-semibold' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:text-ink-primary'"
               >
                 <span x-text="chip.label"></span>
                 <span
                   x-show="chip.count !== null"
-                  class="font-mono text-[10px] opacity-75"
+                  class="ui-num font-mono text-xs opacity-80"
                   x-text="chip.count"
                 ></span>
               </button>
@@ -1302,7 +1304,7 @@
               x-show="audioCodec"
               type="button"
               @click="audioCodec = ''; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
-              class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-accent bg-accent/20 px-2.5 py-1 font-mono text-xs font-medium text-indigo-200 transition hover:bg-accent/30"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
             >
               <span x-text="`Codec: ${audioCodec}`"></span>
               <span aria-hidden="true">×</span>
@@ -1319,11 +1321,11 @@
               <button
                 type="button"
                 @click="toggleAudioType(sound.label)"
-                class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-xs font-medium transition"
-                :class="audioType.toLowerCase() === sound.label.toLowerCase() ? Fmt.audioChipActiveClass(sound.label) : 'border-hairline bg-surface text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'"
+                class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border px-2.5 py-1 font-mono text-xs font-medium transition"
+                :class="audioType.toLowerCase() === sound.label.toLowerCase() ? 'border-transparent bg-accent text-[var(--color-accent-fg)] font-semibold' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:text-ink-primary'"
               >
                 <span x-text="sound.label"></span>
-                <span class="text-[10px] opacity-75" x-text="sound.count"></span>
+                <span class="ui-num text-xs opacity-80" x-text="sound.count"></span>
               </button>
             </template>
           </div>
@@ -1334,18 +1336,18 @@
             <div
               x-cloak
               x-show="isDirView && isGlobalSearchActive"
-              class="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3.5 py-2 text-xs text-indigo-200"
+              class="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-ui-md border border-default bg-elevated px-3.5 py-2 text-xs text-ink-primary shadow-panel"
             >
-              <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 shrink-0 text-indigo-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <span class="flex min-w-0 items-center gap-2">
+                <svg class="h-4 w-4 shrink-0 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
                 </svg>
-                <span>Searching recursively across all folders from <span class="font-mono font-semibold">/</span></span>
+                <span class="truncate">Searching recursively across all folders from <span class="font-mono font-semibold">/</span></span>
               </span>
               <button
                 type="button"
                 @click="clearSearch()"
-                class="rounded-md border border-accent/40 bg-canvas/70 px-2.5 py-1 text-[11px] font-medium text-indigo-200 transition hover:bg-canvas hover:text-white"
+                class="ui-btn ui-btn-sm ui-btn-secondary"
               >
                 Return to <span class="font-mono" x-text="currentDir"></span>
               </button>
@@ -1355,18 +1357,19 @@
             <div
               x-cloak
               x-show="showSubfolders"
-              class="flex items-center justify-between gap-2 rounded-xl border border-hairline bg-surface px-3.5 py-2.5"
+              class="ui-panel flex items-center justify-between gap-2 px-3.5 py-2"
             >
               <div class="flex min-w-0 flex-1 items-center gap-1.5">
                 <nav aria-label="Folder breadcrumbs" class="flex min-w-0 flex-wrap items-center gap-1 font-mono text-xs">
                   <template x-for="(crumb, idx) in currentDirBreadcrumbs" :key="crumb.path">
-                    <span class="inline-flex items-center gap-1">
-                      <span x-show="idx > 0" class="text-zinc-600">/</span>
+                    <span class="inline-flex min-w-0 items-center gap-1">
+                      <span x-show="idx > 0" class="text-ink-muted">/</span>
                       <button
                         type="button"
                         @click="openDirectory(crumb.path)"
-                        class="rounded px-1.5 py-0.5 transition hover:bg-zinc-800"
-                        :class="idx === currentDirBreadcrumbs.length - 1 ? 'font-semibold text-indigo-200' : 'text-zinc-400 hover:text-zinc-100'"
+                        class="max-w-[180px] truncate rounded-ui-sm px-1.5 py-0.5 transition hover:bg-[var(--color-hover-fill)]"
+                        :class="idx === currentDirBreadcrumbs.length - 1 ? 'font-semibold text-ink-primary' : 'text-ink-secondary hover:text-ink-primary'"
+                        :title="crumb.name"
                         x-text="crumb.name"
                       ></button>
                     </span>
@@ -1377,14 +1380,15 @@
               <!-- Desktop Folder Layout Switcher + New Folder Button -->
               <div class="hidden shrink-0 items-center gap-2 md:flex">
                 <!-- Folder View Layout Switcher: List (default) vs. Square Tiles (Grid) -->
-                <div class="inline-flex rounded-lg border border-hairline bg-canvas p-0.5" role="group" aria-label="Folder layout">
+                <div class="ui-segmented" role="group" aria-label="Folder layout">
                   <button
                     type="button"
                     @click="setFolderLayout(C.FOLDER_LAYOUTS.LIST)"
+                    :aria-pressed="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'true' : 'false'"
                     title="Detailed list view"
                     aria-label="List view"
-                    class="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition"
-                    :class="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                    class="ui-segmented-item"
+                    :class="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'ui-segmented-item-active' : ''"
                   >
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z"></path>
@@ -1394,10 +1398,11 @@
                   <button
                     type="button"
                     @click="setFolderLayout(C.FOLDER_LAYOUTS.GRID)"
+                    :aria-pressed="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'true' : 'false'"
                     title="Square icon grid"
                     aria-label="Grid icon view"
-                    class="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium transition"
-                    :class="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                    class="ui-segmented-item"
+                    :class="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'ui-segmented-item-active' : ''"
                   >
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"></path>
@@ -1409,9 +1414,9 @@
                 <button
                   type="button"
                   @click="openNewFolderModal(currentDir)"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md border border-hairline bg-canvas px-2.5 text-[11px] font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  class="ui-btn ui-btn-sm ui-btn-secondary"
                 >
-                  <svg class="h-4 w-4 text-indigo-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <svg class="h-4 w-4 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"></path>
                   </svg>
                   <span>New Folder</span>
@@ -1426,7 +1431,7 @@
                   :aria-expanded="folderBarMenuOpen ? 'true' : 'false'"
                   aria-label="Folder view options"
                   title="Folder view options"
-                  class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-hairline bg-canvas text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+                  class="inline-flex h-9 w-9 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-ink-secondary transition hover:border-default hover:text-ink-primary"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
@@ -1440,48 +1445,48 @@
                   @click.outside="folderBarMenuOpen = false"
                   role="menu"
                   aria-label="Folder layout and actions"
-                  class="absolute right-0 top-9 z-40 w-44 overflow-hidden rounded-xl border border-hairline bg-surface py-1.5 shadow-2xl"
+                  class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-48 overflow-hidden"
                 >
                   <button
                     type="button"
                     role="menuitem"
                     @click="setFolderLayout(C.FOLDER_LAYOUTS.LIST)"
-                    class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-                    :class="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'bg-accent/10 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+                    class="ui-menu-item"
+                    :class="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'ui-menu-item-active' : ''"
                   >
                     <span class="flex items-center gap-2.5">
-                      <svg class="h-4 w-4 shrink-0" :class="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <svg class="h-4 w-4 shrink-0" :class="folderLayout === C.FOLDER_LAYOUTS.LIST ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z"></path>
                       </svg>
                       <span>List View</span>
                     </span>
-                    <span x-show="folderLayout === C.FOLDER_LAYOUTS.LIST" class="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+                    <span x-show="folderLayout === C.FOLDER_LAYOUTS.LIST" class="h-1.5 w-1.5 rounded-full bg-accent"></span>
                   </button>
                   <button
                     type="button"
                     role="menuitem"
                     @click="setFolderLayout(C.FOLDER_LAYOUTS.GRID)"
-                    class="flex w-full items-center justify-between gap-2.5 px-3 py-2 text-left text-xs font-medium transition hover:bg-zinc-800"
-                    :class="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'bg-accent/10 text-indigo-300' : 'text-zinc-200 hover:text-white'"
+                    class="ui-menu-item"
+                    :class="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'ui-menu-item-active' : ''"
                   >
                     <span class="flex items-center gap-2.5">
-                      <svg class="h-4 w-4 shrink-0" :class="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'text-indigo-400' : 'text-zinc-400'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <svg class="h-4 w-4 shrink-0" :class="folderLayout === C.FOLDER_LAYOUTS.GRID ? 'text-accent' : 'text-ink-muted'" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"></path>
                       </svg>
                       <span>Grid View</span>
                     </span>
-                    <span x-show="folderLayout === C.FOLDER_LAYOUTS.GRID" class="h-1.5 w-1.5 rounded-full bg-indigo-400"></span>
+                    <span x-show="folderLayout === C.FOLDER_LAYOUTS.GRID" class="h-1.5 w-1.5 rounded-full bg-accent"></span>
                   </button>
 
-                  <div class="my-1 border-t border-hairline"></div>
+                  <div class="ui-menu-divider"></div>
 
                   <button
                     type="button"
                     role="menuitem"
                     @click="openNewFolderModal(currentDir)"
-                    class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+                    class="ui-menu-item justify-start"
                   >
-                    <svg class="h-4 w-4 shrink-0 text-indigo-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg class="h-4 w-4 shrink-0 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"></path>
                     </svg>
                     <span>New Folder</span>
@@ -1490,9 +1495,9 @@
                     type="button"
                     role="menuitem"
                     @click="openTestMediaModal({ destinationDir: currentDir })"
-                    class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+                    class="ui-menu-item justify-start"
                   >
-                    <svg class="h-4 w-4 shrink-0 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg class="h-4 w-4 shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                       <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                     </svg>
@@ -1502,19 +1507,19 @@
               </div>
             </div>
 
-            <!-- Multi-Select Bulk Action Bar -->
+            <!-- Multi-Select Bulk Action Bar (Elevated Surface) -->
             <div
               x-cloak
               x-show="selectedFileCount > 0"
               x-transition
-              class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/15 px-3.5 py-2.5 text-xs"
+              class="flex flex-wrap items-center justify-between gap-2 rounded-ui-md border border-strong bg-elevated px-3.5 py-2.5 text-xs shadow-elevated"
             >
               <div class="flex items-center gap-2.5">
-                <span class="font-semibold text-indigo-100" x-text="`${selectedFileCount} selected`"></span>
+                <span class="ui-num font-semibold text-ink-primary" x-text="`${selectedFileCount} selected`"></span>
                 <button
                   type="button"
                   @click="toggleSelectAllPage()"
-                  class="text-[11px] font-medium text-indigo-300 hover:text-white"
+                  class="text-xs font-medium text-accent transition hover:underline"
                   x-text="allPageFilesSelected ? 'Unselect page' : 'Select page'"
                 ></button>
               </div>
@@ -1523,7 +1528,7 @@
                   type="button"
                   x-show="singleSelectedFile"
                   @click="openRenameFileModal(singleSelectedFile)"
-                  class="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-surface px-2.5 py-1.5 text-[11px] font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  class="ui-btn ui-btn-sm ui-btn-secondary"
                 >
                   <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M18.41 5.8L17.2 4.59c-.78-.78-2.05-.78-2.83 0l-2.68 2.68L3 15.96V20h4.04l8.74-8.74 2.63-2.63c.79-.78.79-2.05 0-2.83zM6.21 18H5v-1.21l8.66-8.66 1.21 1.21L6.21 18zM11 20l4-4h6v4H11z"></path>
@@ -1533,7 +1538,7 @@
                 <button
                   type="button"
                   @click="openMoveFilesModal(selectedFileIds)"
-                  class="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-accent-hover"
+                  class="ui-btn ui-btn-sm ui-btn-primary"
                 >
                   <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z"></path>
@@ -1543,7 +1548,7 @@
                 <button
                   type="button"
                   @click="openDeleteSelectedFilesModal()"
-                  class="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-1.5 text-[11px] font-semibold text-red-200 transition hover:bg-red-500/25"
+                  class="ui-btn ui-btn-sm ui-btn-danger"
                 >
                   <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
@@ -1553,7 +1558,7 @@
                 <button
                   type="button"
                   @click="clearSelection()"
-                  class="rounded-lg border border-hairline bg-canvas px-2.5 py-1.5 text-[11px] text-zinc-400 hover:text-zinc-100"
+                  class="ui-btn ui-btn-sm ui-btn-ghost"
                 >
                   Clear
                 </button>
@@ -1562,12 +1567,12 @@
 
             <!-- Library Error -->
             <template x-if="libraryError">
-              <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+              <div class="flex flex-wrap items-center justify-between gap-3 rounded-ui-md border border-[var(--color-status-err-border)] bg-[var(--color-status-err-bg)] p-4 text-sm text-[var(--color-status-err)]">
                 <span class="min-w-0 flex-1 break-words" x-text="libraryError"></span>
                 <button
                   type="button"
                   @click="loadLibrary()"
-                  class="shrink-0 rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-medium text-red-100 transition hover:bg-red-500/25"
+                  class="ui-btn ui-btn-sm ui-btn-danger shrink-0"
                 >
                   Retry
                 </button>
@@ -1584,35 +1589,35 @@
               x-show="libraryLoading && files.length === 0 && subfolders.length === 0 && isGridLayout"
               class="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
             >
-              <div class="min-h-[152px] animate-pulse rounded-2xl border border-hairline bg-surface/80"></div>
-              <div class="min-h-[152px] animate-pulse rounded-2xl border border-hairline bg-surface/80"></div>
-              <div class="min-h-[152px] animate-pulse rounded-2xl border border-hairline bg-surface/80"></div>
-              <div class="min-h-[152px] animate-pulse rounded-2xl border border-hairline bg-surface/80"></div>
-              <div class="hidden lg:block min-h-[152px] animate-pulse rounded-2xl border border-hairline bg-surface/80"></div>
-              <div class="hidden xl:block min-h-[152px] animate-pulse rounded-2xl border border-hairline bg-surface/80"></div>
+              <div class="min-h-[152px] animate-pulse rounded-ui-lg border border-subtle bg-surface/80"></div>
+              <div class="min-h-[152px] animate-pulse rounded-ui-lg border border-subtle bg-surface/80"></div>
+              <div class="min-h-[152px] animate-pulse rounded-ui-lg border border-subtle bg-surface/80"></div>
+              <div class="min-h-[152px] animate-pulse rounded-ui-lg border border-subtle bg-surface/80"></div>
+              <div class="hidden lg:block min-h-[152px] animate-pulse rounded-ui-lg border border-subtle bg-surface/80"></div>
+              <div class="hidden xl:block min-h-[152px] animate-pulse rounded-ui-lg border border-subtle bg-surface/80"></div>
             </div>
             <div
               x-show="libraryLoading && files.length === 0 && subfolders.length === 0 && !isGridLayout"
               class="space-y-2.5"
             >
-              <div class="h-20 animate-pulse rounded-xl border border-hairline bg-surface/80"></div>
-              <div class="h-20 animate-pulse rounded-xl border border-hairline bg-surface/80"></div>
+              <div class="h-16 animate-pulse rounded-ui-md border border-subtle bg-surface/80"></div>
+              <div class="h-16 animate-pulse rounded-ui-md border border-subtle bg-surface/80"></div>
             </div>
 
             <!-- Empty Folder / Empty Filter Result -->
             <div
               x-cloak
               x-show="!libraryLoading && files.length === 0 && (!showSubfolders || (subfolders.length === 0 && otherFiles.length === 0)) && !libraryError"
-              class="rounded-xl border border-hairline bg-surface p-8 text-center"
+              class="ui-panel p-8 text-center"
             >
-              <p class="text-sm font-medium text-zinc-200" x-text="showSubfolders && !hasActiveFilters ? 'This folder is empty' : 'No files match your current filters.'"></p>
-              <p class="mt-1 text-xs text-zinc-500" x-text="showSubfolders && !hasActiveFilters ? 'Create a subfolder, move files here, or switch to All Files.' : 'Try clearing your search or switching filter chips.'"></p>
+              <p class="text-sm font-medium text-ink-primary" x-text="showSubfolders && !hasActiveFilters ? 'This folder is empty' : 'No files match your current filters.'"></p>
+              <p class="mt-1 text-xs text-ink-muted" x-text="showSubfolders && !hasActiveFilters ? 'Create a subfolder, move files here, or switch to All Files.' : 'Try clearing your search or switching filter chips.'"></p>
               <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   x-show="hasActiveFilters"
                   @click="openLibraryPreset()"
-                  class="rounded-lg border border-hairline bg-canvas px-4 py-2 text-xs font-medium text-zinc-200 hover:border-zinc-600"
+                  class="ui-btn ui-btn-secondary"
                 >
                   Reset Filters
                 </button>
@@ -1620,7 +1625,7 @@
                   type="button"
                   x-show="isDirView"
                   @click="setLibraryView(C.LIBRARY_VIEWS.LIST)"
-                  class="rounded-lg border border-accent/40 bg-accent/15 px-4 py-2 text-xs font-medium text-indigo-200 hover:bg-accent/25"
+                  class="ui-btn ui-btn-primary"
                 >
                   View All Files →
                 </button>
@@ -1639,12 +1644,12 @@
               <template x-for="sub in subfolders" :key="`tile-dir-${sub.path}`">
                 <article
                   @contextmenu.prevent="openFolderContextMenu(sub, $event)"
-                  class="group relative flex min-h-[152px] flex-col overflow-hidden rounded-2xl border border-hairline bg-surface/90 transition duration-200 hover:border-indigo-500/45 hover:bg-surface hover:shadow-lg hover:shadow-black/40"
+                  class="group relative flex min-h-[152px] min-w-0 flex-col overflow-hidden rounded-ui-lg border border-subtle bg-surface shadow-panel transition duration-150 hover:border-default hover:shadow-elevated"
                 >
                   <!-- Subtle Top-Left Count Badge -->
                   <span
                     x-show="folderCounts[sub.path] > 0"
-                    class="pointer-events-none absolute left-2.5 top-2.5 z-10 rounded-full border border-hairline/80 bg-canvas/85 px-2 py-0.5 font-mono text-[10px] font-medium text-zinc-400 backdrop-blur-sm"
+                    class="ui-tag ui-num pointer-events-none absolute left-2.5 top-2.5 z-10 font-mono text-xs"
                     x-text="folderCounts[sub.path]"
                   ></span>
 
@@ -1654,7 +1659,7 @@
                     @click.stop="openFolderContextMenu(sub, $event)"
                     :aria-label="`Folder actions for ${sub.name}`"
                     title="More actions"
-                    class="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-800/90 hover:text-zinc-100 group-hover:text-zinc-300"
+                    class="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
                   >
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
@@ -1664,37 +1669,28 @@
                   <button
                     type="button"
                     @click="openDirectory(sub.path)"
-                    class="flex flex-1 flex-col items-center justify-center gap-2.5 px-3 pb-3.5 pt-5 text-center focus:outline-none"
+                    class="flex flex-1 min-w-0 flex-col items-center justify-center gap-2.5 px-3 pb-3.5 pt-5 text-center focus:outline-none"
                   >
                     <div class="relative flex items-center justify-center">
-                      <span
-                        aria-hidden="true"
-                        class="pointer-events-none absolute inset-1 rounded-full bg-indigo-500/0 blur-xl transition duration-200 group-hover:bg-indigo-500/20"
-                      ></span>
                       <!-- Sculpted Two-Tone macOS/Material Folder Icon -->
                       <svg
-                        class="relative h-[76px] w-[76px] shrink-0 drop-shadow-[0_8px_16px_rgba(99,102,241,0.22)] transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.04]"
+                        class="relative h-[72px] w-[72px] shrink-0 transition duration-150 group-hover:-translate-y-0.5"
                         viewBox="0 0 64 64"
                         fill="none"
                         aria-hidden="true"
                       >
-                        <!-- Folder Back Plate & Tab -->
                         <path
                           d="M6 16C6 12.6863 8.68629 10 12 10H24.3431C25.9344 10 27.4606 10.6321 28.5858 11.7574L31.4142 14.5858C32.1644 15.3359 33.1817 15.7574 34.2426 15.7574H52C55.3137 15.7574 58 18.4437 58 21.7574V26H6V16Z"
                           fill="#4338CA"
                         />
-                        <!-- Subtle Inner Sheet Peek -->
                         <rect x="10" y="18" width="44" height="8" rx="3" fill="#C7D2FE" fill-opacity="0.22" />
-                        <!-- Sculpted Front Folder Pocket -->
                         <rect x="6" y="21" width="52" height="33" rx="6" fill="#6366F1" />
-                        <!-- Top Specular Highlight Edge -->
                         <path d="M12 21.75H52C54.9 21.75 57.25 24.1 57.25 27V27.5H6.75V27C6.75 24.1 9.1 21.75 12 21.75Z" fill="#A5B4FC" fill-opacity="0.35" />
-                        <!-- Bottom Depth Shading -->
                         <path d="M6 47H58V48C58 51.3137 55.3137 54 52 54H12C8.68629 54 6 51.3137 6 48V47Z" fill="#312E81" fill-opacity="0.28" />
                       </svg>
                     </div>
                     <span
-                      class="w-full line-clamp-2 [overflow-wrap:anywhere] font-mono text-xs font-medium tracking-tight leading-snug text-zinc-200 transition group-hover:text-white"
+                      class="w-full min-w-0 truncate font-mono text-xs font-medium tracking-tight leading-snug text-ink-primary"
                       :title="sub.path"
                       x-text="sub.name"
                     ></span>
@@ -1706,13 +1702,13 @@
               <template x-for="file in files" :key="`tile-file-${file.id}`">
                 <article
                   @contextmenu.prevent="openFileContextMenu(file, $event)"
-                  class="group relative flex min-h-[152px] flex-col overflow-hidden rounded-2xl border transition duration-200"
-                  :class="isFileBusy(file) ? 'border-accent/50 bg-accent/[0.06] shadow-lg shadow-indigo-950/25' : (isFileSelected(file.id) ? 'border-accent bg-accent/10 shadow-lg shadow-indigo-950/30' : 'border-hairline bg-surface/90 hover:border-zinc-500/70 hover:bg-surface hover:shadow-lg hover:shadow-black/40')"
+                  class="group relative flex min-h-[152px] min-w-0 flex-col overflow-hidden rounded-ui-lg border transition duration-150"
+                  :class="isFileBusy(file) ? 'border-accent/60 bg-accent/[0.06] shadow-panel' : (isFileSelected(file.id) ? 'border-accent bg-accent/[0.08] shadow-panel' : 'border-subtle bg-surface shadow-panel hover:border-default hover:shadow-elevated')"
                 >
                   <!-- Top-Left Selection Checkbox (hidden while file is processing or scanning) -->
                   <label
                     x-show="!isFileLocked(file)"
-                    class="absolute left-2 top-2 z-10 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition"
+                    class="absolute left-2 top-2 z-10 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-ui-sm transition"
                     :class="(mobileSelectMode || selectedFileCount > 0 || isFileSelected(file.id)) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'"
                     @click.stop
                   >
@@ -1722,16 +1718,16 @@
                       :disabled="isFileLocked(file)"
                       @change="toggleFileSelection(file.id)"
                       :aria-label="`Select ${file.filename}`"
-                      class="h-4 w-4 rounded border-zinc-600 bg-canvas text-accent focus:ring-accent"
+                      class="h-4 w-4 rounded border-default bg-inset text-accent focus:ring-accent"
                     />
                   </label>
 
                   <!-- Top-Right Live Progress % / Scanning / Scan Failed / Context Menu Trigger -->
-                  <div class="absolute right-2 top-2 z-10 flex items-center gap-0.5">
+                  <div class="absolute right-2 top-2 z-10 flex items-center gap-1">
                     <span
                       x-cloak
                       x-show="!isFileBusy(file) && isFileScanning(file)"
-                      class="inline-flex h-6 items-center gap-1 rounded-md border border-sky-500/35 bg-sky-500/15 px-1.5 font-mono text-[10px] font-medium text-sky-300 animate-pulse"
+                      class="ui-status ui-status-info font-mono text-xs animate-pulse"
                     >
                       Scanning…
                     </span>
@@ -1741,7 +1737,7 @@
                       type="button"
                       @click.stop="rescanSingleFile(file)"
                       title="Scan failed — tap to retry"
-                      class="inline-flex h-6 items-center gap-1 rounded-md border border-red-500/40 bg-red-500/15 px-1.5 font-mono text-[10px] font-medium text-red-300 transition hover:bg-red-500/25"
+                      class="ui-status ui-status-err font-mono text-xs"
                     >
                       ↻ Retry
                     </button>
@@ -1752,8 +1748,8 @@
                       @click.stop="openJobsDrawer()"
                       :aria-label="`View processing progress for ${file.filename}`"
                       title="Processing in progress — click to view live drawer"
-                      class="inline-flex h-6 items-center justify-center rounded-md border px-1.5 font-mono text-[10px] font-semibold backdrop-blur-sm transition"
-                      :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'border-accent/40 bg-accent/15 text-indigo-200 hover:bg-accent/25 hover:text-white' : 'border-amber-500/35 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20'"
+                      class="ui-num inline-flex h-6 items-center justify-center rounded-ui-sm border px-2 font-mono text-xs font-semibold transition"
+                      :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'border-transparent bg-accent text-[var(--color-accent-fg)] hover:bg-accent-hover' : 'ui-status-warn'"
                     >
                       <span x-text="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? `${getFileJobStatus(file).percent}%` : `Q#${getFileJobStatus(file)?.queuePos || 1}`"></span>
                     </button>
@@ -1772,7 +1768,7 @@
                       @click.stop="openFileContextMenu(file, $event)"
                       :aria-label="`File actions for ${file.filename}`"
                       title="More actions"
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-800/90 hover:text-zinc-100 group-hover:text-zinc-300"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
                     >
                       <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
@@ -1783,47 +1779,38 @@
                   <button
                     type="button"
                     @click="(mobileSelectMode && !isFileBusy(file)) ? toggleFileSelection(file.id) : openEditor(file)"
-                    class="flex flex-1 flex-col items-center justify-center gap-2.5 px-3 pb-3.5 pt-5 text-center focus:outline-none"
+                    class="flex flex-1 min-w-0 flex-col items-center justify-center gap-2.5 px-3 pb-3.5 pt-5 text-center focus:outline-none"
                   >
                     <div class="relative flex items-center justify-center">
-                      <span
-                        aria-hidden="true"
-                        class="pointer-events-none absolute inset-1 rounded-full bg-indigo-500/0 blur-xl transition duration-200 group-hover:bg-indigo-500/15"
-                      ></span>
-                      <!-- Sculpted Dark Media Document Icon -->
+                      <!-- Sculpted Media Document Icon -->
                       <svg
-                        class="relative h-[76px] w-[76px] shrink-0 drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.04]"
+                        class="relative h-[72px] w-[72px] shrink-0 transition duration-150 group-hover:-translate-y-0.5"
                         viewBox="0 0 64 64"
                         fill="none"
                         aria-hidden="true"
                       >
-                        <!-- Document Sheet Body -->
                         <path
                           d="M14 10C14 7.79086 15.7909 6 18 6H38.5L50 17.5V54C50 56.2091 48.2091 58 46 58H18C15.7909 58 14 56.2091 14 54V10Z"
                           fill="#1B1E2B"
                           stroke="#353B52"
                           stroke-width="1.5"
                         />
-                        <!-- Top Specular Edge -->
                         <path d="M18 7H38L49 18V19H37.5C36.1193 19 35 17.8807 35 16.5V7H18Z" fill="#FFFFFF" fill-opacity="0.03" />
-                        <!-- Folded Dog-Ear Corner -->
                         <path
                           d="M38.5 6L50 17.5H41.5C39.8431 17.5 38.5 16.1569 38.5 14.5V6Z"
                           fill="#2D3348"
                         />
-                        <!-- Centered Play Emblem -->
                         <circle cx="32" cy="31" r="10.5" fill="#6366F1" fill-opacity="0.16" stroke="#818CF8" stroke-opacity="0.55" stroke-width="1.25" />
                         <path d="M29.5 26.2L37.2 31L29.5 35.8V26.2Z" fill="#A5B4FC" />
                       </svg>
-                      <!-- Cleanly Seated Format Ribbon -->
+                      <!-- Monochrome Format Tag -->
                       <span
-                        class="pointer-events-none absolute bottom-1.5 rounded-md border px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider shadow-sm"
-                        :class="Fmt.fileExtensionLabel(file.filename) === 'MP4' ? 'border-emerald-500/35 bg-emerald-950/90 text-emerald-300' : 'border-indigo-500/35 bg-indigo-950/90 text-indigo-200'"
+                        class="ui-tag pointer-events-none absolute bottom-1 font-mono text-[11px] font-semibold uppercase tracking-wider"
                         x-text="Fmt.fileExtensionLabel(file.filename)"
                       ></span>
                     </div>
                     <span
-                      class="w-full line-clamp-2 [overflow-wrap:anywhere] font-mono text-xs font-medium tracking-tight leading-snug text-zinc-200 transition group-hover:text-white"
+                      class="w-full min-w-0 truncate font-mono text-xs font-medium tracking-tight leading-snug text-ink-primary"
                       :title="file.filename"
                       x-text="file.filename"
                     ></span>
@@ -1833,11 +1820,11 @@
                   <div
                     x-cloak
                     x-show="isFileBusy(file)"
-                    class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-canvas/90"
+                    class="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-inset"
                   >
                     <div
                       class="h-full transition-all duration-300"
-                      :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'bg-accent' : 'bg-amber-400/70 animate-pulse'"
+                      :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'bg-accent' : 'bg-[var(--color-status-warn)] animate-pulse'"
                       :style="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? `width: ${fileBusyProgressWidth(file)}%` : 'width: 100%'"
                     ></div>
                   </div>
@@ -1853,25 +1840,25 @@
             <div
               x-cloak
               x-show="!isGridLayout && showSubfolders && subfolders.length > 0"
-              class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline"
+              class="ui-list-group"
             >
               <template x-for="sub in subfolders" :key="sub.path">
                 <div
                   @contextmenu.prevent="openFolderContextMenu(sub, $event)"
-                  class="flex items-center justify-between gap-2 px-3.5 py-2.5 transition hover:bg-zinc-900/60"
+                  class="ui-row flex min-w-0 items-center justify-between gap-2 px-3.5 py-2.5"
                 >
                   <button
                     type="button"
                     @click="openDirectory(sub.path)"
                     class="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                   >
-                    <svg class="h-5 w-5 shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <svg class="h-5 w-5 shrink-0 text-accent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path>
                     </svg>
-                    <span class="truncate font-mono text-xs font-medium text-zinc-100" :title="sub.path" x-text="sub.name"></span>
+                    <span class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="sub.path" x-text="sub.name"></span>
                     <span
                       x-show="folderCounts[sub.path] > 0"
-                      class="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"
+                      class="ui-tag ui-num shrink-0 font-mono text-xs"
                       x-text="`${folderCounts[sub.path]} ${folderCounts[sub.path] === 1 ? 'file' : 'files'}`"
                     ></span>
                   </button>
@@ -1881,7 +1868,7 @@
                     @click.stop="openFolderContextMenu(sub, $event)"
                     :aria-label="`Folder actions for ${sub.name}`"
                     title="More actions"
-                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
                   >
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
@@ -1891,15 +1878,15 @@
               </template>
             </div>
 
-            <!-- Mobile Stacked File Cards (< md, used in List layout, Search & All Files) -->
-            <div x-show="!isGridLayout && files.length > 0" class="space-y-3 md:hidden">
+            <!-- Mobile Hairline-Grouped File List (< md, used in List layout, Search & All Files) -->
+            <div x-show="!isGridLayout && files.length > 0" class="ui-list-group md:hidden">
               <template x-for="file in files" :key="file.id">
                 <article
                   @contextmenu.prevent="openFileContextMenu(file, $event)"
-                  class="relative overflow-hidden rounded-xl border bg-surface p-4 transition"
-                  :class="isFileBusy(file) ? 'border-accent/50 bg-accent/[0.06]' : (isFileSelected(file.id) ? 'border-accent bg-accent/5' : 'border-hairline hover:border-zinc-600')"
+                  class="ui-row relative min-w-0 overflow-hidden px-3.5 py-3"
+                  :class="isFileBusy(file) ? 'bg-accent/[0.06]' : (isFileSelected(file.id) ? 'bg-accent/[0.08]' : '')"
                 >
-                  <div class="flex items-start gap-2.5">
+                  <div class="flex min-w-0 items-start gap-2.5">
                     <input
                       x-show="mobileSelectMode || selectedFileCount > 0"
                       type="checkbox"
@@ -1907,26 +1894,26 @@
                       :disabled="isFileLocked(file)"
                       @change="toggleFileSelection(file.id)"
                       :aria-label="`Select ${file.filename}`"
-                      class="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-600 bg-canvas text-accent focus:ring-accent disabled:opacity-35 disabled:cursor-not-allowed"
+                      class="mt-0.5 h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent disabled:opacity-35 disabled:cursor-not-allowed"
                     />
                     <button
                       type="button"
                       @click="(mobileSelectMode && !isFileLocked(file)) ? toggleFileSelection(file.id) : openEditor(file)"
                       class="min-w-0 flex-1 text-left"
                     >
-                      <p class="[overflow-wrap:anywhere] font-mono text-xs font-medium leading-snug text-zinc-100" :title="file.filename" x-text="file.filename"></p>
-                      <p x-show="!showSubfolders" class="mt-0.5 truncate text-[11px] text-zinc-500" :title="file.folder" x-text="file.folder"></p>
+                      <p class="min-w-0 truncate font-mono text-[13px] font-medium leading-snug text-ink-primary" :title="file.filename" x-text="file.filename"></p>
+                      <p x-show="!showSubfolders" class="mt-0.5 min-w-0 truncate font-mono text-xs text-ink-muted" :title="file.folder" x-text="file.folder"></p>
                     </button>
                     <div class="flex shrink-0 items-center gap-1.5">
-                      <span class="font-mono text-[11px] text-zinc-400" x-text="Fmt.formatBytes(file.size_bytes)"></span>
+                      <span class="ui-num whitespace-nowrap font-mono text-xs text-ink-secondary" x-text="Fmt.formatBytes(file.size_bytes)"></span>
                       <button
                         x-cloak
                         x-show="isFileBusy(file)"
                         type="button"
                         @click.stop="openJobsDrawer()"
                         :aria-label="`View processing progress for ${file.filename}`"
-                        class="inline-flex h-7 items-center justify-center rounded-lg border px-2 font-mono text-[11px] font-semibold transition"
-                        :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'border-accent/40 bg-accent/15 text-indigo-200 hover:bg-accent/25 hover:text-white' : 'border-amber-500/35 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20'"
+                        class="ui-num inline-flex h-7 items-center justify-center rounded-ui-sm border px-2 font-mono text-xs font-semibold transition"
+                        :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'border-transparent bg-accent text-[var(--color-accent-fg)] hover:bg-accent-hover' : 'ui-status-warn'"
                       >
                         <span x-text="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? `${getFileJobStatus(file).percent}%` : `Q#${getFileJobStatus(file)?.queuePos || 1}`"></span>
                       </button>
@@ -1936,7 +1923,7 @@
                         @click.stop="openFileContextMenu(file, $event)"
                         :aria-label="`File actions for ${file.filename}`"
                         title="More actions"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
                       >
                         <svg
                           x-show="isRescanning(file.id)"
@@ -1960,11 +1947,12 @@
                     </div>
                   </div>
 
-                  <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <!-- Actionable Signal Pills + Monochrome Metadata Tags -->
+                  <div class="mt-2 flex flex-wrap items-center gap-1.5">
                     <span
                       x-cloak
                       x-show="isFileScanning(file)"
-                      class="inline-flex items-center gap-1 rounded-md border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 font-mono text-[10px] font-medium text-sky-300 animate-pulse"
+                      class="ui-status ui-status-info font-mono animate-pulse"
                     >
                       Scanning…
                     </span>
@@ -1973,45 +1961,48 @@
                       x-show="isFileScanError(file)"
                       type="button"
                       @click.stop="rescanSingleFile(file)"
-                      class="inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/15 px-2 py-0.5 font-mono text-[10px] font-medium text-red-300 transition hover:bg-red-500/25"
+                      class="ui-status ui-status-err font-mono"
                     >
                       <span>Scan Failed</span>
                       <span>↻</span>
                     </button>
                     <span
+                      x-show="file.needs_conversion"
+                      class="ui-status ui-status-warn"
+                    >
+                      Needs Fix
+                    </span>
+                    <span
+                      x-show="file.has_metadata"
+                      class="ui-status ui-status-warn"
+                    >
+                      Metadata
+                    </span>
+                    <span
                       x-show="file.resolution"
-                      class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300"
+                      class="ui-tag font-mono"
                       x-text="file.resolution"
                     ></span>
                     <span
                       x-show="userSettings.show_video_details && file.video_codec"
-                      class="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                      :class="Fmt.videoCodecBadgeClass(file.video_codec)"
+                      class="ui-tag font-mono"
                       :title="Fmt.videoCodecTooltip(file.video_codec)"
                       x-text="file.video_codec"
                     ></span>
                     <span
                       x-show="userSettings.show_video_details && file.video_dynamic_range"
-                      class="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                      :class="Fmt.dynamicRangeBadgeClass(file.video_dynamic_range)"
+                      class="ui-tag font-mono"
                       x-text="file.video_dynamic_range"
                     ></span>
                     <template x-for="(aud, idx) in file.audio_summary" :key="idx">
                       <span
-                        class="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                        :class="Fmt.audioBadgeClass(aud)"
+                        class="ui-tag font-mono"
                         x-text="Fmt.formatAudioTrackBadge(aud)"
                       ></span>
                     </template>
                     <span
-                      x-show="file.has_metadata"
-                      class="rounded-md bg-zinc-500/15 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300"
-                    >
-                      Metadata
-                    </span>
-                    <span
                       x-show="file.subtitle_count > 0"
-                      class="rounded-md bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-400"
+                      class="ui-tag ui-num"
                       x-text="`${file.subtitle_count} ${file.subtitle_count === 1 ? 'Sub' : 'Subs'}`"
                     ></span>
                   </div>
@@ -2020,11 +2011,11 @@
                   <div
                     x-cloak
                     x-show="isFileBusy(file)"
-                    class="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-canvas/90"
+                    class="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-inset"
                   >
                     <div
                       class="h-full transition-all duration-300"
-                      :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'bg-accent' : 'bg-amber-400/70 animate-pulse'"
+                      :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'bg-accent' : 'bg-[var(--color-status-warn)] animate-pulse'"
                       :style="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? `width: ${fileBusyProgressWidth(file)}%` : 'width: 100%'"
                     ></div>
                   </div>
@@ -2033,48 +2024,48 @@
             </div>
 
             <!-- Desktop Sortable Table (md and above, used in List layout, Search & All Files) -->
-            <div x-show="!isGridLayout && files.length > 0" class="hidden md:block overflow-x-auto rounded-xl border border-hairline bg-surface">
+            <div x-show="!isGridLayout && files.length > 0" class="ui-panel hidden md:block overflow-x-auto">
               <table class="w-full table-fixed border-collapse text-left text-xs">
                 <thead>
-                  <tr class="border-b border-hairline bg-canvas/50 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                    <th class="w-[40px] pl-3.5 pr-1 py-3">
+                  <tr class="border-b border-subtle bg-inset/60 text-xs font-medium text-ink-secondary">
+                    <th class="w-[40px] pl-3.5 pr-1 py-2.5">
                       <input
                         type="checkbox"
                         :checked="allPageFilesSelected"
                         @change="toggleSelectAllPage()"
                         aria-label="Select all files on page"
-                        class="h-4 w-4 rounded border-zinc-600 bg-surface text-accent focus:ring-accent"
+                        class="h-4 w-4 rounded border-default bg-surface text-accent focus:ring-accent"
                       />
                     </th>
-                    <th class="px-3 py-3">
-                      <button type="button" @click="toggleSort(C.SORT_FIELDS.FILENAME)" class="inline-flex items-center gap-1 hover:text-zinc-200">
+                    <th class="px-3 py-2.5">
+                      <button type="button" @click="toggleSort(C.SORT_FIELDS.FILENAME)" class="inline-flex items-center gap-1 transition hover:text-ink-primary">
                         <span>Filename &amp; Streams</span>
                         <span x-show="sortField === C.SORT_FIELDS.FILENAME" x-text="sortOrder === C.SORT_ORDERS.ASC ? '↑' : '↓'"></span>
                       </button>
                     </th>
-                    <th class="w-[100px] px-2 py-3 text-right">
-                      <button type="button" @click="toggleSort(C.SORT_FIELDS.SIZE_BYTES)" class="inline-flex items-center gap-1 hover:text-zinc-200">
+                    <th class="w-[104px] px-2 py-2.5 text-right">
+                      <button type="button" @click="toggleSort(C.SORT_FIELDS.SIZE_BYTES)" class="inline-flex items-center gap-1 transition hover:text-ink-primary">
                         <span>Size</span>
                         <span x-show="sortField === C.SORT_FIELDS.SIZE_BYTES" x-text="sortOrder === C.SORT_ORDERS.ASC ? '↑' : '↓'"></span>
                       </button>
                     </th>
-                    <th class="w-[96px] px-2 py-3 text-right">
-                      <button type="button" @click="toggleSort(C.SORT_FIELDS.DURATION_US)" class="inline-flex items-center gap-1 hover:text-zinc-200">
+                    <th class="w-[96px] px-2 py-2.5 text-right">
+                      <button type="button" @click="toggleSort(C.SORT_FIELDS.DURATION_US)" class="inline-flex items-center gap-1 transition hover:text-ink-primary">
                         <span>Duration</span>
                         <span x-show="sortField === C.SORT_FIELDS.DURATION_US" x-text="sortOrder === C.SORT_ORDERS.ASC ? '↑' : '↓'"></span>
                       </button>
                     </th>
-                    <th class="w-[56px] px-3 py-3 text-right">
+                    <th class="w-[56px] px-3 py-2.5 text-right">
                       <span class="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-hairline">
+                <tbody class="divide-y divide-[var(--color-border-subtle)]">
                   <template x-for="file in files" :key="file.id">
                     <tr
                       @contextmenu.prevent="openFileContextMenu(file, $event)"
-                      class="transition"
-                      :class="isFileBusy(file) ? 'bg-accent/[0.06]' : (isFileSelected(file.id) ? 'bg-accent/10' : 'hover:bg-zinc-900/60')"
+                      class="ui-row"
+                      :class="isFileBusy(file) ? 'bg-accent/[0.06]' : (isFileSelected(file.id) ? 'bg-accent/[0.08]' : '')"
                     >
                       <td class="pl-3.5 pr-1 py-3 align-top">
                         <input
@@ -2083,28 +2074,28 @@
                           :disabled="isFileLocked(file)"
                           @change="toggleFileSelection(file.id)"
                           :aria-label="`Select ${file.filename}`"
-                          class="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-surface text-accent focus:ring-accent disabled:opacity-35 disabled:cursor-not-allowed"
+                          class="mt-0.5 h-4 w-4 rounded border-default bg-surface text-accent focus:ring-accent disabled:opacity-35 disabled:cursor-not-allowed"
                         />
                       </td>
-                      <td class="px-3 py-3 align-top">
+                      <td class="px-3 py-3 align-top min-w-0">
                         <button
                           type="button"
                           @click="openEditor(file)"
                           class="block w-full min-w-0 text-left"
                         >
-                          <p class="[overflow-wrap:anywhere] font-mono text-xs font-medium leading-snug text-zinc-100 hover:text-indigo-300" :title="file.filename" x-text="file.filename"></p>
+                          <p class="min-w-0 truncate font-mono text-[13px] font-medium leading-snug text-ink-primary transition hover:text-accent" :title="file.filename" x-text="file.filename"></p>
                         </button>
                         <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <span
                             x-show="!showSubfolders"
-                            class="max-w-[220px] truncate rounded-md border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-zinc-400"
+                            class="ui-tag max-w-[220px] truncate font-mono"
                             :title="file.folder"
                             x-text="file.folder"
                           ></span>
                           <span
                             x-cloak
                             x-show="isFileScanning(file)"
-                            class="inline-flex items-center gap-1 rounded-md border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 font-mono text-[10px] font-medium text-sky-300 animate-pulse"
+                            class="ui-status ui-status-info font-mono animate-pulse"
                           >
                             Scanning…
                           </span>
@@ -2114,45 +2105,48 @@
                             type="button"
                             @click.stop="rescanSingleFile(file)"
                             title="Metadata scan failed — click to retry"
-                            class="inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/15 px-2 py-0.5 font-mono text-[10px] font-medium text-red-300 transition hover:bg-red-500/25"
+                            class="ui-status ui-status-err font-mono"
                           >
                             <span>Scan Failed</span>
                             <span>↻</span>
                           </button>
                           <span
+                            x-show="file.needs_conversion"
+                            class="ui-status ui-status-warn"
+                          >
+                            Needs Fix
+                          </span>
+                          <span
+                            x-show="file.has_metadata"
+                            class="ui-status ui-status-warn"
+                          >
+                            Metadata
+                          </span>
+                          <span
                             x-show="file.resolution"
-                            class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-300"
+                            class="ui-tag font-mono"
                             x-text="file.resolution"
                           ></span>
                           <span
                             x-show="userSettings.show_video_details && file.video_codec"
-                            class="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                            :class="Fmt.videoCodecBadgeClass(file.video_codec)"
+                            class="ui-tag font-mono"
                             :title="Fmt.videoCodecTooltip(file.video_codec)"
                             x-text="file.video_codec"
                           ></span>
                           <span
                             x-show="userSettings.show_video_details && file.video_dynamic_range"
-                            class="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                            :class="Fmt.dynamicRangeBadgeClass(file.video_dynamic_range)"
+                            class="ui-tag font-mono"
                             x-text="file.video_dynamic_range"
                           ></span>
                           <template x-for="(aud, idx) in file.audio_summary" :key="idx">
                             <span
-                              class="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                              :class="Fmt.audioBadgeClass(aud)"
+                              class="ui-tag font-mono"
                               x-text="Fmt.formatAudioTrackBadge(aud)"
                             ></span>
                           </template>
                           <span
-                            x-show="file.has_metadata"
-                            class="rounded-md bg-zinc-500/15 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300"
-                          >
-                            Metadata
-                          </span>
-                          <span
                             x-show="file.subtitle_count > 0"
-                            class="rounded-md bg-zinc-800/80 px-1.5 py-0.5 text-[10px] text-zinc-400"
+                            class="ui-tag ui-num"
                             x-text="`${file.subtitle_count} ${file.subtitle_count === 1 ? 'Sub' : 'Subs'}`"
                           ></span>
                         </div>
@@ -2160,17 +2154,17 @@
                         <div
                           x-cloak
                           x-show="isFileBusy(file)"
-                          class="mt-1.5 h-[2px] w-full overflow-hidden rounded-full bg-canvas/90"
+                          class="mt-1.5 h-[2px] w-full overflow-hidden rounded-full bg-inset"
                         >
                           <div
                             class="h-full rounded-full transition-all duration-300"
-                            :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'bg-accent' : 'bg-amber-400/70 animate-pulse'"
+                            :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'bg-accent' : 'bg-[var(--color-status-warn)] animate-pulse'"
                             :style="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? `width: ${fileBusyProgressWidth(file)}%` : 'width: 100%'"
                           ></div>
                         </div>
                       </td>
-                      <td class="px-2 py-3 align-top text-right font-mono text-zinc-300 whitespace-nowrap" x-text="Fmt.formatBytes(file.size_bytes)"></td>
-                      <td class="px-2 py-3 align-top text-right font-mono text-zinc-400 whitespace-nowrap" x-text="isFileScanning(file) ? '--:--' : Fmt.formatDurationUs(file.duration_us)"></td>
+                      <td class="ui-num px-2 py-3 align-top text-right font-mono text-xs text-ink-primary whitespace-nowrap" x-text="Fmt.formatBytes(file.size_bytes)"></td>
+                      <td class="ui-num px-2 py-3 align-top text-right font-mono text-xs text-ink-secondary whitespace-nowrap" x-text="isFileScanning(file) ? '--:--' : Fmt.formatDurationUs(file.duration_us)"></td>
                       <td class="px-3 py-3 align-middle text-right">
                         <button
                           x-cloak
@@ -2179,8 +2173,8 @@
                           @click.stop="openJobsDrawer()"
                           :aria-label="`View live progress for ${file.filename}`"
                           title="Processing — open Live Jobs Drawer"
-                          class="inline-flex h-7 items-center justify-center rounded-lg border px-2 font-mono text-[11px] font-semibold transition"
-                          :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'border-accent/40 bg-accent/15 text-indigo-200 hover:bg-accent/25 hover:text-white' : 'border-amber-500/35 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20'"
+                          class="ui-num inline-flex h-7 items-center justify-center rounded-ui-sm border px-2 font-mono text-xs font-semibold transition"
+                          :class="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? 'border-transparent bg-accent text-[var(--color-accent-fg)] hover:bg-accent-hover' : 'ui-status-warn'"
                         >
                           <span x-text="getFileJobStatus(file)?.state === C.STATUSES.RUNNING ? `${getFileJobStatus(file).percent}%` : `Q#${getFileJobStatus(file)?.queuePos || 1}`"></span>
                         </button>
@@ -2190,7 +2184,7 @@
                           @click.stop="openFileContextMenu(file, $event)"
                           :aria-label="`Actions for ${file.filename}`"
                           title="More actions"
-                          class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                          class="inline-flex h-8 w-8 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
                         >
                           <svg
                             x-show="isRescanning(file.id)"
@@ -2218,26 +2212,26 @@
               </table>
             </div>
 
-            <!-- Other Files (Non-MKV/MP4 files in Folder View, always displayed cleanly below media files) -->
+            <!-- Other Files (Non-MKV/MP4 files in Folder View, displayed cleanly below media files) -->
             <div
               x-cloak
               x-show="showSubfolders && otherFiles.length > 0"
               class="space-y-2 pt-2"
             >
               <div class="flex items-center justify-between px-1">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                <p class="text-xs font-medium text-ink-secondary">
                   Other Files
                 </p>
                 <span
-                  class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"
+                  class="ui-tag ui-num font-mono text-xs"
                   x-text="otherFiles.length"
                 ></span>
               </div>
-              <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
+              <div class="ui-list-group">
                 <template x-for="of in otherFiles" :key="`other-${of.filepath}`">
                   <div
                     @contextmenu.prevent="openOtherFileContextMenu(of, $event)"
-                    class="flex items-center justify-between gap-3 px-3.5 py-2.5 transition hover:bg-zinc-900/60"
+                    class="ui-row flex min-w-0 items-center justify-between gap-3 px-3.5 py-2.5"
                   >
                     <button
                       type="button"
@@ -2245,18 +2239,18 @@
                       class="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                     >
                       <span
-                        class="inline-flex shrink-0 items-center rounded-md border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase text-zinc-400"
+                        class="ui-tag shrink-0 font-mono text-xs uppercase"
                         x-text="(of.ext || '').replace(/^\./, '') || 'FILE'"
                       ></span>
                       <span
-                        class="truncate font-mono text-xs text-zinc-200"
+                        class="min-w-0 truncate font-mono text-xs text-ink-primary"
                         :title="of.name"
                         x-text="of.name"
                       ></span>
                     </button>
                     <div class="flex shrink-0 items-center gap-2.5">
                       <span
-                        class="font-mono text-[11px] text-zinc-400"
+                        class="ui-num whitespace-nowrap font-mono text-xs text-ink-secondary"
                         x-text="Fmt.formatBytes(of.size_bytes)"
                       ></span>
                       <button
@@ -2264,7 +2258,7 @@
                         @click.stop="openOtherFileContextMenu(of, $event)"
                         :aria-label="`File actions for ${of.name}`"
                         title="More actions"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
                       >
                         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                           <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
@@ -2281,89 +2275,31 @@
             <div
               x-cloak
               x-show="totalPages > 1"
-              class="flex shrink-0 items-center justify-between gap-3 border-t border-hairline bg-canvas/95 pt-3 pb-1 backdrop-blur"
+              class="flex shrink-0 items-center justify-between gap-3 border-t border-subtle bg-canvas/95 pt-3 pb-1 backdrop-blur-md"
             >
               <button
                 type="button"
                 @click="goToPage(page - 1)"
                 :disabled="page <= 1"
-                class="min-h-[40px] rounded-lg border border-hairline bg-surface px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                class="ui-btn ui-btn-secondary"
               >
                 ← Previous
               </button>
-              <div class="flex flex-col items-center text-center font-mono text-xs text-zinc-400 sm:flex-row sm:gap-2">
+              <div class="ui-num flex flex-col items-center text-center font-mono text-xs text-ink-secondary sm:flex-row sm:gap-2">
                 <span>
-                  Page <span class="text-zinc-100" x-text="page"></span> / <span x-text="totalPages"></span>
+                  Page <span class="font-medium text-ink-primary" x-text="page"></span> / <span x-text="totalPages"></span>
                 </span>
-                <span class="hidden text-zinc-600 sm:inline" aria-hidden="true">•</span>
-                <span class="text-[11px] text-zinc-500" x-text="`${limit} per page`"></span>
+                <span class="hidden text-ink-muted sm:inline" aria-hidden="true">•</span>
+                <span class="text-xs text-ink-muted" x-text="`${limit} per page`"></span>
               </div>
               <button
                 type="button"
                 @click="goToPage(page + 1)"
                 :disabled="page >= totalPages"
-                class="min-h-[40px] rounded-lg border border-hairline bg-surface px-4 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                class="ui-btn ui-btn-secondary"
               >
                 Next →
               </button>
-            </div>
-
-            <!-- Other Files (Non-MKV/MP4 files in Folder View, always displayed cleanly below media files) -->
-            <div
-              x-cloak
-              x-show="showSubfolders && otherFiles.length > 0"
-              class="space-y-2 pt-2"
-            >
-              <div class="flex items-center justify-between px-1">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                  Other Files
-                </p>
-                <span
-                  class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"
-                  x-text="otherFiles.length"
-                ></span>
-              </div>
-              <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
-                <template x-for="of in otherFiles" :key="`other-${of.filepath}`">
-                  <div
-                    @contextmenu.prevent="openOtherFileContextMenu(of, $event)"
-                    class="flex items-center justify-between gap-3 px-3.5 py-2.5 transition hover:bg-zinc-900/60"
-                  >
-                    <button
-                      type="button"
-                      @click="openOtherFileNotice(of)"
-                      class="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                    >
-                      <span
-                        class="inline-flex shrink-0 items-center rounded-md border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase text-zinc-400"
-                        x-text="(of.ext || '').replace(/^\./, '') || 'FILE'"
-                      ></span>
-                      <span
-                        class="truncate font-mono text-xs text-zinc-200"
-                        :title="of.name"
-                        x-text="of.name"
-                      ></span>
-                    </button>
-                    <div class="flex shrink-0 items-center gap-2.5">
-                      <span
-                        class="font-mono text-[11px] text-zinc-400"
-                        x-text="Fmt.formatBytes(of.size_bytes)"
-                      ></span>
-                      <button
-                        type="button"
-                        @click.stop="openOtherFileContextMenu(of, $event)"
-                        :aria-label="`File actions for ${of.name}`"
-                        title="More actions"
-                        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
-                      >
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </template>
-              </div>
             </div>
           </div>
         </section>

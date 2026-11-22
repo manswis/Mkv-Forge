@@ -253,3 +253,35 @@ class TestDesignSystemTokensAndPrimitives:
         # Verify mobile touch target ergonomics (>= 44px) on top header buttons
         assert "h-11 w-11" in shell_block
         assert "min-h-[44px]" in shell_block
+
+    def test_phase3_library_monochrome_metadata_truncation_and_bulk_elevation(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+
+        lib_start = html.index("<!-- SCREEN 2: LIBRARY EXPLORER")
+        lib_end = html.index("<!-- SCREEN 3: FILE EDITOR", lib_start)
+        lib_block = html[lib_start:lib_end]
+
+        # Guardrail 4: Zero stray text-[10px] or text-[9px] inside Library Explorer
+        assert "text-[10px]" not in lib_block
+        assert "text-[9px]" not in lib_block
+
+        # Guardrail 1: Informational specs render as monochrome .ui-tag (no rainbow badge helpers)
+        assert "Fmt.videoCodecBadgeClass(" not in lib_block
+        assert "Fmt.dynamicRangeBadgeClass(" not in lib_block
+        assert "Fmt.audioBadgeClass(" not in lib_block
+        assert "Fmt.audioChipActiveClass(" not in lib_block
+        assert 'class="ui-tag font-mono"' in lib_block
+        assert 'class="ui-status ui-status-warn"' in lib_block
+
+        # Guardrail 2: Safe truncation & tabular numerics on filenames, folders, sizes & counts
+        assert "min-w-0 truncate font-mono" in lib_block
+        assert "ui-num" in lib_block
+
+        # Guardrail 3: Zero hardcoded text-white on solid bg-accent & elevated bulk bar
+        for line in lib_block.splitlines():
+            if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
+                assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"
+        assert "border border-strong bg-elevated px-3.5 py-2.5 text-xs shadow-elevated" in lib_block
+
+        # Regression guard: Other Files list renders only once (no duplicate outside scroll viewport)
+        assert lib_block.count('x-for="of in otherFiles"') == 1
