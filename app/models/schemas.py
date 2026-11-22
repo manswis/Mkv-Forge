@@ -122,6 +122,7 @@ class MediaFileListItem(BaseModel):
     has_metadata: bool = False
     has_aac_51: bool = False
     has_ac3_eac3: bool = False
+    has_cover_art: bool = False
     needs_conversion: bool = False
     scan_status: Literal["ready", "scanning", "error"] = AppConstants.FILE_SCAN_STATUS_READY  # type: ignore[assignment]
     scanned_at: str
@@ -446,6 +447,7 @@ class UserSettings(BaseModel):
 
     # Library & Display
     show_video_details: bool = AppConstants.DEFAULT_SHOW_VIDEO_DETAILS
+    show_grid_thumbnails: bool = AppConstants.DEFAULT_SHOW_GRID_THUMBNAILS
     show_media_files_only: bool = AppConstants.DEFAULT_SHOW_MEDIA_FILES_ONLY
     visible_media_extensions: str = Field(
         default=AppConstants.DEFAULT_VISIBLE_MEDIA_EXTENSIONS,
@@ -506,6 +508,7 @@ class UserSettingsUpdate(BaseModel):
     )
     language: Literal["en"] | None = None
     show_video_details: bool | None = None
+    show_grid_thumbnails: bool | None = None
     show_media_files_only: bool | None = None
     visible_media_extensions: str | None = Field(
         default=None,

@@ -593,6 +593,7 @@
       limit: C.PAGINATION.DEFAULT_LIMIT,
       rescanningIds: {},
       duplicatingIds: {},
+      thumbLoadErrors: {},
       _searchTimer: null,
       _libraryRequestSeq: 0,
 
@@ -2065,6 +2066,25 @@
           (this.jobsState.active && this.jobsState.active.stage) ||
           "Processing job"
         );
+      },
+
+      shouldShowFileCoverThumb(file) {
+        if (!file || !file.id || !file.has_cover_art) return false;
+        if (!this.userSettings || this.userSettings.show_grid_thumbnails === false) {
+          return false;
+        }
+        return !this.thumbLoadErrors[file.id];
+      },
+
+      fileThumbnailUrl(file) {
+        if (!file || !file.id) return "";
+        const mtimeTag = Math.max(0, Math.floor(Number(file.mtime) || 0));
+        return `${C.API.FILES}/${file.id}/thumbnail?v=${mtimeTag}`;
+      },
+
+      markThumbError(fileId) {
+        if (!fileId) return;
+        this.thumbLoadErrors = { ...this.thumbLoadErrors, [fileId]: true };
       },
 
       // Per-file active/queued job lookup (used for per-file locks & inline progress)
@@ -3907,6 +3927,7 @@
         this.noSubtitles = false;
         this.dashStorageLens = C.DASHBOARD_LENSES.STORAGE_DEFAULT;
         this.dashAudioLens = C.DASHBOARD_LENSES.AUDIO_DEFAULT;
+        this.thumbLoadErrors = {};
         this.searchQuery = "";
         this.appliedSearchQuery = "";
         this.activeJob = null;

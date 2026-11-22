@@ -67,6 +67,7 @@ window.MKVForgeConstants = Object.freeze({
     font_scale: 100,
     language: "en",
     show_video_details: true,
+    show_grid_thumbnails: true,
     show_media_files_only: true,
     visible_media_extensions: ".mkv, .mp4",
     default_library_view: "dir",

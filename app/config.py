@@ -95,6 +95,7 @@ class AppConstants:
     MAX_ERROR_EXCERPT_LEN: int = 240
 
     TOOL_MKVMERGE: str = "mkvmerge"
+    TOOL_MKVEXTRACT: str = "mkvextract"
     TOOL_FFMPEG: str = "ffmpeg"
     TOOL_FFPROBE: str = "ffprobe"
     VERSION_FLAG_DOUBLE_DASH: str = "--version"
@@ -327,6 +328,7 @@ class AppConstants:
             "font_scale",
             "language",
             "show_video_details",
+            "show_grid_thumbnails",
             "show_media_files_only",
             "visible_media_extensions",
             "default_library_view",
@@ -354,6 +356,15 @@ class AppConstants:
     DEFAULT_UI_LANGUAGE: str = "en"
     ALLOWED_UI_LANGUAGES: frozenset[str] = frozenset({"en"})
     DEFAULT_SHOW_VIDEO_DETAILS: bool = True
+    DEFAULT_SHOW_GRID_THUMBNAILS: bool = True
+    THUMBNAILS_SUBDIR_NAME: str = "thumbnails"
+    THUMBNAIL_MAX_CONCURRENCY: int = 2
+    THUMBNAIL_EXTRACT_TIMEOUT_SEC: float = 8.0
+    THUMBNAIL_MAX_DIMENSION_PX: int = 256
+    THUMBNAIL_CACHE_CONTROL_HEADER: str = "public, max-age=31536000, immutable"
+    IMAGE_ATTACHMENT_EXTENSIONS: frozenset[str] = frozenset(
+        {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    )
     DEFAULT_SHOW_MEDIA_FILES_ONLY: bool = True
     DEFAULT_VISIBLE_MEDIA_EXTENSIONS: str = ".mkv, .mp4"
     MAX_VISIBLE_EXTENSIONS_LEN: int = 256

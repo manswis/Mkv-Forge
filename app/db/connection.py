@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS media_files (
     has_global_tags INTEGER NOT NULL DEFAULT 0,
     has_aac_51 INTEGER NOT NULL DEFAULT 0,
     has_ac3_eac3 INTEGER NOT NULL DEFAULT 0,
+    has_cover_art INTEGER NOT NULL DEFAULT 0,
     scan_status TEXT NOT NULL DEFAULT 'ready',
     raw_json TEXT NOT NULL,
     scanned_at TEXT NOT NULL
@@ -141,6 +142,27 @@ class DatabaseManager:
         if "scan_status" not in media_cols:
             conn.execute(
                 "ALTER TABLE media_files ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'ready'"
+            )
+        if "has_cover_art" not in media_cols:
+            conn.execute(
+                "ALTER TABLE media_files ADD COLUMN has_cover_art INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.execute(
+                """
+                UPDATE media_files
+                SET has_cover_art = 1
+                WHERE json_valid(raw_json)
+                  AND EXISTS (
+                      SELECT 1
+                      FROM json_each(media_files.raw_json, '$.attachments') AS att
+                      WHERE LOWER(COALESCE(json_extract(att.value, '$.content_type'), '')) LIKE 'image/%'
+                         OR LOWER(COALESCE(json_extract(att.value, '$.file_name'), '')) LIKE '%.jpg'
+                         OR LOWER(COALESCE(json_extract(att.value, '$.file_name'), '')) LIKE '%.jpeg'
+                         OR LOWER(COALESCE(json_extract(att.value, '$.file_name'), '')) LIKE '%.png'
+                         OR LOWER(COALESCE(json_extract(att.value, '$.file_name'), '')) LIKE '%.webp'
+                         OR LOWER(COALESCE(json_extract(att.value, '$.file_name'), '')) LIKE '%.gif'
+                  )
+                """
             )
 
         job_cols = {

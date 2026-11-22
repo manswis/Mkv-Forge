@@ -13,6 +13,7 @@ from app.services.playback_profile import (
     PlaybackProfileSpec,
     evaluate_file_needs_conversion,
 )
+from app.services.thumbnail_service import has_image_attachment_in_raw_json
 
 
 def utc_now_iso() -> str:
@@ -47,6 +48,7 @@ class MediaFileUpsert:
     scanned_at: str
     video_dynamic_range: str | None = None
     scan_status: str = AppConstants.FILE_SCAN_STATUS_READY
+    has_cover_art: bool | None = None
 
 
 class AppStateRepository:
@@ -92,7 +94,7 @@ class MediaFileRepository:
     _LIST_COLUMNS: str = """
         id, filepath, folder, filename, size_bytes, mtime, duration_us,
         resolution, video_codec, video_dynamic_range, audio_summary_json, subtitle_count,
-        container_title, has_global_tags, has_aac_51, has_ac3_eac3, scan_status, scanned_at
+        container_title, has_global_tags, has_aac_51, has_ac3_eac3, has_cover_art, scan_status, scanned_at
     """
 
     def __init__(self, db: DatabaseManager) -> None:
@@ -105,6 +107,11 @@ class MediaFileRepository:
             if record.scan_status in AppConstants.ALLOWED_FILE_SCAN_STATUSES
             else AppConstants.FILE_SCAN_STATUS_READY
         )
+        has_cover = (
+            bool(record.has_cover_art)
+            if record.has_cover_art is not None
+            else has_image_attachment_in_raw_json(record.raw_json)
+        )
         with self._db.connect() as conn:
             conn.execute(
                 """
@@ -112,9 +119,9 @@ class MediaFileRepository:
                     filepath, folder, filename, size_bytes, mtime, duration_us,
                     resolution, video_codec, video_dynamic_range, audio_summary_json,
                     subtitle_count, container_title, has_global_tags, has_aac_51,
-                    has_ac3_eac3, scan_status, raw_json, scanned_at
+                    has_ac3_eac3, has_cover_art, scan_status, raw_json, scanned_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(filepath) DO UPDATE SET
                     folder = excluded.folder,
                     filename = excluded.filename,
@@ -130,6 +137,7 @@ class MediaFileRepository:
                     has_global_tags = excluded.has_global_tags,
                     has_aac_51 = excluded.has_aac_51,
                     has_ac3_eac3 = excluded.has_ac3_eac3,
+                    has_cover_art = excluded.has_cover_art,
                     scan_status = excluded.scan_status,
                     raw_json = excluded.raw_json,
                     scanned_at = excluded.scanned_at
@@ -150,6 +158,7 @@ class MediaFileRepository:
                     int(record.has_global_tags),
                     int(record.has_aac_51),
                     int(record.has_ac3_eac3),
+                    int(has_cover),
                     scan_status,
                     record.raw_json,
                     record.scanned_at,

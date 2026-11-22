@@ -1986,8 +1986,31 @@
                     class="flex flex-1 min-w-0 flex-col items-center justify-center gap-2.5 px-3 pb-3.5 pt-5 text-center focus:outline-none"
                   >
                     <div class="relative flex items-center justify-center">
-                      <!-- Sculpted Media Document Icon -->
+                      <!-- Mode A: Grid View Cover Art Enabled (default) -> Embedded Cover Art or MKV Forge App Icon Fallback -->
+                      <template x-if="isGridLayout && userSettings.show_grid_thumbnails !== false">
+                        <div class="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center">
+                          <img
+                            x-show="shouldShowFileCoverThumb(file)"
+                            loading="lazy"
+                            decoding="async"
+                            :src="shouldShowFileCoverThumb(file) ? fileThumbnailUrl(file) : ''"
+                            :alt="file.filename"
+                            @error="markThumbError(file.id)"
+                            class="relative h-[72px] w-[72px] shrink-0 rounded-ui-md border border-subtle bg-inset object-cover shadow-panel transition duration-150 group-hover:-translate-y-0.5"
+                          />
+                          <img
+                            x-show="!shouldShowFileCoverThumb(file)"
+                            src="/static/img/app-icon.svg"
+                            alt=""
+                            aria-hidden="true"
+                            class="relative h-[72px] w-[72px] shrink-0 rounded-ui-md object-contain transition duration-150 group-hover:-translate-y-0.5"
+                          />
+                        </div>
+                      </template>
+
+                      <!-- Mode B: Grid View Cover Art Disabled -> Classic Sculpted Media Document Icon -->
                       <svg
+                        x-show="userSettings.show_grid_thumbnails === false"
                         class="relative h-[72px] w-[72px] shrink-0 transition duration-150 group-hover:-translate-y-0.5"
                         viewBox="0 0 64 64"
                         fill="none"
@@ -4233,6 +4256,29 @@
                               Grid
                             </button>
                           </div>
+                        </div>
+
+                        <!-- Grid View Container Cover Art Thumbnails (Default Enabled) -->
+                        <div class="flex items-center justify-between gap-4 px-4 py-3">
+                          <div class="min-w-0">
+                            <p class="text-xs font-medium text-ink-primary">Grid View Cover Art</p>
+                            <p class="mt-0.5 text-xs text-ink-muted">Show embedded container artwork in Grid View (falls back to app icon).</p>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            :aria-checked="userSettings.show_grid_thumbnails !== false ? 'true' : 'false'"
+                            :disabled="settingsSaving"
+                            @click="updateUserSettings({ show_grid_thumbnails: userSettings.show_grid_thumbnails === false })"
+                            class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50"
+                            :class="userSettings.show_grid_thumbnails !== false ? 'bg-accent' : 'bg-[var(--color-border-strong)]'"
+                          >
+                            <span class="sr-only">Toggle Grid View Cover Art</span>
+                            <span
+                              class="inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition"
+                              :class="userSettings.show_grid_thumbnails !== false ? 'translate-x-6' : 'translate-x-1'"
+                            ></span>
+                          </button>
                         </div>
 
                         <!-- Items Per Page -->

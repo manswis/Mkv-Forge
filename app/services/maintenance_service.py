@@ -601,6 +601,13 @@ class MaintenanceService:
                 logger.warning("Could not scan uploads dir %s: %s", uploads_dir, exc)
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
+        thumbs_dir = self._settings.data_dir / AppConstants.THUMBNAILS_SUBDIR_NAME
+        if thumbs_dir.is_dir():
+            try:
+                shutil.rmtree(thumbs_dir)
+            except OSError as exc:
+                logger.warning("Could not clear thumbnails cache %s: %s", thumbs_dir, exc)
+
         # Create a brand-new, clean WAL SQLite schema
         self._db.initialize()
         return removed_db_files, removed_uploads

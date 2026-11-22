@@ -9,7 +9,7 @@ import math
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from app.config import AppConstants
 from app.db.repositories import MediaFileRepository, decode_audio_summary_json
@@ -32,6 +32,7 @@ from app.services.playback_profile import (
     evaluate_file_needs_conversion,
 )
 from app.services.probe_parser import parse_mkvmerge_json
+from app.services.thumbnail_service import get_or_extract_thumbnail
 from app.services.scanner import (
     LibraryScanner,
     ProbeError,
@@ -81,6 +82,7 @@ def _row_to_list_item(
         has_metadata=bool(container_title) or has_global_tags,
         has_aac_51=bool(row.get("has_aac_51")),
         has_ac3_eac3=bool(row.get("has_ac3_eac3")),
+        has_cover_art=bool(row.get("has_cover_art")),
         needs_conversion=needs_conversion,
         scan_status=scan_status,  # type: ignore[arg-type]
         scanned_at=str(row["scanned_at"]),
@@ -446,6 +448,36 @@ async def get_file_detail(request: Request, file_id: int) -> MediaFileDetailResp
         )
     raw_payload = await _enrich_raw_payload_tags(request, row)
     return _row_to_detail(row, raw_payload)
+
+
+@router.get("/{file_id}/thumbnail")
+async def get_file_thumbnail(request: Request, file_id: int) -> Response:
+    """Serve cached or lazily extracted embedded container cover art with immutable HTTP caching."""
+    media_repo: MediaFileRepository = request.app.state.media_repo
+    row = await asyncio.to_thread(media_repo.get_by_id, file_id)
+    if row is None:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_NOT_FOUND,
+            detail=f"Media file {file_id} not found",
+        )
+    result = await get_or_extract_thumbnail(
+        row,
+        storage_dir=request.app.state.settings.storage_dir,
+        data_dir=request.app.state.settings.data_dir,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_NOT_FOUND,
+            detail="No embedded container cover art available",
+        )
+    image_bytes, media_type = result
+    return Response(
+        content=image_bytes,
+        media_type=media_type,
+        headers={
+            "Cache-Control": AppConstants.THUMBNAIL_CACHE_CONTROL_HEADER,
+        },
+    )
 
 
 @router.get("/{file_id}/info", response_model=MediaFileInfoResponse)
