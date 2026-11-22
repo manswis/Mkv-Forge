@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG TAILWIND_VERSION=v3.4.17
-ARG APP_VERSION=1.0.2
+ARG APP_VERSION=1.0.3
 
 # ---------------------------------------------------------------------------
 # Stage 1: Compile static Tailwind CSS using standalone CLI (zero Node.js)
@@ -37,7 +37,7 @@ RUN tailwindcss -i ./frontend/input.css -o ./app/static/css/app.css --minify
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim-bookworm AS runtime
 
-ARG APP_VERSION=1.0.2
+ARG APP_VERSION=1.0.3
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
