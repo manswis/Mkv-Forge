@@ -213,7 +213,7 @@
       const emptyRadius = (CHART_CONFIG.INNER_RADIUS + CHART_CONFIG.OUTER_RADIUS) / 2;
       const emptyStroke = CHART_CONFIG.OUTER_RADIUS - CHART_CONFIG.INNER_RADIUS;
       return `<svg viewBox="0 0 ${vb} ${vb}" class="h-full w-full overflow-visible" role="img" aria-label="${ariaLabel}">
-        <circle cx="${center}" cy="${center}" r="${formatCoord(emptyRadius)}" fill="none" stroke="currentColor" stroke-width="${formatCoord(emptyStroke)}" class="text-zinc-800/50" />
+        <circle cx="${center}" cy="${center}" r="${formatCoord(emptyRadius)}" fill="none" stroke="currentColor" stroke-width="${formatCoord(emptyStroke)}" class="text-ink-muted/25" />
       </svg>`;
     }
 
@@ -331,7 +331,7 @@
       emptyRing.setAttribute("fill", "none");
       emptyRing.setAttribute("stroke", "currentColor");
       emptyRing.setAttribute("stroke-width", formatCoord(emptyStroke));
-      emptyRing.setAttribute("class", "text-zinc-800/50");
+      emptyRing.setAttribute("class", "text-ink-muted/25");
       svg.appendChild(emptyRing);
     }
 

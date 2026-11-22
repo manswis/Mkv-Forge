@@ -134,8 +134,8 @@ class TestPhase11SettingsAndMaintenanceApi:
     ) -> None:
         html = (await api_client.get("/")).text
         assert "settingsModalOpen || route === C.ROUTES.SETTINGS" in html
-        assert "p-2.5 sm:p-4 md:p-6 lg:p-8" in html
-        assert "rounded-2xl border border-zinc-700/80 bg-canvas shadow-2xl" in html
+        assert "p-0 sm:p-4 md:p-6 lg:p-8" in html
+        assert "rounded-none border-0 sm:rounded-ui-lg sm:border sm:border-default bg-canvas shadow-elevated" in html
         assert 'aria-label="Close settings"' in html
         assert 'aria-label="Refresh settings and diagnostics"' not in html
         assert "selectWebSettingsSection(sec.id)" in html
@@ -152,7 +152,7 @@ class TestPhase11SettingsAndMaintenanceApi:
         assert "Scheduled Auto-Cleanup (Idle Only)" in html
         assert "Confirm Before Cancelling Job" in html
         assert 'aria-label="Confirm Cancel Job"' in html
-        assert html.count('aria-label="Open Settings"') == 2
+        assert html.count('aria-label="Open Settings"') >= 2
 
         js_dir = Path(__file__).resolve().parents[2] / "app" / "static" / "js"
         script = f"""

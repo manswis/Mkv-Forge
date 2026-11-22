@@ -413,7 +413,7 @@ class TestDesignSystemTokensAndPrimitives:
         assert "text-emerald-300" not in constants_js
 
         # Guardrail 1: Settings Split View uses .ui-list-group sections & hairline diagnostics strip
-        assert settings_block.count('class="ui-list-group"') >= 8
+        assert settings_block.count("ui-list-group") >= 8
         assert "grid grid-cols-2 gap-px bg-[var(--color-border-subtle)] lg:grid-cols-4" in settings_block
 
         # Guardrail 2: All feature & confirmation dialogs standardized onto .ui-sheet + pb-safe-modal
@@ -427,3 +427,58 @@ class TestDesignSystemTokensAndPrimitives:
         assert "onboarding-header-row" in tail_block
         assert 'x-ref="onboardingBody" class="onboarding-body' in tail_block
         assert "onboarding-footer" in tail_block
+
+    def test_phase7_js_semantic_tokens_and_offline_compliance(self) -> None:
+        js_dir = ROOT_DIR / "app" / "static" / "js"
+        forbidden_js_classes = (
+            "text-zinc-",
+            "bg-zinc-",
+            "border-zinc-",
+            "text-indigo-",
+            "text-emerald-200",
+            "text-amber-200",
+            "text-red-200",
+            "text-sky-200",
+        )
+        for js_file in sorted(js_dir.glob("*.js")):
+            if js_file.name == "alpine.min.js":
+                continue
+            text = js_file.read_text(encoding="utf-8")
+            for cls in forbidden_js_classes:
+                assert cls not in text, f"Legacy class {cls!r} found in {js_file.name}"
+            for line in text.splitlines():
+                if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
+                    assert "text-white" not in line, f"Hardcoded text-white on bg-accent in {js_file.name}: {line.strip()}"
+
+        # Verify zero external CDN/font/script/stylesheet URLs in index.html & CSS
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+        assert re.search(r"<(?:link|script)[^>]+https?://", html) is None
+        compiled_css = COMPILED_CSS_PATH.read_text(encoding="utf-8")
+        assert re.search(r"url\(\s*['\"]?https?://", compiled_css) is None
+        assert "@import" not in compiled_css
+
+    def test_mobile_spacing_clamped_add_audio_menu_and_smart_fill_copy(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+
+        # 1. Edge-to-edge mobile Settings shell & eliminated mobile double-card padding
+        assert "p-0 sm:p-4 md:p-6 lg:p-8" in html
+        assert "rounded-none border-0 sm:rounded-ui-lg sm:border sm:border-default bg-canvas shadow-elevated" in html
+        assert "border-t border-subtle p-0 space-y-4 md:border-t-0 md:p-5" in html
+        assert "ui-list-group rounded-none border-0 shadow-none md:rounded-ui-md md:border md:shadow-panel" in html
+        assert "px-2.5 py-4 pb-16 pb-safe sm:px-4" in html
+
+        # 2. + Add / Convert dropdown is viewport-clamped on mobile (<sm) and right-anchored on desktop (sm+)
+        assert "fixed inset-x-3 bottom-20 z-50 max-h-[70dvh] overflow-y-auto sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-10 sm:z-40 sm:w-72 sm:max-h-none" in html
+
+        # 3. User-facing "Sanitize" labels replaced with plain-English "Smart fill" / "Smart fill all"
+        assert "Sanitize all" not in html
+        assert "Sanitize metadata" not in html
+        assert "Smart fill all" in html
+        assert html.count("Smart fill") >= 4
+
+        # 4. Recent Activity & Jobs user attribution tags include inline Material person icon
+        recent_start = html.index("<!-- Recent Activity -->")
+        recent_end = html.index("<!-- SCREEN 2: LIBRARY EXPLORER", recent_start)
+        recent_block = html[recent_start:recent_end]
+        assert "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" in recent_block
+        assert "item.created_by_name || 'Anonymous'" in recent_block

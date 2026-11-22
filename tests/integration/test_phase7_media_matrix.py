@@ -859,7 +859,10 @@ class TestPhase7DeploymentPermissionsAndMobileAudit:
             if js_file.name == "alpine.min.js":
                 continue
             body = js_file.read_text(encoding=AppConstants.UTF8_ENCODING)
-            assert not re.search(r"https?://", body), (
+            scrubbed = body.replace("http://www.w3.org/2000/svg", "")
+            if js_file.name == "constants.js":
+                scrubbed = scrubbed.replace("https://github.com/manswis/Mkv-Forge", "")
+            assert not re.search(r"https?://", scrubbed), (
                 f"{js_file.name} must not contain external URLs"
             )
 

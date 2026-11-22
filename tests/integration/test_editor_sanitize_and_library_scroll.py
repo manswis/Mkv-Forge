@@ -79,7 +79,7 @@ class TestEditorSanitizeMetadata:
         assert resp.status_code == AppConstants.HTTP_OK
         html = resp.text
 
-        assert "Sanitize metadata" in html
+        assert "Smart fill" in html
         assert '@click="sanitizeTrackMetadata(row.track)"' in html
         assert ':disabled="row.track.track_name === Ed.formatTrackBadge(row.track)"' in html
 
@@ -247,7 +247,7 @@ class TestRemoveAllMetadataDefaultAndSanitizeAll:
         html = (await api_client.get("/")).text
         assert "Remove All Metadata by Default" in html
         assert "userSettings.default_remove_all_metadata" in html
-        assert "Sanitize all" in html
+        assert "Smart fill all" in html
         assert '@click="sanitizeAllTracksMetadata()"' in html
         # Structured high-contrast Output Preview & 2-line full-filename List View
         assert "Filename &amp; Streams" in html

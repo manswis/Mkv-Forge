@@ -1425,7 +1425,7 @@
             color: "#71717A",
             colorStart: "#A1A1AA",
             colorEnd: "#52525B",
-            dotClass: "bg-zinc-500",
+            dotClass: "bg-ink-muted",
           },
         ]);
       },
@@ -1480,7 +1480,7 @@
             color: "#71717A",
             colorStart: "#A1A1AA",
             colorEnd: "#52525B",
-            dotClass: "bg-zinc-500",
+            dotClass: "bg-ink-muted",
           },
         };
         const items = (analytics.audio_codecs || []).map((slice) => {

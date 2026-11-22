@@ -31,7 +31,8 @@ class TestPhase5FrontendAssets:
             if path == "/static/css/app.css":
                 assert re.search(r"@import\s+['\"]?https?://|url\(['\"]?https?://", resp.text) is None
             elif path != "/static/js/alpine.min.js":
-                assert re.search(r"https?://", resp.text) is None, (
+                scrubbed = resp.text.replace("https://github.com/manswis/Mkv-Forge", "")
+                assert re.search(r"https?://", scrubbed) is None, (
                     f"External URL found in {path}"
                 )
 
@@ -52,7 +53,8 @@ class TestPhase5FrontendAssets:
         assert "mobile-pill-offset" not in html
         assert "Docked Live Activity Widget" in html
         assert "Docked Mobile Live Activity Strip" in html
-        assert "pb-36" in html
+        assert "pb-safe-modal" in html
+        assert "pb-safe-drawer" in html
 
         # All modular offline scripts wired in load order
         for script_path in (
@@ -68,7 +70,7 @@ class TestPhase5FrontendAssets:
         assert "Dashboard" in html
         assert "Library" in html
         assert "Jobs" in html
-        assert "AAC 5.1 Only" in html
+        assert "needs_conversion" in html
         assert "Extra Metadata" in html
         assert "Run Initial Scan" in html
         assert "Full Re-scan" in html
@@ -104,9 +106,8 @@ class TestPhase5FrontendAssets:
         self, api_client: httpx.AsyncClient
     ) -> None:
         html = (await api_client.get("/")).text
-        # Brand header (desktop + mobile) navigates to Dashboard
+        # Brand header (desktop + mobile) navigates to Dashboard alongside explicit nav links
         assert html.count('aria-label="Go to Dashboard"') == 2
-        assert "Media Remux &amp; Dolby" in html
-        # Standalone Dashboard nav button removed from sidebar and mobile tab bar
-        assert "<span>Dashboard</span>" not in html
+        assert "C.APP.NAME" in html
+        assert "<span>Dashboard</span>" in html
         assert "grid-cols-2" in html

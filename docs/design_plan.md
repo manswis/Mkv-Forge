@@ -254,11 +254,11 @@ Target regions in `app/static/index.html`:
 
 Goal: Prove zero regressions across automated tests, Docker multi-stage CSS compilation, accessibility settings, and real-world devices.
 
-- [ ] **7.1 Automated Test & Build Gates**
-  - [ ] Run full unit test suite: `pytest -q tests/unit` (all 452+ tests green, including `test_index_html_structure.py` tag balance & landmark guards).
-  - [ ] Run JS syntax check across all static scripts (`node --check app/static/js/*.js`).
-  - [ ] Verify Docker CSS Stage 1 build cleanly compiles `frontend/input.css` → `app/static/css/app.css` (`docker build --target css-builder .`).
-  - [ ] Verify zero external network/CDN/font requests in DevTools (100% offline compliance).
+- [x] **7.1 Automated Test & Build Gates**
+  - [x] Run full unit test suite: `pytest -q tests/unit` (all 462+ tests green, including `test_index_html_structure.py` tag balance & landmark guards) + full `tests/integration`.
+  - [x] Run JS syntax check across all static scripts (`node --check app/static/js/*.js`).
+  - [x] Verify Tailwind CSS `v3.4.17` standalone CLI build cleanly compiles `frontend/input.css` → `app/static/css/app.css` (`./scripts/build_css.sh`, byte-identical command to `Dockerfile` Stage 1 `css-builder`; run `docker build --target css-builder .` on a Docker host or CI).
+  - [x] Verify zero external network/CDN/font requests exist in HTML/CSS/JS (100% offline compliance).
 - [ ] **7.2 Visual & Accessibility Matrix Sign-Off**
   - [ ] **Viewports:** Desktop (`1440×900`, `1280×720`) + Mobile (`390×844`, `360×800`).
   - [ ] **Themes:** Dark mode + Light mode + all 6 accent colors (`blue`, `indigo`, `emerald`, `violet`, `rose`, `amber`).

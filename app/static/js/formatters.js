@@ -84,54 +84,54 @@
     const channels = track ? Number(track.channels) : 0;
 
     if (codec === "EAC3" || codec === "AC3") {
-      return "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+      return "ui-status ui-status-ok";
     }
     if (codec === "AAC" && channels === 6) {
-      return "bg-amber-500/15 text-amber-400 border border-amber-500/20";
+      return "ui-status ui-status-warn";
     }
-    return "bg-zinc-500/15 text-zinc-300 border border-zinc-500/20";
+    return "ui-tag";
   }
 
   function jobStatusBadgeClass(status) {
     switch (status) {
       case "completed":
-        return "bg-emerald-500/15 text-emerald-400";
+        return "ui-status ui-status-ok";
       case "running":
-        return "bg-accent/20 text-indigo-300";
+        return "border border-accent/35 bg-accent/15 text-accent";
       case "queued":
-        return "bg-zinc-500/15 text-zinc-300";
+        return "ui-tag";
       case "cancelled":
-        return "bg-amber-500/15 text-amber-400";
+        return "ui-status ui-status-warn";
       case "failed":
-        return "bg-red-500/15 text-red-400";
+        return "ui-status ui-status-err";
       default:
-        return "bg-zinc-500/15 text-zinc-300";
+        return "ui-tag";
     }
   }
 
   function audioChipActiveClass(audioType) {
     const upper = String(audioType || "").toUpperCase();
     if (upper.startsWith("EAC3") || upper.startsWith("AC3")) {
-      return "border-emerald-500/50 bg-emerald-500/15 text-emerald-300";
+      return "ui-status-ok";
     }
     if (upper === "AAC 5.1") {
-      return "border-amber-500/50 bg-amber-500/15 text-amber-300";
+      return "ui-status-warn";
     }
-    return "border-accent bg-accent/20 text-indigo-200";
+    return "border-accent bg-accent/15 text-accent";
   }
 
   function jobChangeBadgeClass(kind) {
     switch (kind) {
       case "added":
-        return "border border-indigo-500/30 bg-accent/15 text-indigo-200";
+        return "border border-accent/35 bg-accent/15 text-accent";
       case "removed":
-        return "border border-red-500/25 bg-red-500/10 text-red-300";
+        return "ui-status-err border";
       case "changed":
-        return "border border-amber-500/25 bg-amber-500/10 text-amber-200";
+        return "ui-status-warn border";
       case "output":
-        return "border border-emerald-500/25 bg-emerald-500/10 text-emerald-300";
+        return "ui-status-ok border";
       default:
-        return "border border-hairline bg-zinc-800/80 text-zinc-300";
+        return "ui-tag";
     }
   }
 
@@ -158,20 +158,20 @@
   function videoCodecBadgeClass(videoCodec) {
     const upper = String(videoCodec || "").trim().toUpperCase();
     if (upper === "HEVC" || upper === "AV1") {
-      return "bg-sky-500/15 text-sky-300 border border-sky-500/20";
+      return "ui-status ui-status-info";
     }
-    return "bg-zinc-800 text-zinc-300 border border-hairline";
+    return "ui-tag";
   }
 
   function dynamicRangeBadgeClass(dynamicRange) {
     const upper = String(dynamicRange || "").trim().toUpperCase();
     if (upper.startsWith("DV")) {
-      return "bg-violet-500/15 text-violet-300 border border-violet-500/25";
+      return "border border-accent/35 bg-accent/15 text-accent";
     }
     if (upper.startsWith("HDR") || upper === "HLG") {
-      return "bg-amber-500/15 text-amber-300 border border-amber-500/25";
+      return "ui-status ui-status-warn";
     }
-    return "bg-zinc-800/70 text-zinc-400 border border-hairline";
+    return "ui-tag";
   }
 
   function formatBitrateBps(bps) {

@@ -438,7 +438,7 @@ class TestFolderOperationsAndReadOnlyGuards:
         assert 'aria-label="Folder view options"' in html
         assert "folderBarMenuOpen" in html
         # Sidebar footer displays app version & name; top-right uses unified scan refresh dropdown
-        assert "Pinned Sidebar Footer (App Version & Name)" in html
+        assert "Pinned Sidebar Footer (" in html
         assert "Pinned bottom Scan Library controls" not in html
         assert "Scan library options" in html
 

@@ -210,13 +210,13 @@ class TestSettingsApiAndVideoDetails:
             "assert.strictEqual(F.videoCodecTooltip('H.264'), 'H.264 / AVC');"
             "assert.strictEqual(F.videoCodecTooltip('CustomCodec'), 'CustomCodec');"
             "assert.strictEqual(F.videoCodecTooltip(null), '');"
-            "assert.ok(F.videoCodecBadgeClass('HEVC').includes('sky'));"
-            "assert.ok(F.videoCodecBadgeClass('H.264').includes('zinc'));"
-            "assert.ok(F.dynamicRangeBadgeClass('DV HDR').includes('violet'));"
-            "assert.ok(F.dynamicRangeBadgeClass('HDR10').includes('amber'));"
-            "assert.ok(F.dynamicRangeBadgeClass('HLG').includes('amber'));"
-            "assert.ok(F.dynamicRangeBadgeClass('SDR').includes('zinc'));"
-            "assert.ok(F.dynamicRangeBadgeClass(null).includes('zinc'));"
+            "assert.ok(F.videoCodecBadgeClass('HEVC').includes('ui-status-info'));"
+            "assert.ok(F.videoCodecBadgeClass('H.264').includes('ui-tag'));"
+            "assert.ok(F.dynamicRangeBadgeClass('DV HDR').includes('text-accent'));"
+            "assert.ok(F.dynamicRangeBadgeClass('HDR10').includes('ui-status-warn'));"
+            "assert.ok(F.dynamicRangeBadgeClass('HLG').includes('ui-status-warn'));"
+            "assert.ok(F.dynamicRangeBadgeClass('SDR').includes('ui-tag'));"
+            "assert.ok(F.dynamicRangeBadgeClass(null).includes('ui-tag'));"
         )
         proc = subprocess.run(
             ["node", "-e", script],

@@ -26,7 +26,7 @@ class TestFloatingToastStack:
         assert "md:right-6 md:top-5" in html
         assert "overflow-hidden rounded-lg border px-4 py-3" in html
         assert "toast !== null" not in html
-        assert 'aria-label="Library actions menu"' in html
+        assert 'aria-label="Navigation and library actions menu"' in html
         assert 'toggleMobileSelectFromMenu()' in html
         assert ':placeholder="librarySearchPlaceholder"' in html
         css = (await api_client.get("/static/css/app.css")).text

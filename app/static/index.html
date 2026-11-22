@@ -42,21 +42,21 @@
       } catch (_e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.6" />
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.8" />
   <script defer src="/static/js/constants.js?v=0.1.0-p17.6"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/formatters.js?v=0.1.0-p12.2"></script>
+  <script defer src="/static/js/formatters.js?v=0.1.0-p17.7"></script>
   <script defer src="/static/js/api.js?v=0.1.0-p16.0"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p15.1"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/charts.js?v=0.1.0-p15.3"></script>
+  <script defer src="/static/js/charts.js?v=0.1.0-p17.7"></script>
   <script defer src="/static/js/library_return.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/playback_profile.js?v=0.1.0-p15.1"></script>
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p16.3"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p17.7"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 <body class="min-h-dvh bg-canvas text-ink-primary font-sans antialiased selection:bg-accent/30 selection:text-ink-primary">
@@ -247,7 +247,7 @@
     <!-- Mobile Top Header + Docked Live Activity Strip (below md)           -->
     <!-- =================================================================== -->
     <header class="sticky top-0 z-30 shrink-0 border-b border-subtle bg-canvas/95 backdrop-blur-md md:hidden">
-      <div class="flex items-center justify-between gap-3 px-4 py-2">
+      <div class="flex items-center justify-between gap-2 px-3 py-2 sm:px-4">
         <button
           type="button"
           @click="navigate(C.ROUTES.DASHBOARD)"
@@ -648,7 +648,7 @@
 
       <div
         class="mx-auto w-full max-w-6xl"
-        :class="route === C.ROUTES.LIBRARY ? 'flex flex-1 min-h-0 flex-col px-4 pt-3 pb-2 md:px-8 md:pt-6 md:pb-4' : 'px-4 py-5 pb-16 pb-safe md:px-8 md:py-7 md:pb-24'"
+        :class="route === C.ROUTES.LIBRARY ? 'flex flex-1 min-h-0 flex-col px-2.5 pt-2.5 pb-2 sm:px-4 sm:pt-3 md:px-8 md:pt-6 md:pb-4' : 'px-2.5 py-4 pb-16 pb-safe sm:px-4 sm:py-5 md:px-8 md:py-7 md:pb-24'"
       >
 
 
@@ -1091,10 +1091,12 @@
                       ></span>
                       <span class="ui-num font-mono text-xs text-ink-muted" x-text="Fmt.formatRelativeTime(item.completed_at || item.created_at)"></span>
                     </div>
-                    <span
-                      class="ui-tag font-mono"
-                      x-text="item.created_by_name || 'Anonymous'"
-                    ></span>
+                    <span class="ui-tag font-mono">
+                      <svg class="h-3.5 w-3.5 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+                      </svg>
+                      <span x-text="item.created_by_name || 'Anonymous'"></span>
+                    </span>
                   </div>
                 </div>
               </template>
@@ -1447,7 +1449,7 @@
                   @click.outside="folderBarMenuOpen = false"
                   role="menu"
                   aria-label="Folder layout and actions"
-                  class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-48 overflow-hidden"
+                  class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-48 max-w-[calc(100vw-1.5rem)] overflow-hidden"
                 >
                   <button
                     type="button"
@@ -2651,16 +2653,16 @@
                     </span>
                   </div>
 
-                  <!-- Right Actions: Sanitize All + Add/Convert Menu -->
+                  <!-- Right Actions: Smart Fill All + Add/Convert Menu -->
                   <div class="flex items-center gap-3">
                     <button
                       type="button"
                       @click="sanitizeAllTracksMetadata()"
                       :disabled="isEditorFileBusy || allTracksSanitized"
-                      aria-label="Sanitize all track metadata"
+                      aria-label="Smart fill all track names"
                       class="whitespace-nowrap py-1 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
                     >
-                      Sanitize all
+                      Smart fill all
                     </button>
 
                     <!-- Unified Track Actions Menu (Convert Audio + Import External Audio/Subtitles) -->
@@ -2682,6 +2684,16 @@
                         </svg>
                       </button>
 
+                      <!-- Mobile Tap-Outside Scrim (prevents accidental taps & grounds viewport-clamped menu) -->
+                      <div
+                        x-cloak
+                        x-show="addAudioMenuOpen"
+                        x-transition.opacity.duration.100ms
+                        @click="addAudioMenuOpen = false"
+                        class="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] sm:hidden"
+                        aria-hidden="true"
+                      ></div>
+
                       <div
                         x-cloak
                         x-show="addAudioMenuOpen"
@@ -2689,8 +2701,20 @@
                         @click.outside="addAudioMenuOpen = false"
                         role="menu"
                         aria-label="Track actions"
-                        class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-68 max-w-[calc(100vw-2rem)]"
+                        class="ui-menu-panel bg-elevated border border-default shadow-elevated fixed inset-x-3 bottom-20 z-50 max-h-[70dvh] overflow-y-auto sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-10 sm:z-40 sm:w-72 sm:max-h-none"
                       >
+                        <!-- Mobile Action Sheet Header -->
+                        <div class="flex items-center justify-between border-b border-subtle px-3 pb-2 pt-1 sm:hidden">
+                          <span class="text-xs font-semibold text-ink-primary">Add / Convert Track</span>
+                          <button
+                            type="button"
+                            @click="addAudioMenuOpen = false"
+                            aria-label="Close track actions"
+                            class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-secondary"
+                          >
+                            ✕
+                          </button>
+                        </div>
                         <!-- Section 1: Convert Existing Audio (Source-Aware Top Recommendations + Custom) -->
                         <template x-if="editorRecommendedAudioOptions.length > 0">
                           <div>
@@ -2836,7 +2860,7 @@
                             <span x-show="row.syncDelayMs !== 0" x-text="`• sync ${row.syncDelayMs > 0 ? '+' : ''}${row.syncDelayMs}ms`"></span>
                           </div>
 
-                          <!-- Inline Metadata Input with × Clear & Sanitize metadata -->
+                          <!-- Inline Metadata Input with × Clear & Smart fill -->
                           <div class="space-y-1">
                             <div class="relative">
                               <input
@@ -2861,10 +2885,10 @@
                                 type="button"
                                 @click="sanitizeAddedAudioMetadata()"
                                 :disabled="editor.audioFix.trackTitle === defaultAddedAudioTitle()"
-                                aria-label="Sanitize added audio track metadata"
+                                aria-label="Smart fill added audio track name"
                                 class="py-0.5 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
                               >
-                                Sanitize metadata
+                                Smart fill
                               </button>
                             </div>
                           </div>
@@ -3034,10 +3058,10 @@
                                   type="button"
                                   @click="sanitizeTrackMetadata(row.track)"
                                   :disabled="row.track.track_name === Ed.formatTrackBadge(row.track)"
-                                  :aria-label="`Sanitize track ${row.track.id} metadata`"
+                                  :aria-label="`Smart fill track ${row.track.id} name`"
                                   class="py-0.5 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
                                 >
-                                  Sanitize metadata
+                                  Smart fill
                                 </button>
                               </div>
                             </div>
@@ -3462,10 +3486,12 @@
                   <div class="flex items-center justify-between gap-3">
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="job.filepath" x-text="job.filepath"></p>
-                      <span
-                        class="ui-tag shrink-0 font-mono"
-                        x-text="job.created_by_name || 'Anonymous'"
-                      ></span>
+                      <span class="ui-tag shrink-0 font-mono">
+                        <svg class="h-3.5 w-3.5 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+                        </svg>
+                        <span x-text="job.created_by_name || 'Anonymous'"></span>
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -3581,10 +3607,12 @@
                         ></span>
                       </template>
                     </div>
-                    <span
-                      class="ui-tag ml-auto shrink-0 font-mono"
-                      x-text="job.created_by_name || 'Anonymous'"
-                    ></span>
+                    <span class="ui-tag ml-auto shrink-0 font-mono">
+                      <svg class="h-3.5 w-3.5 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+                      </svg>
+                      <span x-text="job.created_by_name || 'Anonymous'"></span>
+                    </span>
                   </div>
 
                   <p x-show="job.error_message" class="break-words text-xs text-[var(--color-status-err)]" x-text="job.error_message"></p>
@@ -3615,7 +3643,7 @@
           role="dialog"
           aria-modal="true"
           aria-label="Settings"
-          class="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 md:p-6 lg:p-8"
+          class="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 md:p-6 lg:p-8"
         >
           <!-- Translucent Blurred Backdrop around all 4 edges -->
           <div
@@ -3624,10 +3652,10 @@
             aria-hidden="true"
           ></div>
 
-          <!-- Floating Full-Screen Popup Window with Edge Margins & Rounded Border -->
+          <!-- Floating Full-Screen Popup Window (Edge-to-edge on mobile, framed dialog on sm+) -->
           <div
             @click.stop
-            class="relative z-10 flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-ui-lg border border-default bg-canvas shadow-elevated"
+            class="relative z-10 flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-none border-0 sm:rounded-ui-lg sm:border sm:border-default bg-canvas shadow-elevated"
           >
           <!-- Full-Screen Settings Top Header (Web & Mobile) -->
           <div class="flex shrink-0 items-center justify-between gap-3 border-b border-subtle bg-surface/95 px-4 py-3 backdrop-blur md:px-6">
@@ -3735,7 +3763,7 @@
             </aside>
 
             <!-- Main Content Area: Web Right Detail Pane (md+) & Mobile iOS Grouped Accordion (<md) -->
-            <div class="min-w-0 flex-1 overflow-y-auto p-4 pb-10 md:p-6 lg:p-8">
+            <div class="min-w-0 flex-1 overflow-y-auto px-2.5 py-3 pb-10 sm:p-4 md:p-6 lg:p-8">
               <div class="mx-auto max-w-3xl space-y-5">
                 <!-- ========================================================= -->
                 <!-- CATEGORY 1: GENERAL & DISPLAY                             -->
@@ -3782,7 +3810,7 @@
 
                     <!-- Section Body -->
                     <div
-                      class="border-t border-subtle p-5 space-y-4 md:border-t-0"
+                      class="border-t border-subtle p-0 space-y-4 md:border-t-0 md:p-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.APPEARANCE ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.APPEARANCE ? 'block' : 'hidden']"
                     >
                       <div class="hidden md:block">
@@ -3790,7 +3818,7 @@
                         <p class="ui-meta mt-0.5">Theme, accent color, text scale, and library layout defaults.</p>
                       </div>
 
-                      <div class="ui-list-group">
+                      <div class="ui-list-group rounded-none border-0 shadow-none md:rounded-ui-md md:border md:shadow-panel">
                         <!-- Theme Mode: Dark | Light | System -->
                         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                           <div class="min-w-0">
@@ -3836,7 +3864,7 @@
                           <div
                             role="radiogroup"
                             aria-label="Accent color"
-                            class="grid grid-cols-3 gap-2 sm:grid-cols-6"
+                            class="grid grid-cols-3 gap-1.5 sm:gap-2 sm:grid-cols-6"
                           >
                             <template x-for="ac in C.THEMES.ACCENTS" :key="`ac-${ac.id}`">
                               <button
@@ -3845,7 +3873,7 @@
                                 :aria-checked="userSettings.accent_color === ac.id ? 'true' : 'false'"
                                 :aria-label="`${ac.label} accent color`"
                                 @click="setAccentColor(ac.id)"
-                                class="flex items-center gap-2 rounded-ui-sm border px-2.5 py-2 text-left text-xs font-medium transition"
+                                class="flex items-center gap-1.5 rounded-ui-sm border px-2 py-2 text-left text-xs font-medium transition sm:gap-2 sm:px-2.5"
                                 :class="userSettings.accent_color === ac.id ? 'border-accent bg-accent/10 text-ink-primary ring-1 ring-accent' : 'border-subtle bg-inset text-ink-secondary hover:border-default hover:text-ink-primary'"
                               >
                                 <span
@@ -4103,7 +4131,7 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-5 md:border-t-0"
+                      class="border-t border-subtle p-3 space-y-4 sm:p-4 md:border-t-0 md:p-5 md:space-y-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.ACCOUNT ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.ACCOUNT ? 'block' : 'hidden']"
                     >
                       <div class="hidden md:block">
@@ -4578,7 +4606,7 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-4 md:border-t-0"
+                      class="border-t border-subtle p-3 space-y-4 sm:p-4 md:border-t-0 md:p-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'block' : 'hidden']"
                     >
                       <div class="flex flex-wrap items-start justify-between gap-2">
@@ -4746,7 +4774,7 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-4 md:border-t-0"
+                      class="border-t border-subtle p-0 space-y-4 md:border-t-0 md:p-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS ? 'block' : 'hidden']"
                     >
                       <div class="hidden md:block">
@@ -4754,7 +4782,7 @@
                         <p class="ui-meta mt-0.5">Pre-selected format, bitrate, and language when adding tracks.</p>
                       </div>
 
-                      <div class="ui-list-group">
+                      <div class="ui-list-group rounded-none border-0 shadow-none md:rounded-ui-md md:border md:shadow-panel">
                         <!-- Default Dolby Codec -->
                         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                           <div class="min-w-0">
@@ -4856,7 +4884,7 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-4 md:border-t-0"
+                      class="border-t border-subtle p-0 space-y-4 md:border-t-0 md:p-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.OUTPUT_METADATA ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.OUTPUT_METADATA ? 'block' : 'hidden']"
                     >
                       <div class="hidden md:block">
@@ -4864,7 +4892,7 @@
                         <p class="ui-meta mt-0.5">Default remux output mode, tag cleanup, and safety prompts.</p>
                       </div>
 
-                      <div class="ui-list-group">
+                      <div class="ui-list-group rounded-none border-0 shadow-none md:rounded-ui-md md:border md:shadow-panel">
                         <!-- Default Output Behavior -->
                         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                           <div class="min-w-0">
@@ -5018,7 +5046,7 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-5 md:border-t-0"
+                      class="border-t border-subtle p-3 space-y-4 sm:p-4 md:border-t-0 md:p-5 md:space-y-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.MAINTENANCE ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.MAINTENANCE ? 'block' : 'hidden']"
                     >
                       <div class="hidden md:block">
@@ -5192,10 +5220,10 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-4 md:border-t-0"
+                      class="border-t border-subtle p-0 space-y-4 md:border-t-0 md:p-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.AUTO_CLEANUP ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.AUTO_CLEANUP ? 'block' : 'hidden']"
                     >
-                      <div class="ui-list-group">
+                      <div class="ui-list-group rounded-none border-0 shadow-none md:rounded-ui-md md:border md:shadow-panel">
                         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
                           <div class="min-w-0">
                             <p class="ui-section-title">Scheduled Auto-Cleanup (Idle Only)</p>
@@ -5337,7 +5365,7 @@
                     </button>
 
                     <div
-                      class="border-t border-subtle p-5 space-y-5 md:border-t-0"
+                      class="border-t border-subtle p-3 space-y-4 sm:p-4 md:border-t-0 md:p-5 md:space-y-5"
                       :class="[activeSettingsSection === C.SETTINGS_SECTIONS.ABOUT ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.ABOUT ? 'block' : 'hidden']"
                     >
                       <!-- Header & Project Info -->
@@ -5452,7 +5480,7 @@
       x-show="route === C.ROUTES.EDITOR && editor && editorFile"
       class="fixed inset-x-0 bottom-0 z-30 border-t border-default bg-elevated/95 shadow-elevated backdrop-blur-md pb-safe md:left-[220px]"
     >
-      <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2.5 sm:px-4 sm:py-3 md:px-8">
         <div class="min-w-0 flex-1">
           <!-- Live busy summary when open file is processing or queued -->
           <div x-show="isEditorFileBusy && editorActiveJob" class="flex items-center gap-2">
@@ -5707,7 +5735,7 @@
                   @click="resetDraftAudioTitle()"
                   class="text-xs font-medium text-accent transition hover:underline"
                 >
-                  Sanitize metadata
+                  Smart fill
                 </button>
               </div>
               <div class="relative mt-1.5">
@@ -6932,7 +6960,7 @@
               ></h2>
               <p
                 class="ui-meta mt-0.5"
-                x-text="deleteModal.kind === 'save_as_delete_original' ? 'Original source is permanently deleted only if Save As succeeds.' : 'Permanently removes the item(s) from disk.'"
+                x-text="deleteModal.kind === 'save_as_delete_original' ? 'Original source is permanently deleted only if Save As succeeds.' : 'Permanently removes items from disk. Read-only mounts will fail safely.'"
               ></p>
             </div>
             <button
