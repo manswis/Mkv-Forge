@@ -482,3 +482,6 @@ class TestDesignSystemTokensAndPrimitives:
         recent_block = html[recent_start:recent_end]
         assert "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" in recent_block
         assert "item.created_by_name || 'Anonymous'" in recent_block
+
+        # 5. Null-safe authUser.username Alpine bindings (prevents TypeError in anonymous/onboarding mode)
+        assert 'x-text="`@${authUser.username}`"' not in html

@@ -218,7 +218,7 @@
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-xs font-medium text-ink-primary" :title="currentUserDisplayName" x-text="currentUserDisplayName"></p>
-                <p x-show="isLocalAuthEnabled && authUser" class="truncate font-mono text-xs text-ink-muted" x-text="`@${authUser.username}`"></p>
+                <p x-show="isLocalAuthEnabled && authUser" class="truncate font-mono text-xs text-ink-muted" x-text="authUser ? `@${authUser.username}` : ''"></p>
               </div>
             </div>
 

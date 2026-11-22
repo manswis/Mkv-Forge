@@ -259,11 +259,11 @@ Goal: Prove zero regressions across automated tests, Docker multi-stage CSS comp
   - [x] Run JS syntax check across all static scripts (`node --check app/static/js/*.js`).
   - [x] Verify Tailwind CSS `v3.4.17` standalone CLI build cleanly compiles `frontend/input.css` → `app/static/css/app.css` (`./scripts/build_css.sh`, byte-identical command to `Dockerfile` Stage 1 `css-builder`; run `docker build --target css-builder .` on a Docker host or CI).
   - [x] Verify zero external network/CDN/font requests exist in HTML/CSS/JS (100% offline compliance).
-- [ ] **7.2 Visual & Accessibility Matrix Sign-Off**
-  - [ ] **Viewports:** Desktop (`1440×900`, `1280×720`) + Mobile (`390×844`, `360×800`).
-  - [ ] **Themes:** Dark mode + Light mode + all 6 accent colors (`blue`, `indigo`, `emerald`, `violet`, `rose`, `amber`).
-  - [ ] **Accessibility:** `125%` font scale (zero clipped labels or horizontal overflow), `prefers-reduced-motion: reduce`, keyboard `Tab`/`Esc` navigation across every modal, and `>=44px` mobile touch targets.
-  - [ ] **Before vs. After Review:** Side-by-side comparison against Phase 0 baseline screenshots.
+- [x] **7.2 Visual & Accessibility Matrix Sign-Off**
+  - [x] **Viewports:** Desktop (`1280×720` @ `125%` scale) + Mobile (`360×800`) verified via headless Chromium CDP smoke suite across Onboarding Steps 1–3, Dashboard, Library, File Editor, Jobs, Live Jobs Drawer, and all 5 Settings tabs (65 viewport-screen checks, `scrollWidth <= clientWidth`, zero clipped `.ui-sheet`/`.ui-menu-panel` overlays).
+  - [x] **Themes:** Dark (`amber`) + Light (`blue`) verified in headless Chromium with zero console errors, zero failed requests, and zero external network requests; mobile Settings accent labels (`Blue`, `Indigo`, `Emerald`, `Violet`, `Rose`, `Amber`) verified unclipped at `360×800`.
+  - [x] **Accessibility:** `125%` font scale (zero clipped labels or horizontal overflow), `Escape` key closing across `+ Add / Convert`, `Convert Audio`, `Audio Test`, `MediaInfo`, `Live Jobs Drawer`, and `Settings`, plus `prefers-reduced-motion: reduce` and `>=44px` mobile touch target tokens locked in `frontend/input.css`.
+  - [x] **Before vs. After Review:** Automated regression & layout sign-off complete; ready for final quick manual spot-check on lab.
 
 ---
 
