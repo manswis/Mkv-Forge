@@ -669,6 +669,18 @@
                   <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
                   <span>Live Watch</span>
                 </span>
+                <span
+                  x-cloak
+                  x-show="!hasLibraryEmptyState"
+                  class="ui-tag ui-num font-mono"
+                  :title="isScanRunning ? `${scanProgress.scanned} / ${scanProgress.total} files` : (dashboard.stats.last_scan_status || 'Idle')"
+                >
+                  <span class="text-ink-secondary">Last Scan:</span>
+                  <span
+                    class="text-ink-primary"
+                    x-text="isScanRunning ? `${scanPercent}% (${scanProgress.scanned}/${scanProgress.total})` : Fmt.formatRelativeTime(dashboard.stats.last_scan_at)"
+                  ></span>
+                </span>
               </div>
               <p class="mt-0.5 text-xs text-ink-secondary">Instant library health snapshot from SQLite cache</p>
             </div>
@@ -828,8 +840,8 @@
                     x-text="dashboard.stats.needs_conversion"
                   ></p>
                   <p
-                    class="mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary"
-                    x-text="`${dashboard.stats.playback_profile_label} • Show incompatible`"
+                    class="ui-num mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary"
+                    x-text="`${dashboard.stats.needs_conversion_bytes > 0 ? Fmt.formatBytes(dashboard.stats.needs_conversion_bytes) + ' • ' : ''}${dashboard.stats.playback_profile_label} • Show incompatible`"
                   ></p>
                 </div>
                 <div x-show="!dashboard.stats.playback_profile_configured" class="min-w-0">
@@ -849,23 +861,40 @@
                 </div>
                 <div class="min-w-0">
                   <p class="ui-num mt-2 font-mono text-2xl font-semibold tracking-tight text-ink-primary md:text-3xl" x-text="dashboard.stats.has_metadata"></p>
-                  <p class="mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary">Show extra metadata</p>
+                  <p
+                    class="ui-num mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary"
+                    x-text="`${dashboard.stats.has_metadata_bytes > 0 ? Fmt.formatBytes(dashboard.stats.has_metadata_bytes) + ' • ' : ''}Show extra metadata`"
+                  ></p>
                 </div>
               </button>
 
-              <div class="flex min-h-[104px] min-w-0 flex-col justify-between bg-surface p-4 text-left sm:p-5">
-                <p class="truncate text-xs font-medium text-ink-secondary">Last Scan</p>
+              <button
+                type="button"
+                @click="openLibraryPreset({ audioLanguage: 'und' })"
+                class="group ui-row flex min-h-[104px] min-w-0 flex-col justify-between bg-surface p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 sm:p-5"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="flex min-w-0 items-center gap-1.5">
+                    <span
+                      class="h-2 w-2 shrink-0 rounded-full"
+                      :class="dashboard.stats.untagged_audio > 0 ? 'bg-[var(--color-status-warn)]' : 'bg-[var(--color-status-ok)]'"
+                    ></span>
+                    <p class="truncate text-xs font-medium text-ink-secondary">Untagged Audio (und)</p>
+                  </span>
+                  <span class="text-xs text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
+                </div>
                 <div class="min-w-0">
                   <p
-                    class="ui-num mt-2 truncate font-mono text-xl font-semibold tracking-tight text-ink-primary md:text-2xl"
-                    x-text="isScanRunning ? `${scanPercent}%` : Fmt.formatRelativeTime(dashboard.stats.last_scan_at)"
+                    class="ui-num mt-2 font-mono text-2xl font-semibold tracking-tight md:text-3xl"
+                    :class="dashboard.stats.untagged_audio > 0 ? 'text-[var(--color-status-warn)]' : 'text-ink-primary'"
+                    x-text="dashboard.stats.untagged_audio"
                   ></p>
                   <p
-                    class="ui-num mt-1 truncate text-xs text-ink-muted"
-                    x-text="isScanRunning ? `${scanProgress.scanned} / ${scanProgress.total} files` : (dashboard.stats.last_scan_status || 'Idle')"
+                    class="ui-num mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary"
+                    x-text="`${dashboard.stats.untagged_audio_bytes > 0 ? Fmt.formatBytes(dashboard.stats.untagged_audio_bytes) + ' • ' : ''}Show untagged ('und')`"
                   ></p>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -874,16 +903,46 @@
             <!-- Panel A: Storage Breakdown -->
             <div class="ui-panel p-4 sm:p-5 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="min-w-0">
-                  <h2 class="ui-section-title">Storage Breakdown</h2>
-                  <p
-                    class="ui-num mt-0.5 font-mono text-xs text-ink-secondary"
-                    x-text="dashboardStorage.disk_total_bytes > 0 ? `${Fmt.formatBytes(dashboardStorage.disk_used_bytes)} of ${Fmt.formatBytes(dashboardStorage.disk_total_bytes)} used • ${Fmt.formatBytes(dashboardStorage.disk_free_bytes)} free` : 'Drive metrics unavailable'"
-                  ></p>
+                <h2 class="ui-section-title">Storage Breakdown</h2>
+                <div class="ui-segmented" role="group" aria-label="Storage breakdown lens">
+                  <button
+                    type="button"
+                    @click="setDashStorageLens(C.DASHBOARD_LENSES.STORAGE_CODEC)"
+                    :aria-pressed="dashStorageLens === C.DASHBOARD_LENSES.STORAGE_CODEC ? 'true' : 'false'"
+                    class="ui-segmented-item"
+                    :class="dashStorageLens === C.DASHBOARD_LENSES.STORAGE_CODEC ? 'ui-segmented-item-active' : ''"
+                  >
+                    Codec
+                  </button>
+                  <button
+                    type="button"
+                    @click="setDashStorageLens(C.DASHBOARD_LENSES.STORAGE_RESOLUTION)"
+                    :aria-pressed="dashStorageLens === C.DASHBOARD_LENSES.STORAGE_RESOLUTION ? 'true' : 'false'"
+                    class="ui-segmented-item"
+                    :class="dashStorageLens === C.DASHBOARD_LENSES.STORAGE_RESOLUTION ? 'ui-segmented-item-active' : ''"
+                  >
+                    Resolution
+                  </button>
+                  <button
+                    type="button"
+                    @click="setDashStorageLens(C.DASHBOARD_LENSES.STORAGE_CONTAINER)"
+                    :aria-pressed="dashStorageLens === C.DASHBOARD_LENSES.STORAGE_CONTAINER ? 'true' : 'false'"
+                    class="ui-segmented-item"
+                    :class="dashStorageLens === C.DASHBOARD_LENSES.STORAGE_CONTAINER ? 'ui-segmented-item-active' : ''"
+                  >
+                    Container
+                  </button>
                 </div>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p
+                  class="ui-num min-w-0 truncate font-mono text-xs text-ink-secondary"
+                  x-text="dashboardStorage.disk_total_bytes > 0 ? `${Fmt.formatBytes(dashboardStorage.disk_used_bytes)} of ${Fmt.formatBytes(dashboardStorage.disk_total_bytes)} used • ${Fmt.formatBytes(dashboardStorage.disk_free_bytes)} free` : 'Drive metrics unavailable'"
+                ></p>
                 <span
                   x-show="dashboardStorage.disk_total_bytes > 0"
-                  class="ui-num font-mono text-xs font-semibold"
+                  class="ui-num shrink-0 font-mono text-xs font-semibold"
                   :class="dashboardDiskUsedPercent >= 90 ? 'ui-status ui-status-err' : (dashboardDiskUsedPercent >= 75 ? 'ui-status ui-status-warn' : 'ui-tag')"
                   x-text="`${dashboardDiskUsedPercent}% used`"
                 ></span>
@@ -931,39 +990,82 @@
                     <p class="text-xs text-ink-muted">No storage usage data yet.</p>
                   </template>
                   <div x-show="dashboardStorageSegments.length > 0" class="ui-list-group">
-                    <template x-for="seg in dashboardStorageSegments" :key="`st-leg-${seg.key}`">
-                      <div
+                    <template x-for="seg in dashboardStorageSegments" :key="`st-leg-${dashStorageLens}-${seg.key}`">
+                      <button
+                        type="button"
                         @mouseenter="hoveredStorageKey = seg.key"
                         @mouseleave="hoveredStorageKey = null"
-                        @click="hoveredStorageKey = (hoveredStorageKey === seg.key ? null : seg.key)"
-                        class="ui-row flex cursor-pointer items-center justify-between gap-2 px-3 py-2"
+                        @focus="hoveredStorageKey = seg.key"
+                        @blur="hoveredStorageKey = null"
+                        @click="onStorageSegmentClick(seg)"
+                        class="group ui-row flex min-h-[42px] w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
                         :class="hoveredStorageKey === seg.key ? 'bg-[var(--color-active-fill)]' : ''"
                       >
                         <div class="flex min-w-0 items-center gap-2">
                           <span class="h-2 w-2 shrink-0 rounded-full" :class="seg.dotClass"></span>
                           <div class="min-w-0">
                             <p class="truncate text-xs font-medium text-ink-primary" x-text="seg.label"></p>
-                            <p class="truncate text-xs text-ink-muted" x-text="seg.sublabel"></p>
+                            <p class="ui-num truncate text-xs text-ink-muted" x-text="seg.sublabel"></p>
                           </div>
                         </div>
-                        <div class="shrink-0 text-right">
-                          <p class="ui-num font-mono text-xs font-semibold text-ink-primary" x-text="Fmt.formatBytes(seg.value)"></p>
-                          <p class="ui-num font-mono text-xs text-ink-muted" x-text="`${seg.percent}%`"></p>
+                        <div class="flex shrink-0 items-center gap-2 text-right">
+                          <div>
+                            <p class="ui-num font-mono text-xs font-semibold text-ink-primary" x-text="Fmt.formatBytes(seg.value)"></p>
+                            <p class="ui-num font-mono text-xs text-ink-muted" x-text="`${seg.percent}%`"></p>
+                          </div>
+                          <span
+                            x-show="seg.filterPreset"
+                            class="text-xs text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-accent"
+                            aria-hidden="true"
+                          >→</span>
                         </div>
-                      </div>
+                      </button>
                     </template>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Panel B: Audio Codec Distribution -->
+            <!-- Panel B: Audio Codec / Channel / Language Distribution -->
             <div class="ui-panel p-4 sm:p-5 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="min-w-0">
-                  <h2 class="ui-section-title">Audio Codecs</h2>
-                  <p class="mt-0.5 text-xs text-ink-secondary">Tap any slice or codec to filter Library.</p>
+                <h2
+                  class="ui-section-title"
+                  x-text="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_CHANNELS ? 'Audio Channels' : (dashAudioLens === C.DASHBOARD_LENSES.AUDIO_LANGUAGES ? 'Audio Languages' : 'Audio Codecs')"
+                >Audio Codecs</h2>
+                <div class="ui-segmented" role="group" aria-label="Audio distribution lens">
+                  <button
+                    type="button"
+                    @click="setDashAudioLens(C.DASHBOARD_LENSES.AUDIO_CODECS)"
+                    :aria-pressed="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_CODECS ? 'true' : 'false'"
+                    class="ui-segmented-item"
+                    :class="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_CODECS ? 'ui-segmented-item-active' : ''"
+                  >
+                    Codecs
+                  </button>
+                  <button
+                    type="button"
+                    @click="setDashAudioLens(C.DASHBOARD_LENSES.AUDIO_CHANNELS)"
+                    :aria-pressed="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_CHANNELS ? 'true' : 'false'"
+                    class="ui-segmented-item"
+                    :class="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_CHANNELS ? 'ui-segmented-item-active' : ''"
+                  >
+                    Channels
+                  </button>
+                  <button
+                    type="button"
+                    @click="setDashAudioLens(C.DASHBOARD_LENSES.AUDIO_LANGUAGES)"
+                    :aria-pressed="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_LANGUAGES ? 'true' : 'false'"
+                    class="ui-segmented-item"
+                    :class="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_LANGUAGES ? 'ui-segmented-item-active' : ''"
+                  >
+                    Languages
+                  </button>
                 </div>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-xs text-ink-secondary">Tap any slice or row to filter Library.</p>
                 <span
                   class="ui-tag ui-num font-mono"
                   x-text="`${dashboardTotalAudioTracks} tracks`"
@@ -979,7 +1081,7 @@
                 >
                   <div class="h-full w-full" x-ref="audioPieHost" x-effect="syncAudioPieChart($el)"></div>
 
-                  <!-- Dynamic Center Readout (Total Tracks or Active Codec) -->
+                  <!-- Dynamic Center Readout (Total Tracks or Active Slice) -->
                   <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                     <span
                       class="ui-num font-mono text-base font-semibold leading-tight text-ink-primary"
@@ -1002,14 +1104,14 @@
                     <p class="text-xs text-ink-muted">No ready audio tracks indexed yet.</p>
                   </template>
                   <div x-show="dashboardAudioSegments.length > 0" class="ui-list-group">
-                    <template x-for="seg in dashboardAudioSegments" :key="`ac-leg-${seg.key}`">
+                    <template x-for="seg in dashboardAudioSegments" :key="`ac-leg-${dashAudioLens}-${seg.key}`">
                       <button
                         type="button"
                         @mouseenter="hoveredAudioKey = seg.key"
                         @mouseleave="hoveredAudioKey = null"
                         @focus="hoveredAudioKey = seg.key"
                         @blur="hoveredAudioKey = null"
-                        @click="openLibraryPreset({ audioCodec: seg.key })"
+                        @click="dashAudioLens === C.DASHBOARD_LENSES.AUDIO_CHANNELS ? openLibraryPreset({ audioChannels: seg.key }) : (dashAudioLens === C.DASHBOARD_LENSES.AUDIO_LANGUAGES ? openLibraryPreset({ audioLanguage: seg.key }) : openLibraryPreset({ audioCodec: seg.key }))"
                         class="group ui-row flex min-h-[42px] w-full items-center justify-between gap-2 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
                         :class="hoveredAudioKey === seg.key ? 'bg-[var(--color-active-fill)]' : ''"
                       >
@@ -1030,29 +1132,61 @@
             </div>
           </div>
 
-          <!-- Compact Video Resolution & Dynamic Range Monochrome Strip -->
+          <!-- Compact Clickable Video Resolution, Video Codec, Dynamic Range & Subtitles Strip -->
           <div
             x-cloak
-            x-show="!hasLibraryEmptyState && (dashboardResolutions.length > 0 || dashboardDynamicRanges.length > 0)"
+            x-show="!hasLibraryEmptyState && (dashboardResolutions.length > 0 || dashboardVideoCodecs.length > 0 || dashboardDynamicRanges.length > 0 || dashboard.stats.total_files > 0)"
             class="ui-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3"
           >
             <div x-show="dashboardResolutions.length > 0" class="flex flex-wrap items-center gap-1.5">
               <span class="mr-1 text-xs font-medium text-ink-secondary">Resolution</span>
               <template x-for="res in dashboardResolutions" :key="`dres-${res.label}`">
-                <span class="ui-tag ui-num font-mono">
+                <button
+                  type="button"
+                  @click="openLibraryPreset({ resolution: res.label })"
+                  class="ui-tag ui-num font-mono transition hover:border-accent hover:text-accent"
+                >
                   <span class="text-ink-primary" x-text="res.label"></span>
                   <span class="text-ink-muted" x-text="res.count"></span>
-                </span>
+                </button>
+              </template>
+            </div>
+            <div x-show="dashboardVideoCodecs.length > 0" class="flex flex-wrap items-center gap-1.5">
+              <span class="mr-1 text-xs font-medium text-ink-secondary">Video Codec</span>
+              <template x-for="vc in dashboardVideoCodecs" :key="`dvc-${vc.label}`">
+                <button
+                  type="button"
+                  @click="openLibraryPreset({ videoCodec: vc.label })"
+                  class="ui-tag ui-num font-mono transition hover:border-accent hover:text-accent"
+                >
+                  <span class="text-ink-primary" x-text="vc.label"></span>
+                  <span class="text-ink-muted" x-text="vc.count"></span>
+                </button>
               </template>
             </div>
             <div x-show="dashboardDynamicRanges.length > 0" class="flex flex-wrap items-center gap-1.5">
               <span class="mr-1 text-xs font-medium text-ink-secondary">Dynamic Range</span>
               <template x-for="dr in dashboardDynamicRanges" :key="`ddr-${dr.label}`">
-                <span class="ui-tag ui-num font-mono">
+                <button
+                  type="button"
+                  @click="openLibraryPreset({ dynamicRange: dr.label })"
+                  class="ui-tag ui-num font-mono transition hover:border-accent hover:text-accent"
+                >
                   <span class="text-ink-primary" x-text="dr.label"></span>
                   <span class="text-ink-muted" x-text="dr.count"></span>
-                </span>
+                </button>
               </template>
+            </div>
+            <div x-show="dashboard.stats.total_files > 0" class="flex flex-wrap items-center gap-1.5">
+              <span class="mr-1 text-xs font-medium text-ink-secondary">Subtitles</span>
+              <button
+                type="button"
+                @click="openLibraryPreset({ noSubtitles: true })"
+                class="ui-tag ui-num font-mono transition hover:border-accent hover:text-accent"
+              >
+                <span class="text-ink-primary">No Subs</span>
+                <span class="text-ink-muted" x-text="dashboard.stats.no_subtitles"></span>
+              </button>
             </div>
           </div>
 
@@ -1311,6 +1445,72 @@
               class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
             >
               <span x-text="`Codec: ${audioCodec}`"></span>
+              <span aria-hidden="true">×</span>
+            </button>
+
+            <button
+              x-cloak
+              x-show="videoCodec"
+              type="button"
+              @click="videoCodec = ''; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
+            >
+              <span x-text="`Video: ${videoCodec}`"></span>
+              <span aria-hidden="true">×</span>
+            </button>
+
+            <button
+              x-cloak
+              x-show="resolution"
+              type="button"
+              @click="resolution = ''; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
+            >
+              <span x-text="`Res: ${resolution}`"></span>
+              <span aria-hidden="true">×</span>
+            </button>
+
+            <button
+              x-cloak
+              x-show="dynamicRange"
+              type="button"
+              @click="dynamicRange = ''; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
+            >
+              <span x-text="`HDR: ${dynamicRange}`"></span>
+              <span aria-hidden="true">×</span>
+            </button>
+
+            <button
+              x-cloak
+              x-show="audioChannels"
+              type="button"
+              @click="audioChannels = ''; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
+            >
+              <span x-text="`Channels: ${audioChannels}`"></span>
+              <span aria-hidden="true">×</span>
+            </button>
+
+            <button
+              x-cloak
+              x-show="audioLanguage"
+              type="button"
+              @click="audioLanguage = ''; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
+            >
+              <span x-text="`Lang: ${audioLanguage}`"></span>
+              <span aria-hidden="true">×</span>
+            </button>
+
+            <button
+              x-cloak
+              x-show="noSubtitles"
+              type="button"
+              @click="noSubtitles = false; page = C.PAGINATION.DEFAULT_PAGE; _syncUrlHash(); loadLibrary()"
+              class="inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-ui-sm border border-transparent bg-accent px-2.5 py-1 font-mono text-xs font-semibold text-[var(--color-accent-fg)] transition hover:bg-accent-hover"
+            >
+              <span>No Subs</span>
               <span aria-hidden="true">×</span>
             </button>
 

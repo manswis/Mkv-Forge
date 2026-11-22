@@ -457,12 +457,46 @@ class MediaFileRepository:
         return deleted
 
     @staticmethod
+    def _sql_norm_audio_lang(alias: str = "je") -> str:
+        """Return canonical SQLite CASE expression normalizing null, empty, and 'und' to 'und'."""
+        raw_expr = (
+            f"LOWER(TRIM(COALESCE("
+            f"NULLIF(TRIM(COALESCE(json_extract({alias}.value, '$.language'), '')), ''), "
+            f"COALESCE(json_extract({alias}.value, '$.lang'), '')"
+            f")))"
+        )
+        return (
+            f"CASE WHEN {raw_expr} IN ('', 'und', 'null', 'unknown') "
+            f"THEN 'und' ELSE {raw_expr} END"
+        )
+
+    @staticmethod
+    def _sql_norm_audio_channels(alias: str = "je") -> str:
+        """Return canonical SQLite CASE expression normalizing channel_layout / channels to tier keys."""
+        layout = f"COALESCE(TRIM(json_extract({alias}.value, '$.channel_layout')), '')"
+        ch_int = f"CAST(COALESCE(json_extract({alias}.value, '$.channels'), 0) AS INTEGER)"
+        return (
+            f"CASE "
+            f"WHEN {layout} IN ('7.1', '8ch') OR {ch_int} = 8 THEN '7.1' "
+            f"WHEN {layout} IN ('5.1', '6ch') OR {ch_int} = 6 THEN '5.1' "
+            f"WHEN {layout} IN ('2.0', '2ch') OR {ch_int} = 2 THEN '2.0' "
+            f"WHEN {layout} IN ('1.0', '1ch') OR {ch_int} = 1 THEN '1.0' "
+            f"ELSE 'Other' END"
+        )
+
+    @staticmethod
     def _build_filter_where(
         *,
         q: str | None = None,
         folder: str | None = None,
         audio_type: str | None = None,
         audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
         aac51_only: bool = False,
         aac51: bool = False,
         has_metadata: bool = False,
@@ -538,6 +572,98 @@ class MediaFileRepository:
                 )
                 params.append(codec_key)
 
+        if video_codec and video_codec.strip():
+            vc_key = video_codec.strip().upper()
+            clauses.append("scan_status = 'ready'")
+            if vc_key == "OTHER":
+                known_ph = ", ".join("?" for _ in AppConstants.KNOWN_VIDEO_CODECS)
+                clauses.append(
+                    f"(COALESCE(TRIM(video_codec), '') = '' OR UPPER(TRIM(video_codec)) NOT IN ({known_ph}))"
+                )
+                params.extend(c.upper() for c in AppConstants.KNOWN_VIDEO_CODECS)
+            else:
+                clauses.append("UPPER(COALESCE(TRIM(video_codec), '')) = ?")
+                params.append(vc_key)
+
+        if resolution and resolution.strip():
+            res_key = resolution.strip().upper()
+            clauses.append("scan_status = 'ready'")
+            if res_key == "OTHER":
+                clauses.append(
+                    "(COALESCE(TRIM(resolution), '') = '' OR UPPER(TRIM(resolution)) NOT IN ('2160P', '1080P', '720P', '480P', 'SD'))"
+                )
+            else:
+                clauses.append("UPPER(COALESCE(TRIM(resolution), '')) = ?")
+                params.append(res_key)
+
+        if dynamic_range and dynamic_range.strip():
+            clauses.append("scan_status = 'ready'")
+            clauses.append("UPPER(COALESCE(TRIM(video_dynamic_range), '')) = ?")
+            params.append(dynamic_range.strip().upper())
+
+        if audio_channels and audio_channels.strip():
+            ch_raw = audio_channels.strip()
+            ch_key = "Other" if ch_raw.upper() == "OTHER" else ch_raw
+            norm_ch = MediaFileRepository._sql_norm_audio_channels("je")
+            clauses.append("scan_status = 'ready'")
+            clauses.append(
+                f"""
+                EXISTS (
+                    SELECT 1
+                    FROM json_each(media_files.audio_summary_json) AS je
+                    WHERE COALESCE(json_extract(je.value, '$.codec'), '') != ''
+                      AND ({norm_ch}) = ?
+                )
+                """
+            )
+            params.append(ch_key)
+
+        if audio_language is not None and audio_language.strip():
+            raw_lang = audio_language.strip().lower()
+            lang_key = "und" if raw_lang in ("", "und", "null", "unknown") else raw_lang
+            norm_je = MediaFileRepository._sql_norm_audio_lang("je")
+            clauses.append("scan_status = 'ready'")
+            if lang_key == "other":
+                norm_je2 = MediaFileRepository._sql_norm_audio_lang("je2")
+                top_limit = int(AppConstants.DASHBOARD_TOP_AUDIO_LANGUAGES_LIMIT)
+                clauses.append(
+                    f"""
+                    EXISTS (
+                        SELECT 1
+                        FROM json_each(media_files.audio_summary_json) AS je
+                        WHERE COALESCE(json_extract(je.value, '$.codec'), '') != ''
+                          AND ({norm_je}) != 'und'
+                          AND ({norm_je}) NOT IN (
+                              SELECT top_lang FROM (
+                                  SELECT ({norm_je2}) AS top_lang, COUNT(*) AS cnt
+                                  FROM media_files AS mf2, json_each(mf2.audio_summary_json) AS je2
+                                  WHERE mf2.scan_status = 'ready'
+                                    AND COALESCE(json_extract(je2.value, '$.codec'), '') != ''
+                                    AND ({norm_je2}) != 'und'
+                                  GROUP BY top_lang
+                                  ORDER BY cnt DESC, top_lang ASC
+                                  LIMIT {top_limit}
+                              )
+                          )
+                    )
+                    """
+                )
+            else:
+                clauses.append(
+                    f"""
+                    EXISTS (
+                        SELECT 1
+                        FROM json_each(media_files.audio_summary_json) AS je
+                        WHERE COALESCE(json_extract(je.value, '$.codec'), '') != ''
+                          AND ({norm_je}) = ?
+                    )
+                    """
+                )
+                params.append(lang_key)
+
+        if no_subtitles:
+            clauses.append("(scan_status = 'ready' AND COALESCE(subtitle_count, 0) = 0)")
+
         if aac51_only:
             clauses.append(
                 "(scan_status = 'ready' AND has_aac_51 = 1 AND has_ac3_eac3 = 0)"
@@ -564,6 +690,12 @@ class MediaFileRepository:
         folder: str | None = None,
         audio_type: str | None = None,
         audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
         aac51_only: bool = False,
         aac51: bool = False,
         has_metadata: bool = False,
@@ -598,6 +730,12 @@ class MediaFileRepository:
             folder=folder,
             audio_type=audio_type,
             audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
             aac51_only=aac51_only,
             aac51=aac51,
             has_metadata=has_metadata,
@@ -659,6 +797,13 @@ class MediaFileRepository:
         *,
         q: str | None = None,
         audio_type: str | None = None,
+        audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
         aac51_only: bool = False,
         aac51: bool = False,
         has_metadata: bool = False,
@@ -671,6 +816,13 @@ class MediaFileRepository:
             q=q,
             folder=None,
             audio_type=audio_type,
+            audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
             aac51_only=aac51_only,
             aac51=aac51,
             has_metadata=has_metadata,
@@ -712,6 +864,13 @@ class MediaFileRepository:
         *,
         q: str | None = None,
         folder: str | None = None,
+        audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
         aac51_only: bool = False,
         aac51: bool = False,
         has_metadata: bool = False,
@@ -724,6 +883,13 @@ class MediaFileRepository:
             q=q,
             folder=folder,
             audio_type=None,
+            audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
             aac51_only=aac51_only,
             aac51=aac51,
             has_metadata=has_metadata,
@@ -796,21 +962,35 @@ class MediaFileRepository:
             if row["label"]
         ]
 
-    def count_needs_conversion(
+    def get_needs_conversion_stats(
         self,
         playback_profile: PlaybackProfileSpec | None,
         *,
         q: str | None = None,
         folder: str | None = None,
         audio_type: str | None = None,
-    ) -> int:
-        """Count ready media files requiring conversion under `playback_profile`."""
+        audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
+    ) -> tuple[int, int]:
+        """Return `(file_count, total_size_bytes)` of ready media files requiring conversion."""
         if playback_profile is None or not playback_profile.configured:
-            return 0
+            return 0, 0
         where_sql, params = self._build_filter_where(
             q=q,
             folder=folder,
             audio_type=audio_type,
+            audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
         )
         ready_where = (
             f"{where_sql} AND scan_status = 'ready'"
@@ -819,10 +999,11 @@ class MediaFileRepository:
         )
         with self._db.connect() as conn:
             rows = conn.execute(
-                f"SELECT audio_summary_json, scan_status FROM media_files {ready_where}",
+                f"SELECT size_bytes, audio_summary_json, scan_status FROM media_files {ready_where}",
                 params,
             ).fetchall()
         count = 0
+        total_bytes = 0
         for row in rows:
             if evaluate_file_needs_conversion(
                 decode_audio_summary_json(row["audio_summary_json"]),
@@ -830,6 +1011,38 @@ class MediaFileRepository:
                 scan_status=str(row["scan_status"] or AppConstants.FILE_SCAN_STATUS_READY),
             ):
                 count += 1
+                total_bytes += max(0, int(row["size_bytes"] or 0))
+        return count, total_bytes
+
+    def count_needs_conversion(
+        self,
+        playback_profile: PlaybackProfileSpec | None,
+        *,
+        q: str | None = None,
+        folder: str | None = None,
+        audio_type: str | None = None,
+        audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
+    ) -> int:
+        """Count ready media files requiring conversion under `playback_profile`."""
+        count, _ = self.get_needs_conversion_stats(
+            playback_profile,
+            q=q,
+            folder=folder,
+            audio_type=audio_type,
+            audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
+        )
         return count
 
     def get_workflow_facet_counts(
@@ -838,6 +1051,13 @@ class MediaFileRepository:
         q: str | None = None,
         folder: str | None = None,
         audio_type: str | None = None,
+        audio_codec: str | None = None,
+        video_codec: str | None = None,
+        resolution: str | None = None,
+        dynamic_range: str | None = None,
+        audio_channels: str | None = None,
+        audio_language: str | None = None,
+        no_subtitles: bool = False,
         playback_profile: PlaybackProfileSpec | None = None,
     ) -> dict[str, int]:
         """Return cascading workflow chip counts for the current search/folder/audio view."""
@@ -845,6 +1065,13 @@ class MediaFileRepository:
             q=q,
             folder=folder,
             audio_type=audio_type,
+            audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
         )
         with self._db.connect() as conn:
             row = conn.execute(
@@ -864,6 +1091,13 @@ class MediaFileRepository:
             q=q,
             folder=folder,
             audio_type=audio_type,
+            audio_codec=audio_codec,
+            video_codec=video_codec,
+            resolution=resolution,
+            dynamic_range=dynamic_range,
+            audio_channels=audio_channels,
+            audio_language=audio_language,
+            no_subtitles=no_subtitles,
         )
         if row is None:
             return {
@@ -884,39 +1118,67 @@ class MediaFileRepository:
         *,
         playback_profile: PlaybackProfileSpec | None = None,
     ) -> dict[str, int]:
-        """Return aggregate Dashboard counts in a single SQL query."""
+        """Return aggregate Dashboard counts and byte weights in a single SQL query."""
+        norm_lang = self._sql_norm_audio_lang("je")
+        untagged_pred = f"""
+            EXISTS (
+                SELECT 1
+                FROM json_each(media_files.audio_summary_json) AS je
+                WHERE COALESCE(json_extract(je.value, '$.codec'), '') != ''
+                  AND ({norm_lang}) = 'und'
+            )
+        """
         with self._db.connect() as conn:
             row = conn.execute(
-                """
+                f"""
                 SELECT
                     COUNT(*) AS total_files,
                     COALESCE(SUM(CASE WHEN scan_status = 'ready' AND has_aac_51 = 1 AND has_ac3_eac3 = 0 THEN 1 ELSE 0 END), 0) AS aac51_only,
-                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND (COALESCE(container_title, '') != '' OR has_global_tags = 1) THEN 1 ELSE 0 END), 0) AS has_metadata
+                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND (COALESCE(container_title, '') != '' OR has_global_tags = 1) THEN 1 ELSE 0 END), 0) AS has_metadata,
+                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND (COALESCE(container_title, '') != '' OR has_global_tags = 1) THEN size_bytes ELSE 0 END), 0) AS has_metadata_bytes,
+                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND {untagged_pred} THEN 1 ELSE 0 END), 0) AS untagged_audio,
+                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND {untagged_pred} THEN size_bytes ELSE 0 END), 0) AS untagged_audio_bytes,
+                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND COALESCE(subtitle_count, 0) = 0 THEN 1 ELSE 0 END), 0) AS no_subtitles,
+                    COALESCE(SUM(CASE WHEN scan_status = 'ready' AND COALESCE(subtitle_count, 0) > 0 THEN 1 ELSE 0 END), 0) AS with_subtitles
                 FROM media_files
                 """
             ).fetchone()
 
-        needs_conv = self.count_needs_conversion(playback_profile)
+        needs_conv, needs_conv_bytes = self.get_needs_conversion_stats(playback_profile)
         if row is None:
             return {
                 "total_files": 0,
                 "aac51_only": 0,
                 "has_metadata": 0,
+                "has_metadata_bytes": 0,
                 "needs_conversion": needs_conv,
+                "needs_conversion_bytes": needs_conv_bytes,
+                "untagged_audio": 0,
+                "untagged_audio_bytes": 0,
+                "no_subtitles": 0,
+                "with_subtitles": 0,
             }
 
         return {
             "total_files": int(row["total_files"]),
             "aac51_only": int(row["aac51_only"]),
             "has_metadata": int(row["has_metadata"]),
+            "has_metadata_bytes": int(row["has_metadata_bytes"]),
             "needs_conversion": needs_conv,
+            "needs_conversion_bytes": needs_conv_bytes,
+            "untagged_audio": int(row["untagged_audio"]),
+            "untagged_audio_bytes": int(row["untagged_audio_bytes"]),
+            "no_subtitles": int(row["no_subtitles"]),
+            "with_subtitles": int(row["with_subtitles"]),
         }
 
     def get_dashboard_analytics(self) -> dict[str, Any]:
-        """Aggregate container sizes, audio codec track counts, and resolution/HDR pills.
+        """Aggregate container/codec/resolution storage, multi-lens audio tracks, and video pills.
 
-        Strictly excludes `scan_status != 'ready'` rows from codec/resolution/HDR metrics.
+        Strictly excludes `scan_status != 'ready'` rows from codec/channel/language/resolution/HDR metrics.
         """
+        norm_ch = self._sql_norm_audio_channels("je")
+        norm_lang = self._sql_norm_audio_lang("je")
         with self._db.connect() as conn:
             container_row = conn.execute(
                 """
@@ -949,12 +1211,52 @@ class MediaFileRepository:
                 """
             ).fetchall()
 
+            channel_rows = conn.execute(
+                f"""
+                SELECT
+                    ({norm_ch}) AS ch_tier,
+                    COUNT(*) AS cnt
+                FROM media_files, json_each(media_files.audio_summary_json) AS je
+                WHERE media_files.scan_status = 'ready'
+                  AND COALESCE(json_extract(je.value, '$.codec'), '') != ''
+                GROUP BY ch_tier
+                """
+            ).fetchall()
+
+            lang_rows = conn.execute(
+                f"""
+                SELECT
+                    ({norm_lang}) AS lang_code,
+                    COUNT(*) AS cnt
+                FROM media_files, json_each(media_files.audio_summary_json) AS je
+                WHERE media_files.scan_status = 'ready'
+                  AND COALESCE(json_extract(je.value, '$.codec'), '') != ''
+                GROUP BY lang_code
+                ORDER BY cnt DESC, lang_code ASC
+                """
+            ).fetchall()
+
             res_rows = conn.execute(
                 """
-                SELECT resolution, COUNT(*) AS cnt
+                SELECT
+                    COALESCE(TRIM(resolution), '') AS resolution,
+                    COUNT(*) AS cnt,
+                    COALESCE(SUM(size_bytes), 0) AS total_bytes
                 FROM media_files
-                WHERE scan_status = 'ready' AND COALESCE(resolution, '') != ''
-                GROUP BY resolution
+                WHERE scan_status = 'ready'
+                GROUP BY COALESCE(TRIM(resolution), '')
+                """
+            ).fetchall()
+
+            vcodec_rows = conn.execute(
+                """
+                SELECT
+                    COALESCE(TRIM(video_codec), '') AS video_codec,
+                    COUNT(*) AS cnt,
+                    COALESCE(SUM(size_bytes), 0) AS total_bytes
+                FROM media_files
+                WHERE scan_status = 'ready'
+                GROUP BY COALESCE(TRIM(video_codec), '')
                 """
             ).fetchall()
 
@@ -976,8 +1278,35 @@ class MediaFileRepository:
         codec_counts: dict[str, int] = {
             str(r["codec_family"]): int(r["cnt"]) for r in codec_rows
         }
+        channel_counts: dict[str, int] = {
+            str(r["ch_tier"]): int(r["cnt"]) for r in channel_rows
+        }
+        lang_counts: dict[str, int] = {
+            str(r["lang_code"]): int(r["cnt"]) for r in lang_rows
+        }
         res_counts: dict[str, int] = {
-            str(r["resolution"]): int(r["cnt"]) for r in res_rows
+            str(r["resolution"]): int(r["cnt"])
+            for r in res_rows
+            if str(r["resolution"])
+        }
+        res_storage: dict[str, tuple[int, int]] = {
+            (str(r["resolution"]) or "Other"): (
+                int(r["total_bytes"]),
+                int(r["cnt"]),
+            )
+            for r in res_rows
+        }
+        vcodec_counts: dict[str, int] = {
+            str(r["video_codec"]): int(r["cnt"])
+            for r in vcodec_rows
+            if str(r["video_codec"])
+        }
+        vcodec_storage: dict[str, tuple[int, int]] = {
+            (str(r["video_codec"]) or "Other"): (
+                int(r["total_bytes"]),
+                int(r["cnt"]),
+            )
+            for r in vcodec_rows
         }
         dr_counts: dict[str, int] = {
             str(r["dr"]): int(r["cnt"]) for r in dr_rows
@@ -990,7 +1319,12 @@ class MediaFileRepository:
             "mp4_count": mp4_count,
             "media_bytes": media_bytes,
             "codec_counts": codec_counts,
+            "channel_counts": channel_counts,
+            "lang_counts": lang_counts,
             "res_counts": res_counts,
+            "res_storage": res_storage,
+            "vcodec_counts": vcodec_counts,
+            "vcodec_storage": vcodec_storage,
             "dr_counts": dr_counts,
         }
 

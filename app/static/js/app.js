@@ -181,6 +181,12 @@
       legacyFilter === C.FILTERS.HAS_METADATA;
     let audioType = params.get("audio") || "";
     const audioCodec = params.get("audio_codec") || "";
+    const videoCodec = params.get("video_codec") || "";
+    const resolution = params.get("resolution") || "";
+    const dynamicRange = params.get("dynamic_range") || "";
+    const audioChannels = params.get("audio_channels") || "";
+    const audioLanguage = params.get("audio_language") || "";
+    const noSubtitles = params.get("no_subtitles") === "1";
 
     if (legacyFilter === C.FILTERS.AAC51_ONLY) {
       noDolby = true;
@@ -218,6 +224,12 @@
       hasMetadata,
       audioType,
       audioCodec,
+      videoCodec,
+      resolution,
+      dynamicRange,
+      audioChannels,
+      audioLanguage,
+      noSubtitles,
       folder: params.get("folder") || "",
       q: params.get("q") || "",
       sort,
@@ -243,6 +255,24 @@
       }
       if (state.audioCodec && state.audioCodec.trim()) {
         qs.set("audio_codec", state.audioCodec.trim());
+      }
+      if (state.videoCodec && state.videoCodec.trim()) {
+        qs.set("video_codec", state.videoCodec.trim());
+      }
+      if (state.resolution && state.resolution.trim()) {
+        qs.set("resolution", state.resolution.trim());
+      }
+      if (state.dynamicRange && state.dynamicRange.trim()) {
+        qs.set("dynamic_range", state.dynamicRange.trim());
+      }
+      if (state.audioChannels && state.audioChannels.trim()) {
+        qs.set("audio_channels", state.audioChannels.trim());
+      }
+      if (state.audioLanguage && state.audioLanguage.trim()) {
+        qs.set("audio_language", state.audioLanguage.trim());
+      }
+      if (state.noSubtitles) {
+        qs.set("no_subtitles", "1");
       }
       if (state.folder) qs.set("folder", state.folder);
       if (state.q && state.q.trim()) qs.set("q", state.q.trim());
@@ -292,6 +322,40 @@
       // Ignore storage errors in restricted contexts
     }
     return C.FOLDER_LAYOUTS.LIST;
+  }
+
+  function loadStoredDashStorageLens() {
+    const lenses = C.DASHBOARD_LENSES || {};
+    try {
+      const saved = window.localStorage.getItem(C.STORAGE_KEYS.DASH_STORAGE_LENS);
+      if (
+        saved === lenses.STORAGE_CODEC ||
+        saved === lenses.STORAGE_RESOLUTION ||
+        saved === lenses.STORAGE_CONTAINER
+      ) {
+        return saved;
+      }
+    } catch (_err) {
+      // Ignore storage errors in restricted contexts
+    }
+    return lenses.STORAGE_DEFAULT || "codec";
+  }
+
+  function loadStoredDashAudioLens() {
+    const lenses = C.DASHBOARD_LENSES || {};
+    try {
+      const saved = window.localStorage.getItem(C.STORAGE_KEYS.DASH_AUDIO_LENS);
+      if (
+        saved === lenses.AUDIO_CODECS ||
+        saved === lenses.AUDIO_CHANNELS ||
+        saved === lenses.AUDIO_LANGUAGES
+      ) {
+        return saved;
+      }
+    } catch (_err) {
+      // Ignore storage errors in restricted contexts
+    }
+    return lenses.AUDIO_DEFAULT || "codecs";
   }
 
   function computeContextMenuPosition(event, menuHeightPx) {
@@ -434,6 +498,8 @@
       // Dashboard state
       dashboardLoading: true,
       dashboardError: null,
+      dashStorageLens: loadStoredDashStorageLens(),
+      dashAudioLens: loadStoredDashAudioLens(),
       dashboard: {
         app_name: C.APP.NAME,
         app_version: C.APP.VERSION,
@@ -441,7 +507,13 @@
           total_files: 0,
           aac51_only: 0,
           has_metadata: 0,
+          has_metadata_bytes: 0,
           needs_conversion: 0,
+          needs_conversion_bytes: 0,
+          untagged_audio: 0,
+          untagged_audio_bytes: 0,
+          no_subtitles: 0,
+          with_subtitles: 0,
           playback_profile_configured: false,
           playback_profile_preset: "neutral",
           playback_profile_label: "Not Configured",
@@ -460,9 +532,14 @@
             media_bytes: 0,
             other_used_bytes: 0,
           },
+          storage_by_codec: [],
+          storage_by_resolution: [],
           total_audio_tracks: 0,
           audio_codecs: [],
+          audio_channels: [],
+          audio_languages: [],
           resolutions: [],
+          video_codecs: [],
           dynamic_ranges: [],
         },
         scan_running: false,
@@ -502,6 +579,12 @@
       hasMetadata: false,
       audioType: "",
       audioCodec: "",
+      videoCodec: "",
+      resolution: "",
+      dynamicRange: "",
+      audioChannels: "",
+      audioLanguage: "",
+      noSubtitles: false,
       searchQuery: "",
       appliedSearchQuery: "",
       sortField: C.SORT_FIELDS.FILENAME,
@@ -1394,14 +1477,195 @@
         return Math.min(100, Math.round((s.disk_used_bytes / s.disk_total_bytes) * 100));
       },
 
+      setDashStorageLens(lens) {
+        const lenses = C.DASHBOARD_LENSES || {};
+        if (
+          lens !== lenses.STORAGE_CODEC &&
+          lens !== lenses.STORAGE_RESOLUTION &&
+          lens !== lenses.STORAGE_CONTAINER
+        ) {
+          return;
+        }
+        this.dashStorageLens = lens;
+        this.hoveredStorageKey = null;
+        try {
+          window.localStorage.setItem(C.STORAGE_KEYS.DASH_STORAGE_LENS, lens);
+        } catch (_err) {
+          // Ignore storage errors in restricted contexts
+        }
+      },
+
+      setDashAudioLens(lens) {
+        const lenses = C.DASHBOARD_LENSES || {};
+        if (
+          lens !== lenses.AUDIO_CODECS &&
+          lens !== lenses.AUDIO_CHANNELS &&
+          lens !== lenses.AUDIO_LANGUAGES
+        ) {
+          return;
+        }
+        this.dashAudioLens = lens;
+        this.hoveredAudioKey = null;
+        try {
+          window.localStorage.setItem(C.STORAGE_KEYS.DASH_AUDIO_LENS, lens);
+        } catch (_err) {
+          // Ignore storage errors in restricted contexts
+        }
+      },
+
       get dashboardStorageSegments() {
         const s = this.dashboardStorage;
+        const analytics = (this.dashboard && this.dashboard.analytics) || {};
+        const lenses = C.DASHBOARD_LENSES || {};
+
+        if (
+          this.dashStorageLens === lenses.STORAGE_CODEC &&
+          Array.isArray(analytics.storage_by_codec) &&
+          analytics.storage_by_codec.length > 0
+        ) {
+          const codecPalette = {
+            HEVC: {
+              color: "#10B981",
+              colorStart: "#34D399",
+              colorEnd: "#059669",
+              dotClass: "bg-emerald-500",
+            },
+            "H.264": {
+              color: "#F59E0B",
+              colorStart: "#FBBF24",
+              colorEnd: "#D97706",
+              dotClass: "bg-amber-500",
+            },
+            AV1: {
+              color: "#3B82F6",
+              colorStart: "#60A5FA",
+              colorEnd: "#2563EB",
+              dotClass: "bg-blue-500",
+            },
+            VP9: {
+              color: "#8B5CF6",
+              colorStart: "#A78BFA",
+              colorEnd: "#7C3AED",
+              dotClass: "bg-violet-500",
+            },
+            "MPEG-2": {
+              color: "#0EA5E9",
+              colorStart: "#38BDF8",
+              colorEnd: "#0284C7",
+              dotClass: "bg-sky-500",
+            },
+            "VC-1": {
+              color: "#F43F5E",
+              colorStart: "#FB7185",
+              colorEnd: "#E11D48",
+              dotClass: "bg-rose-500",
+            },
+            Other: {
+              color: "#71717A",
+              colorStart: "#A1A1AA",
+              colorEnd: "#52525B",
+              dotClass: "bg-ink-muted",
+            },
+          };
+          return Charts.buildPieSlices(
+            analytics.storage_by_codec.map((slice) => {
+              const style = codecPalette[slice.key] || codecPalette.Other;
+              const fc = Number(slice.file_count || 0);
+              return {
+                key: slice.key,
+                label: slice.label,
+                value: Number(slice.size_bytes || 0),
+                fileCount: fc,
+                sublabel: `${fc} ${fc === 1 ? "file" : "files"}`,
+                filterPreset: {
+                  videoCodec: slice.key,
+                  sort: C.SORT_FIELDS.SIZE_BYTES,
+                  order: C.SORT_ORDERS.DESC,
+                },
+                color: style.color,
+                colorStart: style.colorStart,
+                colorEnd: style.colorEnd,
+                dotClass: style.dotClass,
+              };
+            })
+          );
+        }
+
+        if (
+          this.dashStorageLens === lenses.STORAGE_RESOLUTION &&
+          Array.isArray(analytics.storage_by_resolution) &&
+          analytics.storage_by_resolution.length > 0
+        ) {
+          const resPalette = {
+            "2160p": {
+              color: "#8B5CF6",
+              colorStart: "#A78BFA",
+              colorEnd: "#7C3AED",
+              dotClass: "bg-violet-500",
+            },
+            "1080p": {
+              color: "#3B82F6",
+              colorStart: "#60A5FA",
+              colorEnd: "#2563EB",
+              dotClass: "bg-blue-500",
+            },
+            "720p": {
+              color: "#10B981",
+              colorStart: "#34D399",
+              colorEnd: "#059669",
+              dotClass: "bg-emerald-500",
+            },
+            "480p": {
+              color: "#F59E0B",
+              colorStart: "#FBBF24",
+              colorEnd: "#D97706",
+              dotClass: "bg-amber-500",
+            },
+            SD: {
+              color: "#0EA5E9",
+              colorStart: "#38BDF8",
+              colorEnd: "#0284C7",
+              dotClass: "bg-sky-500",
+            },
+            Other: {
+              color: "#71717A",
+              colorStart: "#A1A1AA",
+              colorEnd: "#52525B",
+              dotClass: "bg-ink-muted",
+            },
+          };
+          return Charts.buildPieSlices(
+            analytics.storage_by_resolution.map((slice) => {
+              const style = resPalette[slice.key] || resPalette.Other;
+              const fc = Number(slice.file_count || 0);
+              return {
+                key: slice.key,
+                label: slice.label,
+                value: Number(slice.size_bytes || 0),
+                fileCount: fc,
+                sublabel: `${fc} ${fc === 1 ? "file" : "files"}`,
+                filterPreset: {
+                  resolution: slice.key,
+                  sort: C.SORT_FIELDS.SIZE_BYTES,
+                  order: C.SORT_ORDERS.DESC,
+                },
+                color: style.color,
+                colorStart: style.colorStart,
+                colorEnd: style.colorEnd,
+                dotClass: style.dotClass,
+              };
+            })
+          );
+        }
+
         return Charts.buildPieSlices([
           {
             key: "mkv",
             label: "MKV Video",
             value: s.mkv_bytes || 0,
+            fileCount: s.mkv_count || 0,
             sublabel: `${s.mkv_count || 0} files`,
+            filterPreset: null,
             color: "#3B82F6",
             colorStart: "#60A5FA",
             colorEnd: "#2563EB",
@@ -1411,7 +1675,9 @@
             key: "mp4",
             label: "MP4 Video",
             value: s.mp4_bytes || 0,
+            fileCount: s.mp4_count || 0,
             sublabel: `${s.mp4_count || 0} files`,
+            filterPreset: null,
             color: "#10B981",
             colorStart: "#34D399",
             colorEnd: "#059669",
@@ -1421,7 +1687,9 @@
             key: "other",
             label: "Other / Non-Indexed",
             value: s.other_used_bytes || 0,
+            fileCount: 0,
             sublabel: "Disk used outside index",
+            filterPreset: null,
             color: "#71717A",
             colorStart: "#A1A1AA",
             colorEnd: "#52525B",
@@ -1444,7 +1712,128 @@
           (this.dashboard && this.dashboard.analytics) || {
             total_audio_tracks: 0,
             audio_codecs: [],
+            audio_channels: [],
+            audio_languages: [],
           };
+        const lenses = C.DASHBOARD_LENSES || {};
+
+        if (this.dashAudioLens === lenses.AUDIO_CHANNELS) {
+          const chPalette = {
+            "7.1": {
+              color: "#F43F5E",
+              colorStart: "#FB7185",
+              colorEnd: "#E11D48",
+              dotClass: "bg-rose-500",
+            },
+            "5.1": {
+              color: "#10B981",
+              colorStart: "#34D399",
+              colorEnd: "#059669",
+              dotClass: "bg-emerald-500",
+            },
+            "2.0": {
+              color: "#0EA5E9",
+              colorStart: "#38BDF8",
+              colorEnd: "#0284C7",
+              dotClass: "bg-sky-500",
+            },
+            "1.0": {
+              color: "#F59E0B",
+              colorStart: "#FBBF24",
+              colorEnd: "#D97706",
+              dotClass: "bg-amber-500",
+            },
+            Other: {
+              color: "#71717A",
+              colorStart: "#A1A1AA",
+              colorEnd: "#52525B",
+              dotClass: "bg-ink-muted",
+            },
+          };
+          const items = (analytics.audio_channels || []).map((slice) => {
+            const style = chPalette[slice.key] || chPalette.Other;
+            return {
+              key: slice.key,
+              label: slice.label,
+              value: slice.count || 0,
+              count: slice.count || 0,
+              color: style.color,
+              colorStart: style.colorStart,
+              colorEnd: style.colorEnd,
+              dotClass: style.dotClass,
+            };
+          });
+          return Charts.buildPieSlices(items);
+        }
+
+        if (this.dashAudioLens === lenses.AUDIO_LANGUAGES) {
+          const langRanks = [
+            {
+              color: "#3B82F6",
+              colorStart: "#60A5FA",
+              colorEnd: "#2563EB",
+              dotClass: "bg-blue-500",
+            },
+            {
+              color: "#10B981",
+              colorStart: "#34D399",
+              colorEnd: "#059669",
+              dotClass: "bg-emerald-500",
+            },
+            {
+              color: "#8B5CF6",
+              colorStart: "#A78BFA",
+              colorEnd: "#7C3AED",
+              dotClass: "bg-violet-500",
+            },
+            {
+              color: "#0EA5E9",
+              colorStart: "#38BDF8",
+              colorEnd: "#0284C7",
+              dotClass: "bg-sky-500",
+            },
+            {
+              color: "#F43F5E",
+              colorStart: "#FB7185",
+              colorEnd: "#E11D48",
+              dotClass: "bg-rose-500",
+            },
+          ];
+          const undStyle = {
+            color: "#F59E0B",
+            colorStart: "#FBBF24",
+            colorEnd: "#D97706",
+            dotClass: "bg-amber-500",
+          };
+          const otherStyle = {
+            color: "#71717A",
+            colorStart: "#A1A1AA",
+            colorEnd: "#52525B",
+            dotClass: "bg-ink-muted",
+          };
+          let taggedIdx = 0;
+          const items = (analytics.audio_languages || []).map((slice) => {
+            let style = otherStyle;
+            if (slice.key === "und") {
+              style = undStyle;
+            } else if (slice.key !== "other") {
+              style = langRanks[taggedIdx % langRanks.length];
+              taggedIdx += 1;
+            }
+            return {
+              key: slice.key,
+              label: slice.label,
+              value: slice.count || 0,
+              count: slice.count || 0,
+              color: style.color,
+              colorStart: style.colorStart,
+              colorEnd: style.colorEnd,
+              dotClass: style.dotClass,
+            };
+          });
+          return Charts.buildPieSlices(items);
+        }
+
         const palette = {
           EAC3: {
             color: "#10B981",
@@ -1557,9 +1946,23 @@
         }
       },
 
+      onStorageSegmentClick(seg) {
+        if (!seg) return;
+        if (seg.filterPreset) {
+          this.openLibraryPreset(seg.filterPreset);
+          return;
+        }
+        this.hoveredStorageKey = this.hoveredStorageKey === seg.key ? null : seg.key;
+      },
+
       onStoragePieClick(event) {
         const key = this._sliceKeyFromEvent(event);
         if (!key) return;
+        const seg = this.dashboardStorageSegments.find((s) => s.key === key);
+        if (seg && seg.filterPreset) {
+          this.openLibraryPreset(seg.filterPreset);
+          return;
+        }
         this.hoveredStorageKey = this.hoveredStorageKey === key ? null : key;
       },
 
@@ -1573,6 +1976,15 @@
       onAudioPieClick(event) {
         const key = this._sliceKeyFromEvent(event);
         if (!key) return;
+        const lenses = C.DASHBOARD_LENSES || {};
+        if (this.dashAudioLens === lenses.AUDIO_CHANNELS) {
+          this.openLibraryPreset({ audioChannels: key });
+          return;
+        }
+        if (this.dashAudioLens === lenses.AUDIO_LANGUAGES) {
+          this.openLibraryPreset({ audioLanguage: key });
+          return;
+        }
         this.openLibraryPreset({ audioCodec: key });
       },
 
@@ -1590,6 +2002,15 @@
           (this.dashboard &&
             this.dashboard.analytics &&
             this.dashboard.analytics.resolutions) ||
+          []
+        );
+      },
+
+      get dashboardVideoCodecs() {
+        return (
+          (this.dashboard &&
+            this.dashboard.analytics &&
+            this.dashboard.analytics.video_codecs) ||
           []
         );
       },
@@ -1965,6 +2386,12 @@
           this.hasMetadata ||
           this.audioType ||
           this.audioCodec ||
+          this.videoCodec ||
+          this.resolution ||
+          this.dynamicRange ||
+          this.audioChannels ||
+          this.audioLanguage ||
+          this.noSubtitles ||
           this.isGlobalSearchActive
         );
       },
@@ -1980,7 +2407,13 @@
               !this.noDolby &&
               !this.hasMetadata &&
               !this.audioType &&
-              !this.audioCodec,
+              !this.audioCodec &&
+              !this.videoCodec &&
+              !this.resolution &&
+              !this.dynamicRange &&
+              !this.audioChannels &&
+              !this.audioLanguage &&
+              !this.noSubtitles,
           },
           {
             key: C.FILTERS.NEEDS_CONVERSION,
@@ -2308,6 +2741,12 @@
           hasMetadata: this.hasMetadata,
           audioType: this.audioType,
           audioCodec: this.audioCodec,
+          videoCodec: this.videoCodec,
+          resolution: this.resolution,
+          dynamicRange: this.dynamicRange,
+          audioChannels: this.audioChannels,
+          audioLanguage: this.audioLanguage,
+          noSubtitles: this.noSubtitles,
           folder: this.isDirView
             ? this.currentDir === C.FOLDER_TREE.ROOT_PATH
               ? ""
@@ -2468,6 +2907,12 @@
           this.hasMetadata = parsed.hasMetadata;
           this.audioType = parsed.audioType;
           this.audioCodec = parsed.audioCodec || "";
+          this.videoCodec = parsed.videoCodec || "";
+          this.resolution = parsed.resolution || "";
+          this.dynamicRange = parsed.dynamicRange || "";
+          this.audioChannels = parsed.audioChannels || "";
+          this.audioLanguage = parsed.audioLanguage || "";
+          this.noSubtitles = Boolean(parsed.noSubtitles);
           this.currentDir = this.isDirView
             ? FT.normalizeFolderPath(parsed.folder || C.FOLDER_TREE.ROOT_PATH)
             : C.FOLDER_TREE.ROOT_PATH;
@@ -2512,6 +2957,12 @@
           hasMetadata: this.hasMetadata,
           audioType: this.audioType,
           audioCodec: this.audioCodec,
+          videoCodec: this.videoCodec,
+          resolution: this.resolution,
+          dynamicRange: this.dynamicRange,
+          audioChannels: this.audioChannels,
+          audioLanguage: this.audioLanguage,
+          noSubtitles: this.noSubtitles,
           folder: this.isDirView
             ? this.currentDir === C.FOLDER_TREE.ROOT_PATH
               ? ""
@@ -2578,6 +3029,12 @@
           hasMetadata: this.hasMetadata,
           audioType: this.audioType,
           audioCodec: this.audioCodec,
+          videoCodec: this.videoCodec,
+          resolution: this.resolution,
+          dynamicRange: this.dynamicRange,
+          audioChannels: this.audioChannels,
+          audioLanguage: this.audioLanguage,
+          noSubtitles: this.noSubtitles,
           folder: this.isDirView
             ? this.currentDir === C.FOLDER_TREE.ROOT_PATH
               ? ""
@@ -2611,13 +3068,27 @@
         const nextHasMetadata = Boolean(preset.hasMetadata);
         const nextAudioType = preset.audioType || "";
         const nextAudioCodec = preset.audioCodec || "";
+        const nextVideoCodec = preset.videoCodec || "";
+        const nextResolution = preset.resolution || "";
+        const nextDynamicRange = preset.dynamicRange || "";
+        const nextAudioChannels = preset.audioChannels || "";
+        const nextAudioLanguage = preset.audioLanguage || "";
+        const nextNoSubtitles = Boolean(preset.noSubtitles);
+        const nextSort = preset.sort || this.sortField;
+        const nextOrder = preset.order || this.sortOrder;
         // Dashboard presets search across ALL folders -> switch cleanly to All Files list view
         const presetView =
           nextNeedsConversion ||
           nextNoDolby ||
           nextHasMetadata ||
           nextAudioType ||
-          nextAudioCodec
+          nextAudioCodec ||
+          nextVideoCodec ||
+          nextResolution ||
+          nextDynamicRange ||
+          nextAudioChannels ||
+          nextAudioLanguage ||
+          nextNoSubtitles
             ? C.LIBRARY_VIEWS.LIST
             : this.libraryView;
         const nextHash = buildHash({
@@ -2628,10 +3099,16 @@
           hasMetadata: nextHasMetadata,
           audioType: nextAudioType,
           audioCodec: nextAudioCodec,
+          videoCodec: nextVideoCodec,
+          resolution: nextResolution,
+          dynamicRange: nextDynamicRange,
+          audioChannels: nextAudioChannels,
+          audioLanguage: nextAudioLanguage,
+          noSubtitles: nextNoSubtitles,
           folder: "",
           q: "",
-          sort: this.sortField,
-          order: this.sortOrder,
+          sort: nextSort,
+          order: nextOrder,
           page: C.PAGINATION.DEFAULT_PAGE,
         });
         if (window.location.hash !== nextHash) {
@@ -2644,6 +3121,14 @@
           this.hasMetadata = nextHasMetadata;
           this.audioType = nextAudioType;
           this.audioCodec = nextAudioCodec;
+          this.videoCodec = nextVideoCodec;
+          this.resolution = nextResolution;
+          this.dynamicRange = nextDynamicRange;
+          this.audioChannels = nextAudioChannels;
+          this.audioLanguage = nextAudioLanguage;
+          this.noSubtitles = nextNoSubtitles;
+          this.sortField = nextSort;
+          this.sortOrder = nextOrder;
           this.currentDir = C.FOLDER_TREE.ROOT_PATH;
           this.searchQuery = "";
           this.appliedSearchQuery = "";
@@ -2699,6 +3184,12 @@
           hasMetadata: false,
           audioType: "",
           audioCodec: "",
+          videoCodec: "",
+          resolution: "",
+          dynamicRange: "",
+          audioChannels: "",
+          audioLanguage: "",
+          noSubtitles: false,
           folder: normalized === C.FOLDER_TREE.ROOT_PATH ? "" : normalized,
           q: "",
           sort: this.sortField,
@@ -2715,6 +3206,12 @@
           this.hasMetadata = false;
           this.audioType = "";
           this.audioCodec = "";
+          this.videoCodec = "";
+          this.resolution = "";
+          this.dynamicRange = "";
+          this.audioChannels = "";
+          this.audioLanguage = "";
+          this.noSubtitles = false;
           this.currentDir = normalized;
           this.searchQuery = "";
           this.appliedSearchQuery = "";
@@ -3402,6 +3899,14 @@
         this.hasMetadata = false;
         this.audioType = "";
         this.audioCodec = "";
+        this.videoCodec = "";
+        this.resolution = "";
+        this.dynamicRange = "";
+        this.audioChannels = "";
+        this.audioLanguage = "";
+        this.noSubtitles = false;
+        this.dashStorageLens = C.DASHBOARD_LENSES.STORAGE_DEFAULT;
+        this.dashAudioLens = C.DASHBOARD_LENSES.AUDIO_DEFAULT;
         this.searchQuery = "";
         this.appliedSearchQuery = "";
         this.activeJob = null;
@@ -3420,7 +3925,13 @@
             total_files: 0,
             aac51_only: 0,
             has_metadata: 0,
+            has_metadata_bytes: 0,
             needs_conversion: 0,
+            needs_conversion_bytes: 0,
+            untagged_audio: 0,
+            untagged_audio_bytes: 0,
+            no_subtitles: 0,
+            with_subtitles: 0,
             playback_profile_configured: false,
             playback_profile_preset: "neutral",
             playback_profile_label: "Not Configured",
@@ -3439,9 +3950,14 @@
               media_bytes: 0,
               other_used_bytes: 0,
             },
+            storage_by_codec: [],
+            storage_by_resolution: [],
             total_audio_tracks: 0,
             audio_codecs: [],
+            audio_channels: [],
+            audio_languages: [],
             resolutions: [],
+            video_codecs: [],
             dynamic_ranges: [],
           },
           scan_running: false,
@@ -3597,6 +4113,12 @@
               folder: activeFolder,
               audio_type: this.audioType,
               audio_codec: this.audioCodec,
+              video_codec: this.videoCodec,
+              resolution: this.resolution,
+              dynamic_range: this.dynamicRange,
+              audio_channels: this.audioChannels,
+              audio_language: this.audioLanguage,
+              no_subtitles: this.noSubtitles,
               has_metadata: this.hasMetadata,
               no_dolby: this.noDolby,
               needs_conversion: this.needsConversion,
@@ -5523,7 +6045,13 @@
             !this.noDolby &&
             !this.hasMetadata &&
             !this.audioType &&
-            !this.audioCodec
+            !this.audioCodec &&
+            !this.videoCodec &&
+            !this.resolution &&
+            !this.dynamicRange &&
+            !this.audioChannels &&
+            !this.audioLanguage &&
+            !this.noSubtitles
           ) {
             return;
           }
@@ -5532,6 +6060,12 @@
           this.hasMetadata = false;
           this.audioType = "";
           this.audioCodec = "";
+          this.videoCodec = "";
+          this.resolution = "";
+          this.dynamicRange = "";
+          this.audioChannels = "";
+          this.audioLanguage = "";
+          this.noSubtitles = false;
         } else if (filterKey === C.FILTERS.NEEDS_CONVERSION) {
           this.needsConversion = !this.needsConversion;
           this.noDolby = false;

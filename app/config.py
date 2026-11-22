@@ -208,6 +208,61 @@ class AppConstants:
     DYNAMIC_RANGE_HDR: str = "HDR"
     DYNAMIC_RANGE_SDR: str = "SDR"
 
+    # Dashboard analytics lens ordering & language normalization constants
+    DASHBOARD_TOP_AUDIO_LANGUAGES_LIMIT: int = 5
+    KNOWN_VIDEO_CODECS: tuple[str, ...] = (
+        "HEVC",
+        "H.264",
+        "AV1",
+        "VP9",
+        "MPEG-2",
+        "VC-1",
+    )
+    AUDIO_CHANNEL_TIER_ORDER: tuple[tuple[str, str], ...] = (
+        ("7.1", "7.1 Surround"),
+        ("5.1", "5.1 Surround"),
+        ("2.0", "2.0 Stereo"),
+        ("1.0", "1.0 Mono"),
+        ("Other", "Other Channels"),
+    )
+    LANGUAGE_DISPLAY_LABELS: Mapping[str, str] = {
+        "und": "und (Untagged)",
+        "eng": "English (eng)",
+        "en": "English (en)",
+        "hin": "Hindi (hin)",
+        "hi": "Hindi (hi)",
+        "ben": "Bengali (ben)",
+        "bn": "Bengali (bn)",
+        "jpn": "Japanese (jpn)",
+        "ja": "Japanese (ja)",
+        "spa": "Spanish (spa)",
+        "es": "Spanish (es)",
+        "fra": "French (fra)",
+        "fre": "French (fre)",
+        "fr": "French (fr)",
+        "deu": "German (deu)",
+        "ger": "German (ger)",
+        "de": "German (de)",
+        "kor": "Korean (kor)",
+        "ko": "Korean (ko)",
+        "zho": "Chinese (zho)",
+        "chi": "Chinese (chi)",
+        "zh": "Chinese (zh)",
+        "ita": "Italian (ita)",
+        "it": "Italian (it)",
+        "rus": "Russian (rus)",
+        "ru": "Russian (ru)",
+        "por": "Portuguese (por)",
+        "pt": "Portuguese (pt)",
+        "tam": "Tamil (tam)",
+        "tel": "Telugu (tel)",
+        "mal": "Malayalam (mal)",
+        "kan": "Kannada (kan)",
+        "mar": "Marathi (mar)",
+        "ara": "Arabic (ara)",
+        "other": "Other Languages",
+    }
+
     # Persistent user settings defaults (stored in SQLite app_state)
     STATE_KEY_USER_SETTINGS: str = "user_settings"
     STATE_KEY_LAST_AUTO_CLEANUP_AT: str = "last_auto_cleanup_at"

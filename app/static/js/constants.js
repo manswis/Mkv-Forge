@@ -289,6 +289,19 @@ window.MKVForgeConstants = Object.freeze({
     FONT_SCALE: "mkvforge.fontScale",
     UI_LANGUAGE: "mkvforge.language",
     LIBRARY_RETURN_STATE: "mkvforge.libraryReturnState",
+    DASH_STORAGE_LENS: "mkvforge.dashStorageLens",
+    DASH_AUDIO_LENS: "mkvforge.dashAudioLens",
+  }),
+
+  DASHBOARD_LENSES: Object.freeze({
+    STORAGE_CODEC: "codec",
+    STORAGE_RESOLUTION: "resolution",
+    STORAGE_CONTAINER: "container",
+    STORAGE_DEFAULT: "codec",
+    AUDIO_CODECS: "codecs",
+    AUDIO_CHANNELS: "channels",
+    AUDIO_LANGUAGES: "languages",
+    AUDIO_DEFAULT: "codecs",
   }),
 
   FILTERS: Object.freeze({

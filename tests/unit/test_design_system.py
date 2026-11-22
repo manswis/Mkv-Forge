@@ -485,3 +485,39 @@ class TestDesignSystemTokensAndPrimitives:
 
         # 5. Null-safe authUser.username Alpine bindings (prevents TypeError in anonymous/onboarding mode)
         assert 'x-text="`@${authUser.username}`"' not in html
+
+    def test_dashboard_multi_lens_toggles_clickable_strip_and_factory_reset_storage_keys(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+        constants_js = (ROOT_DIR / "app" / "static" / "js" / "constants.js").read_text(encoding="utf-8")
+        app_js = (ROOT_DIR / "app" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+
+        dash_start = html.index("<!-- SCREEN 1: DASHBOARD")
+        dash_end = html.index("<!-- SCREEN 2: LIBRARY EXPLORER", dash_start)
+        dash_block = html[dash_start:dash_end]
+
+        # Option B: Last Scan moved to top Dashboard header next to Live Watch; KPI Cell #4 is Untagged Audio (und)
+        header_end = dash_block.index("<!-- Unified Hairline-Divided KPI Stat Strip -->")
+        assert "Last Scan:" in dash_block[:header_end]
+        assert "Untagged Audio (und)" in dash_block[header_end:]
+        assert "openLibraryPreset({ audioLanguage: 'und' })" in dash_block
+
+        # Segmented lens toggles on Storage (Codec | Resolution | Container) & Audio (Codecs | Channels | Languages)
+        assert "setDashStorageLens(C.DASHBOARD_LENSES.STORAGE_CODEC)" in dash_block
+        assert "setDashStorageLens(C.DASHBOARD_LENSES.STORAGE_RESOLUTION)" in dash_block
+        assert "setDashStorageLens(C.DASHBOARD_LENSES.STORAGE_CONTAINER)" in dash_block
+        assert "setDashAudioLens(C.DASHBOARD_LENSES.AUDIO_CODECS)" in dash_block
+        assert "setDashAudioLens(C.DASHBOARD_LENSES.AUDIO_CHANNELS)" in dash_block
+        assert "setDashAudioLens(C.DASHBOARD_LENSES.AUDIO_LANGUAGES)" in dash_block
+
+        # Clickable monochrome strip: Resolution, Video Codec, Dynamic Range & Subtitles (No Subs)
+        assert "openLibraryPreset({ resolution: res.label })" in dash_block
+        assert "openLibraryPreset({ videoCodec: vc.label })" in dash_block
+        assert "openLibraryPreset({ dynamicRange: dr.label })" in dash_block
+        assert "openLibraryPreset({ noSubtitles: true })" in dash_block
+
+        # Guardrail 2: localStorage keys registered in C.STORAGE_KEYS and reset in Factory Reset cleanup
+        assert 'DASH_STORAGE_LENS: "mkvforge.dashStorageLens"' in constants_js
+        assert 'DASH_AUDIO_LENS: "mkvforge.dashAudioLens"' in constants_js
+        assert "Object.values(C.STORAGE_KEYS).forEach" in app_js
+        assert "this.dashStorageLens = C.DASHBOARD_LENSES.STORAGE_DEFAULT;" in app_js
+        assert "this.dashAudioLens = C.DASHBOARD_LENSES.AUDIO_DEFAULT;" in app_js

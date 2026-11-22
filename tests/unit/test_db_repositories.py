@@ -169,7 +169,13 @@ class TestMediaFileRepository:
             "total_files": 3,
             "aac51_only": 1,
             "has_metadata": 2,
+            "has_metadata_bytes": 7000,
             "needs_conversion": 0,
+            "needs_conversion_bytes": 0,
+            "untagged_audio": 0,
+            "untagged_audio_bytes": 0,
+            "no_subtitles": 0,
+            "with_subtitles": 3,
         }
         assert repo.list_folders() == ["/movies", "/shows"]
 

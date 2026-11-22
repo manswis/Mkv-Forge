@@ -106,6 +106,22 @@
     if (params.audio_codec && params.audio_codec.trim()) {
       qs.set("audio_codec", params.audio_codec.trim());
     }
+    if (params.video_codec && params.video_codec.trim()) {
+      qs.set("video_codec", params.video_codec.trim());
+    }
+    if (params.resolution && params.resolution.trim()) {
+      qs.set("resolution", params.resolution.trim());
+    }
+    if (params.dynamic_range && params.dynamic_range.trim()) {
+      qs.set("dynamic_range", params.dynamic_range.trim());
+    }
+    if (params.audio_channels && params.audio_channels.trim()) {
+      qs.set("audio_channels", params.audio_channels.trim());
+    }
+    if (params.audio_language && params.audio_language.trim()) {
+      qs.set("audio_language", params.audio_language.trim());
+    }
+    if (params.no_subtitles) qs.set("no_subtitles", "true");
     if (params.aac51_only) qs.set("aac51_only", "true");
     if (params.aac51) qs.set("aac51", "true");
     if (params.has_metadata) qs.set("has_metadata", "true");

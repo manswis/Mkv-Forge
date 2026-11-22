@@ -21,7 +21,9 @@ def _make_record(
     size_bytes: int,
     audio_tracks: list[dict[str, object]],
     resolution: str | None = "2160p",
+    video_codec: str | None = "HEVC",
     video_dynamic_range: str | None = "HDR10",
+    subtitle_count: int = 1,
     scan_status: str = AppConstants.FILE_SCAN_STATUS_READY,
     has_aac_51: bool = False,
     has_ac3_eac3: bool = True,
@@ -38,10 +40,10 @@ def _make_record(
         mtime=1700000000.0,
         duration_us=7_200_000_000,
         resolution=resolution,
-        video_codec="HEVC",
+        video_codec=video_codec,
         video_dynamic_range=video_dynamic_range,
         audio_summary_json=json.dumps(audio_tracks),
-        subtitle_count=1,
+        subtitle_count=subtitle_count,
         container_title=container_title,
         has_global_tags=False,
         has_aac_51=has_aac_51,
@@ -255,6 +257,147 @@ class TestAudioCodecLibraryFilter:
         r_unknown = await api_client.get("/api/files", params={"audio_codec": "NONEXISTENT"})
         assert r_unknown.status_code == AppConstants.HTTP_OK
         assert r_unknown.json()["items"] == []
+
+    async def test_multi_lens_dashboard_storage_channels_languages_and_1to1_library_filters(
+        self, api_app, api_client: httpx.AsyncClient
+    ) -> None:
+        """Verify storage_by_codec, storage_by_resolution, audio_channels, audio_languages ('und' normalization + Top-5 cap), and 1:1 /api/files filters."""
+        repo = api_app.state.media_repo
+
+        # 1. 4K HEVC file with 7.1 eng + 2.0 null-language (normalized to 'und'), has metadata, 2 subs
+        repo.upsert(
+            _make_record(
+                filepath="movies/Interstellar.mkv",
+                size_bytes=40 * 1024**3,
+                resolution="2160p",
+                video_codec="HEVC",
+                video_dynamic_range="DV HDR",
+                subtitle_count=2,
+                container_title="Interstellar.Scene.Title",
+                audio_tracks=[
+                    {"codec": "TrueHD", "channels": 8, "channel_layout": "7.1", "language": "eng"},
+                    {"codec": "AAC", "channels": 2, "channel_layout": "2.0", "language": None},
+                ],
+            )
+        )
+        # 2. 1080p H.264 file with 5.1 empty-string language ('') + 5.1 'UND' (both normalize to 'und'), 0 subs
+        repo.upsert(
+            _make_record(
+                filepath="movies/LegacyH264.mkv",
+                size_bytes=15 * 1024**3,
+                resolution="1080p",
+                video_codec="H.264",
+                video_dynamic_range="SDR",
+                subtitle_count=0,
+                audio_tracks=[
+                    {"codec": "AC3", "channels": 6, "channel_layout": "5.1", "language": ""},
+                    {"codec": "AAC", "channels": 6, "channel_layout": "5.1", "language": "UND"},
+                ],
+            )
+        )
+        # 3. 1080p AV1 file with 6 tagged languages (hin, ben, jpn, spa, fra, deu) to test Top-5 cap + 'other' rollup
+        repo.upsert(
+            _make_record(
+                filepath="movies/PolyglotAV1.mkv",
+                size_bytes=5 * 1024**3,
+                resolution="1080p",
+                video_codec="AV1",
+                video_dynamic_range="HDR10",
+                subtitle_count=0,
+                audio_tracks=[
+                    {"codec": "EAC3", "channels": 6, "language": "hin"},
+                    {"codec": "EAC3", "channels": 6, "language": "hin"},
+                    {"codec": "EAC3", "channels": 6, "language": "ben"},
+                    {"codec": "EAC3", "channels": 6, "language": "ben"},
+                    {"codec": "AAC", "channels": 2, "language": "jpn"},
+                    {"codec": "AAC", "channels": 2, "language": "jpn"},
+                    {"codec": "AAC", "channels": 2, "language": "spa"},
+                    {"codec": "AAC", "channels": 2, "language": "spa"},
+                    {"codec": "Opus", "channels": 1, "language": "fra"},
+                    {"codec": "Opus", "channels": 4, "language": "deu"},
+                ],
+            )
+        )
+
+        dash_resp = await api_client.get("/api/dashboard")
+        assert dash_resp.status_code == AppConstants.HTTP_OK
+        dash = dash_resp.json()
+        stats = dash["stats"]
+        analytics = dash["analytics"]
+
+        # Guardrail 1: Both Interstellar (language=None) and LegacyH264 (language="" / "UND") count as untagged_audio
+        assert stats["untagged_audio"] == 2
+        assert stats["untagged_audio_bytes"] == 55 * 1024**3
+        assert stats["has_metadata"] == 1
+        assert stats["has_metadata_bytes"] == 40 * 1024**3
+        assert stats["no_subtitles"] == 2
+        assert stats["with_subtitles"] == 1
+
+        # 1:1 Parity between stats.untagged_audio and GET /api/files?audio_language=und
+        r_und = await api_client.get("/api/files", params={"audio_language": "und"})
+        assert r_und.status_code == AppConstants.HTTP_OK
+        assert r_und.json()["total"] == stats["untagged_audio"]
+        assert sorted(f["filename"] for f in r_und.json()["items"]) == [
+            "Interstellar.mkv",
+            "LegacyH264.mkv",
+        ]
+
+        # Storage by Video Codec lens (HEVC 40 GiB, H.264 15 GiB, AV1 5 GiB)
+        s_codec = {s["key"]: s for s in analytics["storage_by_codec"]}
+        assert list(s_codec.keys()) == ["HEVC", "H.264", "AV1"]
+        assert s_codec["HEVC"]["size_bytes"] == 40 * 1024**3
+        assert s_codec["HEVC"]["file_count"] == 1
+        assert s_codec["H.264"]["size_bytes"] == 15 * 1024**3
+        assert s_codec["AV1"]["size_bytes"] == 5 * 1024**3
+
+        # Storage by Resolution lens (2160p 40 GiB / 1 file, 1080p 20 GiB / 2 files)
+        s_res = {s["key"]: s for s in analytics["storage_by_resolution"]}
+        assert list(s_res.keys()) == ["2160p", "1080p"]
+        assert s_res["2160p"]["size_bytes"] == 40 * 1024**3
+        assert s_res["1080p"]["size_bytes"] == 20 * 1024**3
+        assert s_res["1080p"]["file_count"] == 2
+
+        # Audio Channels lens (7.1: 1, 5.1: 6, 2.0: 5, 1.0: 1, Other: 1 [4ch])
+        ch_map = {c["key"]: c["count"] for c in analytics["audio_channels"]}
+        assert ch_map == {"7.1": 1, "5.1": 6, "2.0": 5, "1.0": 1, "Other": 1}
+
+        # Audio Languages lens: Top 5 tagged (ben:2, hin:2, jpn:2, spa:2, deu:1) + pinned 'und' (3) + 'other' (eng:1 + fra:1 = 2)
+        lang_map = {l["key"]: l for l in analytics["audio_languages"]}
+        assert "und" in lang_map
+        assert lang_map["und"]["count"] == 3
+        assert lang_map["und"]["label"] == "und (Untagged)"
+        assert "other" in lang_map
+        assert lang_map["other"]["count"] == 2
+
+        # Video Codecs strip pills
+        vc_map = {v["label"]: v["count"] for v in analytics["video_codecs"]}
+        assert vc_map == {"HEVC": 1, "H.264": 1, "AV1": 1}
+
+        # Verify all new /api/files filters match 1:1
+        r_vc = await api_client.get("/api/files", params={"video_codec": "H.264"})
+        assert [f["filename"] for f in r_vc.json()["items"]] == ["LegacyH264.mkv"]
+
+        r_res = await api_client.get("/api/files", params={"resolution": "2160p"})
+        assert [f["filename"] for f in r_res.json()["items"]] == ["Interstellar.mkv"]
+
+        r_dr = await api_client.get("/api/files", params={"dynamic_range": "HDR10"})
+        assert [f["filename"] for f in r_dr.json()["items"]] == ["PolyglotAV1.mkv"]
+
+        r_ch = await api_client.get("/api/files", params={"audio_channels": "7.1"})
+        assert [f["filename"] for f in r_ch.json()["items"]] == ["Interstellar.mkv"]
+
+        r_lang_other = await api_client.get("/api/files", params={"audio_language": "other"})
+        assert sorted(f["filename"] for f in r_lang_other.json()["items"]) == [
+            "Interstellar.mkv",
+            "PolyglotAV1.mkv",
+        ]
+
+        r_nosubs = await api_client.get("/api/files", params={"no_subtitles": "true"})
+        assert r_nosubs.json()["total"] == stats["no_subtitles"]
+        assert sorted(f["filename"] for f in r_nosubs.json()["items"]) == [
+            "LegacyH264.mkv",
+            "PolyglotAV1.mkv",
+        ]
 
 
 class TestDashboardUILandmarks:

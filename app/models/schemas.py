@@ -4,9 +4,19 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.config import AppConstants
+
+
+def _normalize_audio_language_code(value: object) -> str:
+    """Normalize None, empty strings, and 'und' variants consistently to 'und'."""
+    if value is None:
+        return AppConstants.DEFAULT_LANGUAGE
+    cleaned = str(value).strip().lower()
+    if cleaned in ("", "und", "null", "unknown"):
+        return AppConstants.DEFAULT_LANGUAGE
+    return cleaned
 
 
 class ToolCheckStatus(BaseModel):
@@ -60,6 +70,11 @@ class AudioTrackSummary(BaseModel):
     channels: int | None = None
     channel_layout: str | None = None
     language: str = "und"
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _coerce_language(cls, value: object) -> str:
+        return _normalize_audio_language_code(value)
 
 
 class ParsedTrackInfo(BaseModel):
@@ -378,7 +393,13 @@ class DashboardStats(BaseModel):
     total_files: int
     aac51_only: int
     has_metadata: int
+    has_metadata_bytes: int = 0
     needs_conversion: int = 0
+    needs_conversion_bytes: int = 0
+    untagged_audio: int = 0
+    untagged_audio_bytes: int = 0
+    no_subtitles: int = 0
+    with_subtitles: int = 0
     playback_profile_configured: bool = False
     playback_profile_preset: str = AppConstants.DEFAULT_PLAYBACK_PROFILE_PRESET
     playback_profile_label: str = "Not Configured"
@@ -607,8 +628,20 @@ class StorageBreakdown(BaseModel):
     other_used_bytes: int = 0
 
 
+class StorageSlice(BaseModel):
+    """One storage breakdown slice (by video codec or resolution) with byte size and file count."""
+
+    model_config = ConfigDict(frozen=True)
+
+    key: str
+    label: str
+    size_bytes: int = 0
+    file_count: int = 0
+    percent: float = 0.0
+
+
 class AudioCodecSlice(BaseModel):
-    """One audio codec family slice for the Dashboard audio donut (counts total audio tracks)."""
+    """One audio slice for the Dashboard audio donut (codecs, channels, or languages)."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -619,7 +652,7 @@ class AudioCodecSlice(BaseModel):
 
 
 class ResolutionCountItem(BaseModel):
-    """Compact resolution or dynamic-range count pill for the Dashboard."""
+    """Compact resolution, video codec, or dynamic-range count pill for the Dashboard."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -628,16 +661,21 @@ class ResolutionCountItem(BaseModel):
 
 
 class DashboardAnalytics(BaseModel):
-    """Storage, audio codec track distribution, and video resolution/HDR analytics."""
+    """Storage, multi-lens audio track distribution, and video resolution/codec/HDR analytics."""
 
     model_config = ConfigDict(frozen=True)
 
     storage: StorageBreakdown = Field(default_factory=StorageBreakdown)
+    storage_by_codec: list[StorageSlice] = Field(default_factory=list)
+    storage_by_resolution: list[StorageSlice] = Field(default_factory=list)
     total_audio_tracks: int = 0
     audio_codecs: list[AudioCodecSlice] = Field(default_factory=list)
+    audio_channels: list[AudioCodecSlice] = Field(default_factory=list)
+    audio_languages: list[AudioCodecSlice] = Field(default_factory=list)
     top_codec_label: str = ""
     top_codec_percent: float = 0.0
     resolutions: list[ResolutionCountItem] = Field(default_factory=list)
+    video_codecs: list[ResolutionCountItem] = Field(default_factory=list)
     dynamic_ranges: list[ResolutionCountItem] = Field(default_factory=list)
 
 
