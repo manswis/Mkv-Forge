@@ -42,7 +42,7 @@
       } catch (_e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.4" />
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.5" />
   <script defer src="/static/js/constants.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
@@ -655,22 +655,22 @@
         <!-- =============================================================== -->
         <!-- SCREEN 1: DASHBOARD                                             -->
         <!-- =============================================================== -->
-        <section x-cloak x-show="route === C.ROUTES.DASHBOARD" class="space-y-6">
+        <section x-cloak x-show="route === C.ROUTES.DASHBOARD" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2.5">
-                <h1 class="text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">Dashboard</h1>
+                <h1 class="ui-page-title md:text-xl">Dashboard</h1>
                 <span
                   x-cloak
                   x-show="dashboard.watcher && dashboard.watcher.active"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                  class="ui-status ui-status-ok"
                   :title="`Auto-watching /storage (${dashboard.watcher ? dashboard.watcher.mode : 'watch'})`"
                 >
-                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                  <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
                   <span>Live Watch</span>
                 </span>
               </div>
-              <p class="mt-0.5 text-xs text-zinc-400 md:text-sm">Instant library health snapshot from SQLite cache</p>
+              <p class="mt-0.5 text-xs text-ink-secondary">Instant library health snapshot from SQLite cache</p>
             </div>
             <!-- Desktop Action Group: Settings (Left) + Scan Refresh Dropdown (Dashboard) -->
             <div class="hidden md:flex items-center gap-1.5">
@@ -679,8 +679,8 @@
                 @click="openSettings()"
                 aria-label="Open Settings"
                 title="Settings"
-                class="inline-flex h-9 w-9 items-center justify-center rounded-lg border transition shadow-sm backdrop-blur"
-                :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-500 hover:text-white'"
+                class="inline-flex h-9 w-9 items-center justify-center rounded-ui-sm border transition"
+                :class="isSettingsOpen ? 'border-transparent bg-accent text-[var(--color-accent-fg)]' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:text-ink-primary'"
               >
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
@@ -694,210 +694,211 @@
                   :aria-expanded="open ? 'true' : 'false'"
                   aria-label="Scan library options"
                   title="Scan library"
-                  class="inline-flex h-9 items-center gap-1 rounded-lg border border-hairline bg-surface px-2.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  class="inline-flex h-9 items-center gap-1 rounded-ui-sm border border-subtle bg-surface px-2.5 text-xs font-medium text-ink-primary transition hover:border-default"
                 >
-                <svg
-                  class="h-4 w-4 shrink-0"
-                  :class="(scanTriggering || isScanRunning) ? 'animate-spin text-accent' : 'text-zinc-300'"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
-                </svg>
-                <span x-show="isScanRunning" class="font-mono text-[11px] text-indigo-300" x-text="`${scanPercent}%`"></span>
-                <svg class="h-3.5 w-3.5 text-zinc-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M7 10l5 5 5-5z"></path>
-                </svg>
-              </button>
-
-              <div
-                x-cloak
-                x-show="open"
-                x-transition.opacity.duration.100ms
-                @click.outside="open = false"
-                role="menu"
-                aria-label="Library scan options"
-                class="absolute right-0 top-10 z-40 w-52 overflow-hidden rounded-xl border border-hairline bg-surface py-1.5 shadow-2xl"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  @click="open = false; triggerScan(false)"
-                  :disabled="scanTriggering || isScanRunning"
-                  class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white disabled:opacity-50"
-                >
-                  <svg class="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <svg
+                    class="h-4 w-4 shrink-0"
+                    :class="(scanTriggering || isScanRunning) ? 'animate-spin text-accent' : 'text-ink-secondary'"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
                     <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
                   </svg>
-                  <div>
-                    <p class="leading-tight">Incremental Scan</p>
-                    <p class="text-[10px] font-normal text-zinc-500">New &amp; modified files</p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  @click="open = false; triggerScan(true)"
-                  :disabled="scanTriggering || isScanRunning"
-                  class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-amber-300 transition hover:bg-zinc-800 hover:text-amber-200 disabled:opacity-50"
-                >
-                  <svg class="h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path>
+                  <span x-show="isScanRunning" class="ui-num font-mono text-xs text-accent" x-text="`${scanPercent}%`"></span>
+                  <svg class="h-3.5 w-3.5 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M7 10l5 5 5-5z"></path>
                   </svg>
-                  <div>
-                    <p class="leading-tight">Full Re-scan</p>
-                    <p class="text-[10px] font-normal text-zinc-500">Re-probe all files</p>
-                  </div>
                 </button>
-              </div>
+
+                <div
+                  x-cloak
+                  x-show="open"
+                  x-transition.opacity.duration.100ms
+                  @click.outside="open = false"
+                  role="menu"
+                  aria-label="Library scan options"
+                  class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-56 overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    @click="open = false; triggerScan(false)"
+                    :disabled="scanTriggering || isScanRunning"
+                    class="ui-menu-item justify-start"
+                  >
+                    <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path>
+                    </svg>
+                    <div class="min-w-0">
+                      <p class="leading-tight text-ink-primary">Incremental Scan</p>
+                      <p class="text-xs font-normal text-ink-muted">New &amp; modified files</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    @click="open = false; triggerScan(true)"
+                    :disabled="scanTriggering || isScanRunning"
+                    class="ui-menu-item justify-start text-[var(--color-status-warn)]"
+                  >
+                    <svg class="h-4 w-4 shrink-0 text-[var(--color-status-warn)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path>
+                    </svg>
+                    <div class="min-w-0">
+                      <p class="leading-tight">Full Re-scan</p>
+                      <p class="text-xs font-normal text-ink-muted">Re-probe all files</p>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <template x-if="dashboardError">
-            <div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300" x-text="dashboardError"></div>
+            <div class="rounded-ui-md border border-[var(--color-status-err-border)] bg-[var(--color-status-err-bg)] p-4 text-sm text-[var(--color-status-err)]" x-text="dashboardError"></div>
           </template>
 
           <!-- Empty State (First Launch) -->
           <template x-if="hasLibraryEmptyState">
-            <div class="rounded-2xl border border-hairline bg-surface p-8 text-center">
-              <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15 text-accent border border-accent/25">
+            <div class="ui-panel p-8 text-center">
+              <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-ui-md border border-subtle bg-inset text-accent">
                 <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M21 12a9 9 0 1 1-2.64-6.36"></path>
                   <polyline points="21 3 21 9 15 9"></polyline>
                 </svg>
               </div>
-              <h2 class="mt-4 text-base font-semibold text-zinc-100">Your library hasn't been indexed yet</h2>
-              <p class="mx-auto mt-1.5 max-w-md text-xs text-zinc-400">
-                Run an initial scan of <span class="font-mono text-zinc-300">/storage</span> to index your MKV and MP4 metadata into SQLite.
+              <h2 class="mt-4 text-base font-semibold text-ink-primary">Your library hasn't been indexed yet</h2>
+              <p class="mx-auto mt-1.5 max-w-md text-xs text-ink-secondary">
+                Run an initial scan of <span class="font-mono text-ink-primary">/storage</span> to index your MKV and MP4 metadata into SQLite.
               </p>
               <button
                 type="button"
                 @click="triggerScan(false)"
                 :disabled="scanTriggering || isScanRunning"
-                class="mt-5 inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                class="ui-btn ui-btn-primary mt-5 px-5"
               >
                 Run Initial Scan
               </button>
             </div>
           </template>
 
-          <!-- Stat Cards Grid -->
-          <!-- KPI Cards (Actionable, Mobile & Desktop Responsive) -->
-          <div x-show="!hasLibraryEmptyState" class="grid grid-cols-2 gap-3 lg:grid-cols-4 md:gap-4">
-            <button
-              type="button"
-              @click="openLibraryPreset()"
-              class="group flex min-h-[104px] flex-col justify-between rounded-xl border border-hairline bg-surface p-4 text-left transition hover:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/50"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-xs font-medium text-zinc-400">Indexed Library</p>
-                <span class="text-xs text-zinc-500 transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
-              </div>
-              <div>
-                <p class="mt-2 font-mono text-2xl font-semibold tracking-tight text-zinc-100 md:text-3xl" x-text="dashboard.stats.total_files"></p>
-                <p class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-zinc-300 transition">
-                  <span x-text="dashboardStorage.media_bytes > 0 ? `${Fmt.formatBytes(dashboardStorage.media_bytes)} • ` : ''"></span>Show library
-                </p>
-              </div>
-            </button>
+          <!-- Unified Hairline-Divided KPI Stat Strip -->
+          <div x-show="!hasLibraryEmptyState" class="ui-panel overflow-hidden">
+            <div class="grid grid-cols-2 gap-px bg-[var(--color-border-subtle)] lg:grid-cols-4">
+              <button
+                type="button"
+                @click="openLibraryPreset()"
+                class="group ui-row flex min-h-[104px] min-w-0 flex-col justify-between bg-surface p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 sm:p-5"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate text-xs font-medium text-ink-secondary">Indexed Library</p>
+                  <span class="text-xs text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
+                </div>
+                <div class="min-w-0">
+                  <p class="ui-num mt-2 font-mono text-2xl font-semibold tracking-tight text-ink-primary md:text-3xl" x-text="dashboard.stats.total_files"></p>
+                  <p class="ui-num mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary">
+                    <span x-text="dashboardStorage.media_bytes > 0 ? `${Fmt.formatBytes(dashboardStorage.media_bytes)} • ` : ''"></span>Show library
+                  </p>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              @click="dashboard.stats.playback_profile_configured ? openLibraryPreset({ needsConversion: true }) : openSettings(C.SETTINGS_SECTIONS.PLAYBACK_PROFILE)"
-              class="group flex min-h-[104px] flex-col justify-between rounded-xl border border-hairline bg-surface p-4 text-left transition hover:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <span class="flex items-center gap-1.5 min-w-0">
-                  <span
-                    class="h-2 w-2 shrink-0 rounded-full"
-                    :class="dashboard.stats.playback_profile_configured ? (dashboard.stats.needs_conversion > 0 ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-indigo-400'"
-                  ></span>
+              <button
+                type="button"
+                @click="dashboard.stats.playback_profile_configured ? openLibraryPreset({ needsConversion: true }) : openSettings(C.SETTINGS_SECTIONS.PLAYBACK_PROFILE)"
+                class="group ui-row flex min-h-[104px] min-w-0 flex-col justify-between bg-surface p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 sm:p-5"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="flex min-w-0 items-center gap-1.5">
+                    <span
+                      class="h-2 w-2 shrink-0 rounded-full"
+                      :class="dashboard.stats.playback_profile_configured ? (dashboard.stats.needs_conversion > 0 ? 'bg-[var(--color-status-warn)]' : 'bg-[var(--color-status-ok)]') : 'bg-accent'"
+                    ></span>
+                    <p
+                      class="truncate text-xs font-medium text-ink-secondary"
+                      x-text="dashboard.stats.playback_profile_configured ? 'Needs Conversion' : 'Sound System'"
+                    ></p>
+                  </span>
+                  <span class="text-xs text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
+                </div>
+                <div x-show="dashboard.stats.playback_profile_configured" class="min-w-0">
                   <p
-                    class="truncate text-xs font-medium text-zinc-400"
-                    x-text="dashboard.stats.playback_profile_configured ? 'Needs Conversion' : 'Sound System'"
+                    class="ui-num mt-2 font-mono text-2xl font-semibold tracking-tight md:text-3xl"
+                    :class="dashboard.stats.needs_conversion > 0 ? 'text-[var(--color-status-warn)]' : 'text-[var(--color-status-ok)]'"
+                    x-text="dashboard.stats.needs_conversion"
                   ></p>
-                </span>
-                <span class="text-xs text-zinc-500 transition group-hover:translate-x-0.5 group-hover:text-amber-300" aria-hidden="true">→</span>
-              </div>
-              <div x-show="dashboard.stats.playback_profile_configured">
-                <p
-                  class="mt-2 font-mono text-2xl font-semibold tracking-tight md:text-3xl"
-                  :class="dashboard.stats.needs_conversion > 0 ? 'text-amber-400' : 'text-emerald-400'"
-                  x-text="dashboard.stats.needs_conversion"
-                ></p>
-                <p
-                  class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-amber-300 transition"
-                  x-text="`${dashboard.stats.playback_profile_label} • Show incompatible`"
-                ></p>
-              </div>
-              <div x-show="!dashboard.stats.playback_profile_configured">
-                <p class="mt-2 text-base font-semibold tracking-tight text-indigo-300 md:text-lg">Set Up</p>
-                <p class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-indigo-200 transition">Configure codecs &amp; channels</p>
-              </div>
-            </button>
+                  <p
+                    class="mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary"
+                    x-text="`${dashboard.stats.playback_profile_label} • Show incompatible`"
+                  ></p>
+                </div>
+                <div x-show="!dashboard.stats.playback_profile_configured" class="min-w-0">
+                  <p class="mt-2 text-base font-semibold tracking-tight text-accent md:text-lg">Set Up</p>
+                  <p class="mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary">Configure codecs &amp; channels</p>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              @click="openLibraryPreset({ hasMetadata: true })"
-              class="group flex min-h-[104px] flex-col justify-between rounded-xl border border-hairline bg-surface p-4 text-left transition hover:border-sky-500/40 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-xs font-medium text-zinc-400">Extra Metadata</p>
-                <span class="text-xs text-zinc-500 transition group-hover:translate-x-0.5 group-hover:text-sky-300" aria-hidden="true">→</span>
-              </div>
-              <div>
-                <p class="mt-2 font-mono text-2xl font-semibold tracking-tight text-zinc-100 md:text-3xl" x-text="dashboard.stats.has_metadata"></p>
-                <p class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-sky-300 transition">Show extra metadata</p>
-              </div>
-            </button>
+              <button
+                type="button"
+                @click="openLibraryPreset({ hasMetadata: true })"
+                class="group ui-row flex min-h-[104px] min-w-0 flex-col justify-between bg-surface p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 sm:p-5"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate text-xs font-medium text-ink-secondary">Extra Metadata</p>
+                  <span class="text-xs text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
+                </div>
+                <div class="min-w-0">
+                  <p class="ui-num mt-2 font-mono text-2xl font-semibold tracking-tight text-ink-primary md:text-3xl" x-text="dashboard.stats.has_metadata"></p>
+                  <p class="mt-1 truncate text-xs text-ink-muted transition group-hover:text-ink-secondary">Show extra metadata</p>
+                </div>
+              </button>
 
-            <div class="flex min-h-[104px] flex-col justify-between rounded-xl border border-hairline bg-surface p-4 text-left">
-              <p class="text-xs font-medium text-zinc-400">Last Scan</p>
-              <div>
-                <p
-                  class="mt-2 truncate font-mono text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl"
-                  x-text="isScanRunning ? `${scanPercent}%` : Fmt.formatRelativeTime(dashboard.stats.last_scan_at)"
-                ></p>
-                <p
-                  class="mt-1 truncate text-[11px] text-zinc-500"
-                  x-text="isScanRunning ? `${scanProgress.scanned} / ${scanProgress.total} files` : (dashboard.stats.last_scan_status || 'Idle')"
-                ></p>
+              <div class="flex min-h-[104px] min-w-0 flex-col justify-between bg-surface p-4 text-left sm:p-5">
+                <p class="truncate text-xs font-medium text-ink-secondary">Last Scan</p>
+                <div class="min-w-0">
+                  <p
+                    class="ui-num mt-2 truncate font-mono text-xl font-semibold tracking-tight text-ink-primary md:text-2xl"
+                    x-text="isScanRunning ? `${scanPercent}%` : Fmt.formatRelativeTime(dashboard.stats.last_scan_at)"
+                  ></p>
+                  <p
+                    class="ui-num mt-1 truncate text-xs text-ink-muted"
+                    x-text="isScanRunning ? `${scanProgress.scanned} / ${scanProgress.total} files` : (dashboard.stats.last_scan_status || 'Idle')"
+                  ></p>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Storage & Audio Codec Analytics (2-Column Responsive Grid) -->
           <div x-show="!hasLibraryEmptyState" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <!-- Card A: Storage Breakdown -->
-            <div class="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-4">
+            <!-- Panel A: Storage Breakdown -->
+            <div class="ui-panel p-4 sm:p-5 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 class="text-sm font-semibold text-zinc-100">Storage Breakdown</h2>
+                <div class="min-w-0">
+                  <h2 class="ui-section-title">Storage Breakdown</h2>
                   <p
-                    class="mt-0.5 font-mono text-[11px] text-zinc-400"
+                    class="ui-num mt-0.5 font-mono text-xs text-ink-secondary"
                     x-text="dashboardStorage.disk_total_bytes > 0 ? `${Fmt.formatBytes(dashboardStorage.disk_used_bytes)} of ${Fmt.formatBytes(dashboardStorage.disk_total_bytes)} used • ${Fmt.formatBytes(dashboardStorage.disk_free_bytes)} free` : 'Drive metrics unavailable'"
                   ></p>
                 </div>
                 <span
                   x-show="dashboardStorage.disk_total_bytes > 0"
-                  class="rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-[11px] font-semibold"
-                  :class="dashboardDiskUsedPercent >= 90 ? 'text-red-400' : (dashboardDiskUsedPercent >= 75 ? 'text-amber-400' : 'text-zinc-200')"
+                  class="ui-num font-mono text-xs font-semibold"
+                  :class="dashboardDiskUsedPercent >= 90 ? 'ui-status ui-status-err' : (dashboardDiskUsedPercent >= 75 ? 'ui-status ui-status-warn' : 'ui-tag')"
                   x-text="`${dashboardDiskUsedPercent}% used`"
                 ></span>
               </div>
 
               <!-- Disk Capacity Meter -->
-              <div x-show="dashboardStorage.disk_total_bytes > 0" class="h-2 w-full overflow-hidden rounded-full bg-canvas">
+              <div x-show="dashboardStorage.disk_total_bytes > 0" class="h-1.5 w-full overflow-hidden rounded-full bg-inset">
                 <div
                   class="h-full rounded-full transition-all duration-300"
-                  :class="dashboardDiskUsedPercent >= 90 ? 'bg-red-500' : (dashboardDiskUsedPercent >= 75 ? 'bg-amber-500' : 'bg-accent')"
+                  :class="dashboardDiskUsedPercent >= 90 ? 'bg-[var(--color-status-err)]' : (dashboardDiskUsedPercent >= 75 ? 'bg-[var(--color-status-warn)]' : 'bg-accent')"
                   :style="`width: ${dashboardDiskUsedPercent}%`"
                 ></div>
               </div>
 
-              <!-- Rich Split Pie Chart + Legend (Stacked cleanly on narrow phones, side-by-side on sm+) -->
+              <!-- Rich Split Pie Chart + Quiet Hairline Legend -->
               <div class="flex flex-col items-center gap-5 pt-1 sm:flex-row sm:items-center">
                 <div
                   class="relative h-44 w-44 shrink-0 sm:h-48 sm:w-48"
@@ -910,59 +911,61 @@
                   <!-- Dynamic Center Readout (Total or Active Slice) -->
                   <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                     <span
-                      class="font-mono text-sm font-semibold leading-tight text-zinc-100"
+                      class="ui-num font-mono text-sm font-semibold leading-tight text-ink-primary"
                       x-text="activeStorageSegment ? Fmt.formatBytes(activeStorageSegment.value) : Fmt.formatBytes(dashboardStorage.media_bytes)"
                     ></span>
                     <span
-                      class="mt-0.5 max-w-[84px] truncate text-[10px] font-medium text-zinc-400"
+                      class="mt-0.5 max-w-[92px] truncate text-xs font-medium text-ink-secondary"
                       x-text="activeStorageSegment ? activeStorageSegment.label : 'indexed'"
                     ></span>
                     <span
                       x-show="activeStorageSegment"
-                      class="font-mono text-[10px] font-semibold text-accent"
+                      class="ui-num font-mono text-xs font-semibold text-accent"
                       x-text="activeStorageSegment ? `${activeStorageSegment.percent}%` : ''"
                     ></span>
                   </div>
                 </div>
 
-                <div class="w-full min-w-0 flex-1 space-y-2">
+                <div class="w-full min-w-0 flex-1">
                   <template x-if="dashboardStorageSegments.length === 0">
-                    <p class="text-xs text-zinc-500">No storage usage data yet.</p>
+                    <p class="text-xs text-ink-muted">No storage usage data yet.</p>
                   </template>
-                  <template x-for="seg in dashboardStorageSegments" :key="`st-leg-${seg.key}`">
-                    <div
-                      @mouseenter="hoveredStorageKey = seg.key"
-                      @mouseleave="hoveredStorageKey = null"
-                      @click="hoveredStorageKey = (hoveredStorageKey === seg.key ? null : seg.key)"
-                      class="flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 transition"
-                      :class="hoveredStorageKey === seg.key ? 'border-accent/60 bg-canvas' : 'border-hairline/70 bg-canvas/50 hover:border-hairline'"
-                    >
-                      <div class="flex min-w-0 items-center gap-2">
-                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="seg.dotClass"></span>
-                        <div class="min-w-0">
-                          <p class="truncate text-xs font-medium text-zinc-200" x-text="seg.label"></p>
-                          <p class="truncate text-[10px] text-zinc-500" x-text="seg.sublabel"></p>
+                  <div x-show="dashboardStorageSegments.length > 0" class="ui-list-group">
+                    <template x-for="seg in dashboardStorageSegments" :key="`st-leg-${seg.key}`">
+                      <div
+                        @mouseenter="hoveredStorageKey = seg.key"
+                        @mouseleave="hoveredStorageKey = null"
+                        @click="hoveredStorageKey = (hoveredStorageKey === seg.key ? null : seg.key)"
+                        class="ui-row flex cursor-pointer items-center justify-between gap-2 px-3 py-2"
+                        :class="hoveredStorageKey === seg.key ? 'bg-[var(--color-active-fill)]' : ''"
+                      >
+                        <div class="flex min-w-0 items-center gap-2">
+                          <span class="h-2 w-2 shrink-0 rounded-full" :class="seg.dotClass"></span>
+                          <div class="min-w-0">
+                            <p class="truncate text-xs font-medium text-ink-primary" x-text="seg.label"></p>
+                            <p class="truncate text-xs text-ink-muted" x-text="seg.sublabel"></p>
+                          </div>
+                        </div>
+                        <div class="shrink-0 text-right">
+                          <p class="ui-num font-mono text-xs font-semibold text-ink-primary" x-text="Fmt.formatBytes(seg.value)"></p>
+                          <p class="ui-num font-mono text-xs text-ink-muted" x-text="`${seg.percent}%`"></p>
                         </div>
                       </div>
-                      <div class="shrink-0 text-right">
-                        <p class="font-mono text-xs font-semibold text-zinc-100" x-text="Fmt.formatBytes(seg.value)"></p>
-                        <p class="font-mono text-[10px] text-zinc-500" x-text="`${seg.percent}%`"></p>
-                      </div>
-                    </div>
-                  </template>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Card B: Audio Codec Distribution -->
-            <div class="rounded-xl border border-hairline bg-surface p-4 sm:p-5 space-y-4">
+            <!-- Panel B: Audio Codec Distribution -->
+            <div class="ui-panel p-4 sm:p-5 space-y-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h2 class="text-sm font-semibold text-zinc-100">Audio Codecs</h2>
-                  <p class="mt-0.5 text-[11px] text-zinc-400">Tap any slice or codec to show matching files in Library.</p>
+                <div class="min-w-0">
+                  <h2 class="ui-section-title">Audio Codecs</h2>
+                  <p class="mt-0.5 text-xs text-ink-secondary">Tap any slice or codec to filter Library.</p>
                 </div>
                 <span
-                  class="rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-[11px] text-zinc-300"
+                  class="ui-tag ui-num font-mono"
                   x-text="`${dashboardTotalAudioTracks} tracks`"
                 ></span>
               </div>
@@ -979,118 +982,117 @@
                   <!-- Dynamic Center Readout (Total Tracks or Active Codec) -->
                   <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                     <span
-                      class="font-mono text-base font-semibold leading-tight text-zinc-100"
+                      class="ui-num font-mono text-base font-semibold leading-tight text-ink-primary"
                       x-text="activeAudioSegment ? activeAudioSegment.count : dashboardTotalAudioTracks"
                     ></span>
                     <span
-                      class="mt-0.5 max-w-[84px] truncate text-[10px] font-medium text-zinc-400"
+                      class="mt-0.5 max-w-[92px] truncate text-xs font-medium text-ink-secondary"
                       x-text="activeAudioSegment ? activeAudioSegment.label : 'tracks'"
                     ></span>
                     <span
                       x-show="activeAudioSegment"
-                      class="font-mono text-[10px] font-semibold text-accent"
+                      class="ui-num font-mono text-xs font-semibold text-accent"
                       x-text="activeAudioSegment ? `${activeAudioSegment.percent}%` : ''"
                     ></span>
                   </div>
                 </div>
 
-                <div class="w-full min-w-0 flex-1 space-y-1.5">
+                <div class="w-full min-w-0 flex-1">
                   <template x-if="dashboardAudioSegments.length === 0">
-                    <p class="text-xs text-zinc-500">No ready audio tracks indexed yet.</p>
+                    <p class="text-xs text-ink-muted">No ready audio tracks indexed yet.</p>
                   </template>
-                  <template x-for="seg in dashboardAudioSegments" :key="`ac-leg-${seg.key}`">
-                    <button
-                      type="button"
-                      @mouseenter="hoveredAudioKey = seg.key"
-                      @mouseleave="hoveredAudioKey = null"
-                      @focus="hoveredAudioKey = seg.key"
-                      @blur="hoveredAudioKey = null"
-                      @click="openLibraryPreset({ audioCodec: seg.key })"
-                      class="group flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-accent/40"
-                      :class="hoveredAudioKey === seg.key ? 'border-accent/60 bg-canvas' : 'border-hairline/70 bg-canvas/50 hover:border-accent/50 hover:bg-canvas'"
-                    >
-                      <span class="flex min-w-0 items-center gap-2">
-                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="seg.dotClass"></span>
-                        <span class="truncate text-xs font-medium text-zinc-200 group-hover:text-white" x-text="seg.label"></span>
-                      </span>
-                      <span class="flex shrink-0 items-center gap-2 font-mono text-[11px]">
-                        <span class="font-semibold text-zinc-100" x-text="seg.count"></span>
-                        <span class="text-zinc-500" x-text="`${seg.percent}%`"></span>
-                        <span class="text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
-                      </span>
-                    </button>
-                  </template>
+                  <div x-show="dashboardAudioSegments.length > 0" class="ui-list-group">
+                    <template x-for="seg in dashboardAudioSegments" :key="`ac-leg-${seg.key}`">
+                      <button
+                        type="button"
+                        @mouseenter="hoveredAudioKey = seg.key"
+                        @mouseleave="hoveredAudioKey = null"
+                        @focus="hoveredAudioKey = seg.key"
+                        @blur="hoveredAudioKey = null"
+                        @click="openLibraryPreset({ audioCodec: seg.key })"
+                        class="group ui-row flex min-h-[42px] w-full items-center justify-between gap-2 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
+                        :class="hoveredAudioKey === seg.key ? 'bg-[var(--color-active-fill)]' : ''"
+                      >
+                        <span class="flex min-w-0 items-center gap-2">
+                          <span class="h-2 w-2 shrink-0 rounded-full" :class="seg.dotClass"></span>
+                          <span class="truncate text-xs font-medium text-ink-primary" x-text="seg.label"></span>
+                        </span>
+                        <span class="ui-num flex shrink-0 items-center gap-2 font-mono text-xs">
+                          <span class="font-semibold text-ink-primary" x-text="seg.count"></span>
+                          <span class="text-ink-muted" x-text="`${seg.percent}%`"></span>
+                          <span class="text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden="true">→</span>
+                        </span>
+                      </button>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Compact Video Resolution & Dynamic Range Pill Bar -->
+          <!-- Compact Video Resolution & Dynamic Range Monochrome Strip -->
           <div
             x-cloak
             x-show="!hasLibraryEmptyState && (dashboardResolutions.length > 0 || dashboardDynamicRanges.length > 0)"
-            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-surface px-4 py-3"
+            class="ui-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3"
           >
             <div x-show="dashboardResolutions.length > 0" class="flex flex-wrap items-center gap-1.5">
-              <span class="mr-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Resolution</span>
+              <span class="mr-1 text-xs font-medium text-ink-secondary">Resolution</span>
               <template x-for="res in dashboardResolutions" :key="`dres-${res.label}`">
-                <span class="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-[11px] text-zinc-200">
-                  <span x-text="res.label"></span>
-                  <span class="text-zinc-500" x-text="res.count"></span>
+                <span class="ui-tag ui-num font-mono">
+                  <span class="text-ink-primary" x-text="res.label"></span>
+                  <span class="text-ink-muted" x-text="res.count"></span>
                 </span>
               </template>
             </div>
             <div x-show="dashboardDynamicRanges.length > 0" class="flex flex-wrap items-center gap-1.5">
-              <span class="mr-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Dynamic Range</span>
+              <span class="mr-1 text-xs font-medium text-ink-secondary">Dynamic Range</span>
               <template x-for="dr in dashboardDynamicRanges" :key="`ddr-${dr.label}`">
-                <span
-                  class="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-[11px] font-medium"
-                  :class="Fmt.dynamicRangeBadgeClass(dr.label)"
-                >
-                  <span x-text="dr.label"></span>
-                  <span class="opacity-75" x-text="dr.count"></span>
+                <span class="ui-tag ui-num font-mono">
+                  <span class="text-ink-primary" x-text="dr.label"></span>
+                  <span class="text-ink-muted" x-text="dr.count"></span>
                 </span>
               </template>
             </div>
           </div>
 
           <!-- Recent Activity -->
-          <div class="space-y-2.5">
-            <div class="flex items-center justify-between">
-              <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Recent Activity</h2>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between px-0.5">
+              <h2 class="ui-section-title">Recent Activity</h2>
               <button
                 type="button"
                 @click="navigate(C.ROUTES.JOBS)"
-                class="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+                class="text-xs font-medium text-accent transition hover:underline"
               >
                 View all jobs →
               </button>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
+            <div class="ui-list-group">
               <template x-if="dashboard.recent_activity.length === 0">
-                <div class="p-6 text-center text-xs text-zinc-500">
+                <div class="p-6 text-center text-xs text-ink-muted">
                   No remux or audio conversion jobs yet.
                 </div>
               </template>
 
               <template x-for="item in dashboard.recent_activity" :key="item.id">
-                <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                <div class="ui-row flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                   <div class="min-w-0 flex-1">
-                    <p class="truncate font-mono text-xs font-medium text-zinc-200" :title="item.filepath" x-text="Fmt.basenameOf(item.output_filepath || item.filepath)"></p>
-                    <p class="mt-0.5 truncate text-[11px] text-zinc-500" x-text="item.error_message || item.output_filepath || item.filepath"></p>
+                    <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="item.filepath" x-text="Fmt.basenameOf(item.output_filepath || item.filepath)"></p>
+                    <p class="mt-0.5 min-w-0 truncate text-xs text-ink-muted" x-text="item.error_message || item.output_filepath || item.filepath"></p>
                   </div>
                   <div class="flex shrink-0 flex-col items-end gap-1">
                     <div class="flex items-center gap-2">
                       <span
-                        class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium capitalize"
-                        :class="Fmt.jobStatusBadgeClass(item.status)"
+                        class="ui-status capitalize"
+                        :class="item.status === 'completed' ? 'ui-status-ok' : (item.status === 'failed' ? 'ui-status-err' : (item.status === 'cancelled' ? 'ui-status-warn' : 'ui-status-info'))"
                         x-text="item.status"
                       ></span>
-                      <span class="font-mono text-[11px] text-zinc-500" x-text="Fmt.formatRelativeTime(item.completed_at || item.created_at)"></span>
+                      <span class="ui-num font-mono text-xs text-ink-muted" x-text="Fmt.formatRelativeTime(item.completed_at || item.created_at)"></span>
                     </div>
                     <span
-                      class="inline-flex items-center rounded-md border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-zinc-400"
+                      class="ui-tag font-mono"
                       x-text="item.created_by_name || 'Anonymous'"
                     ></span>
                   </div>
@@ -3357,9 +3359,9 @@
         <!-- =============================================================== -->
         <section x-cloak x-show="route === C.ROUTES.JOBS" class="space-y-5">
           <div class="flex items-center justify-between gap-3">
-            <div>
-              <h1 class="text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">Jobs</h1>
-              <p class="mt-0.5 text-xs text-zinc-400">Sequential queue, live FFmpeg/mkvmerge telemetry &amp; history</p>
+            <div class="min-w-0">
+              <h1 class="ui-page-title md:text-xl">Jobs</h1>
+              <p class="mt-0.5 text-xs text-ink-secondary">Sequential queue, live FFmpeg/mkvmerge telemetry &amp; history</p>
             </div>
             <div class="flex items-center gap-1.5">
               <button
@@ -3367,8 +3369,8 @@
                 @click="openSettings()"
                 aria-label="Open Settings"
                 title="Settings"
-                class="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-lg border border-hairline bg-surface text-zinc-300 hover:border-zinc-500 hover:text-white transition shadow-sm backdrop-blur"
-                :class="isSettingsOpen ? 'border-accent/40 bg-accent/15 text-indigo-300' : ''"
+                class="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-ui-sm border transition"
+                :class="isSettingsOpen ? 'border-transparent bg-accent text-[var(--color-accent-fg)]' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:text-ink-primary'"
               >
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.07.63-.07.94s.02.63.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"></path>
@@ -3377,52 +3379,52 @@
               <button
                 type="button"
                 @click="loadJobs()"
-                class="rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-zinc-300 hover:border-zinc-600"
+                class="ui-btn ui-btn-sm ui-btn-secondary"
               >
                 Refresh
               </button>
             </div>
           </div>
 
-          <!-- Active Job Card -->
-          <div x-show="isJobRunning" class="rounded-xl border border-accent/40 bg-surface p-4 space-y-3">
+          <!-- Active Job Panel -->
+          <div x-show="isJobRunning" class="ui-panel border-l-2 border-l-[var(--color-accent)] p-4 space-y-3">
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
-                <p class="truncate font-mono text-xs font-semibold text-zinc-100" x-text="Fmt.basenameOf(activeJobFilepath)"></p>
-                <p class="mt-0.5 text-xs text-indigo-300" x-text="activeJobStageLabel"></p>
+                <p class="min-w-0 truncate font-mono text-xs font-semibold text-ink-primary" x-text="Fmt.basenameOf(activeJobFilepath)"></p>
+                <p class="mt-0.5 text-xs font-medium text-accent" x-text="activeJobStageLabel"></p>
               </div>
               <button
                 type="button"
                 @click="cancelJobById(activeJobId)"
                 :disabled="!activeJobId || isCancellingJob(activeJobId)"
-                class="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                class="ui-btn ui-btn-sm ui-btn-danger shrink-0"
                 x-text="isCancellingJob(activeJobId) ? 'Cancelling…' : 'Cancel Job'"
               ></button>
             </div>
 
-            <div class="h-2 w-full overflow-hidden rounded-full bg-canvas">
+            <div class="h-1.5 w-full overflow-hidden rounded-full bg-inset">
               <div class="h-full rounded-full bg-accent transition-all duration-200" :style="`width: ${activeJobPercent}%`"></div>
             </div>
 
-            <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-zinc-400">
-              <span class="text-zinc-200" x-text="`${activeJobPercent}%`"></span>
+            <div class="ui-num flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-ink-secondary">
+              <span class="font-semibold text-ink-primary" x-text="`${activeJobPercent}%`"></span>
               <span x-text="[liveJob.speed, liveJob.eta ? `ETA ${liveJob.eta}` : null].filter(Boolean).join(' • ') || 'Running…'"></span>
             </div>
 
             <!-- Collapsible Live CLI Logs -->
-            <div class="border-t border-hairline pt-2.5">
+            <div class="border-t border-subtle pt-2.5">
               <div class="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   @click="toggleCliLogs()"
-                  class="text-xs font-medium text-zinc-400 hover:text-zinc-200"
+                  class="text-xs font-medium text-ink-secondary transition hover:text-ink-primary"
                   x-text="showCliLogs ? '▾ Hide Live CLI Logs' : '▸ Show Live CLI Logs'"
                 ></button>
                 <button
                   type="button"
                   x-show="showCliLogs && !logsAutoScroll"
                   @click="scrollLogsToBottom(true)"
-                  class="rounded bg-zinc-800 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-zinc-700"
+                  class="ui-btn ui-btn-sm ui-btn-secondary min-h-[26px] px-2 text-xs"
                 >
                   ↓ Jump to latest
                 </button>
@@ -3432,10 +3434,10 @@
                 x-show="showCliLogs"
                 x-ref="pageLogBox"
                 @scroll="onLogScroll($el)"
-                class="mt-2 max-h-60 overflow-y-auto rounded-lg border border-hairline bg-canvas p-3 font-mono text-[11px] leading-relaxed text-zinc-300"
+                class="mt-2 max-h-60 overflow-y-auto rounded-ui-sm border border-subtle bg-inset p-3 font-mono text-xs leading-relaxed text-ink-primary"
               >
                 <template x-if="liveLogs.length === 0">
-                  <p class="text-zinc-500">Waiting for CLI output…</p>
+                  <p class="text-ink-muted">Waiting for CLI output…</p>
                 </template>
                 <template x-for="(line, idx) in liveLogs" :key="`pglog-${idx}`">
                   <div class="whitespace-pre-wrap break-all" x-text="line"></div>
@@ -3444,21 +3446,24 @@
             </div>
           </div>
 
-          <div x-show="!isJobRunning" class="rounded-xl border border-hairline bg-surface p-5 text-center text-xs text-zinc-500">
+          <div x-show="!isJobRunning" class="ui-panel p-5 text-center text-xs text-ink-muted">
             No active job running right now.
           </div>
 
           <!-- Queued Jobs -->
           <div x-show="jobsState.queued.length > 0" class="space-y-2">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Queued</h2>
-            <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
+            <div class="flex items-center gap-2 px-0.5">
+              <h2 class="ui-section-title">Queued</h2>
+              <span class="ui-tag ui-num font-mono" x-text="jobsState.queued.length"></span>
+            </div>
+            <div class="ui-list-group">
               <template x-for="job in jobsState.queued" :key="job.id">
-                <div class="px-4 py-3 space-y-2">
+                <div class="ui-row px-4 py-3 space-y-2">
                   <div class="flex items-center justify-between gap-3">
-                    <div class="min-w-0 flex-1 flex items-center gap-2">
-                      <p class="min-w-0 truncate font-mono text-xs font-medium text-zinc-200" :title="job.filepath" x-text="job.filepath"></p>
+                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                      <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="job.filepath" x-text="job.filepath"></p>
                       <span
-                        class="shrink-0 rounded-md border border-hairline bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-zinc-400"
+                        class="ui-tag shrink-0 font-mono"
                         x-text="job.created_by_name || 'Anonymous'"
                       ></span>
                     </div>
@@ -3466,15 +3471,14 @@
                       type="button"
                       @click="cancelJobById(job.id)"
                       :disabled="isCancellingJob(job.id)"
-                      class="shrink-0 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                      class="ui-btn ui-btn-sm ui-btn-danger shrink-0 min-h-[28px] px-2.5"
                       x-text="isCancellingJob(job.id) ? 'Removing…' : 'Remove'"
                     ></button>
                   </div>
                   <div x-show="job.changes && job.changes.length > 0" class="flex flex-wrap items-center gap-1.5">
                     <template x-for="(chg, ci) in job.changes" :key="`qchg-${job.id}-${ci}`">
                       <span
-                        class="rounded-md px-2 py-0.5 font-mono text-[10px] font-medium"
-                        :class="Fmt.jobChangeBadgeClass(chg.kind)"
+                        class="ui-tag font-mono"
                         x-text="chg.label"
                       ></span>
                     </template>
@@ -3486,12 +3490,12 @@
 
           <!-- History -->
           <div class="space-y-2">
-            <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center justify-between gap-2 px-0.5">
               <div class="flex items-center gap-2">
-                <h2 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">History</h2>
+                <h2 class="ui-section-title">History</h2>
                 <span
                   x-show="jobsState.history.length > 0"
-                  class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400"
+                  class="ui-tag ui-num font-mono"
                   x-text="jobsState.history.length"
                 ></span>
               </div>
@@ -3500,7 +3504,7 @@
                   type="button"
                   x-show="!confirmClearHistory"
                   @click="confirmClearHistory = true"
-                  class="rounded-md border border-hairline bg-surface px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition hover:border-red-500/40 hover:text-red-300"
+                  class="ui-btn ui-btn-sm ui-btn-secondary"
                 >
                   Clear All
                 </button>
@@ -3510,13 +3514,13 @@
                       type="button"
                       @click="clearAllHistory()"
                       :disabled="clearingHistory"
-                      class="rounded-md border border-red-500/40 bg-red-500/15 px-2.5 py-1 text-[11px] font-semibold text-red-200 transition hover:bg-red-500/25 disabled:opacity-50"
+                      class="ui-btn ui-btn-sm ui-btn-danger"
                       x-text="clearingHistory ? 'Clearing…' : 'Confirm Clear'"
                     ></button>
                     <button
                       type="button"
                       @click="confirmClearHistory = false"
-                      class="rounded-md border border-hairline bg-surface px-2 py-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+                      class="ui-btn ui-btn-sm ui-btn-ghost"
                     >
                       Cancel
                     </button>
@@ -3525,17 +3529,17 @@
               </div>
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
+            <div class="ui-list-group">
               <template x-if="jobsState.history.length === 0">
-                <div class="p-6 text-center text-xs text-zinc-500">No job history yet.</div>
+                <div class="p-6 text-center text-xs text-ink-muted">No job history yet.</div>
               </template>
               <template x-for="job in jobsState.history" :key="job.id">
-                <div class="px-4 py-3.5 space-y-2">
+                <div class="ui-row px-4 py-3.5 space-y-2">
                   <div class="flex flex-wrap items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
-                      <p class="truncate font-mono text-xs font-medium text-zinc-100" :title="job.output_filepath || job.filepath" x-text="Fmt.basenameOf(job.output_filepath || job.filepath)"></p>
+                      <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="job.output_filepath || job.filepath" x-text="Fmt.basenameOf(job.output_filepath || job.filepath)"></p>
                       <p
-                        class="mt-0.5 truncate font-mono text-[11px] text-zinc-500"
+                        class="mt-0.5 min-w-0 truncate font-mono text-xs text-ink-muted"
                         :title="job.output_filepath && job.output_filepath !== job.filepath ? `${job.filepath} → ${job.output_filepath}` : job.filepath"
                         x-text="job.output_filepath && job.output_filepath !== job.filepath ? `/${job.filepath} → /${job.output_filepath}` : `/${job.filepath}`"
                       ></p>
@@ -3545,51 +3549,50 @@
                         type="button"
                         x-show="job.warnings && job.warnings.length > 0"
                         @click="toggleHistoryWarnings(job.id)"
-                        class="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400 hover:bg-amber-500/25"
+                        class="ui-status ui-status-warn cursor-pointer"
                         x-text="`${job.warnings.length} ${job.warnings.length === 1 ? 'Warning' : 'Warnings'}`"
                       ></button>
                       <span
-                        class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium capitalize"
-                        :class="Fmt.jobStatusBadgeClass(job.status)"
+                        class="ui-status capitalize"
+                        :class="job.status === 'completed' ? 'ui-status-ok' : (job.status === 'failed' ? 'ui-status-err' : (job.status === 'cancelled' ? 'ui-status-warn' : 'ui-status-info'))"
                         x-text="job.status"
                       ></span>
-                      <span class="font-mono text-[11px] text-zinc-500" x-text="Fmt.formatRelativeTime(job.completed_at || job.created_at)"></span>
+                      <span class="ui-num font-mono text-xs text-ink-muted" x-text="Fmt.formatRelativeTime(job.completed_at || job.created_at)"></span>
                       <button
                         type="button"
                         @click="deleteHistoryItem(job.id)"
                         :disabled="isDeletingHistory(job.id)"
                         aria-label="Remove job from history"
                         title="Remove from history"
-                        class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-canvas text-xs text-zinc-400 transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-40"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-muted transition hover:border-[var(--color-status-err-border)] hover:bg-[var(--color-status-err-bg)] hover:text-[var(--color-status-err)] disabled:opacity-40"
                       >
                         ✕
                       </button>
                     </div>
                   </div>
 
-                  <!-- Rich Change Summary Chips (left) + User Attribution Chip (right-aligned) -->
+                  <!-- Monochrome Change Summary Chips (left) + User Attribution Tag (right-aligned) -->
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex flex-wrap items-center gap-1.5">
                       <template x-for="(chg, ci) in (job.changes || [])" :key="`hchg-${job.id}-${ci}`">
                         <span
-                          class="rounded-md px-2 py-0.5 font-mono text-[10px] font-medium"
-                          :class="Fmt.jobChangeBadgeClass(chg.kind)"
+                          class="ui-tag font-mono"
                           x-text="chg.label"
                         ></span>
                       </template>
                     </div>
                     <span
-                      class="ml-auto inline-flex shrink-0 items-center rounded-md border border-hairline bg-canvas px-2 py-0.5 font-mono text-[10px] text-zinc-400"
+                      class="ui-tag ml-auto shrink-0 font-mono"
                       x-text="job.created_by_name || 'Anonymous'"
                     ></span>
                   </div>
 
-                  <p x-show="job.error_message" class="break-words text-[11px] text-red-300/90" x-text="job.error_message"></p>
+                  <p x-show="job.error_message" class="break-words text-xs text-[var(--color-status-err)]" x-text="job.error_message"></p>
 
                   <div
                     x-cloak
                     x-show="expandedHistoryWarnings[job.id] && job.warnings && job.warnings.length > 0"
-                    class="rounded-lg border border-amber-500/25 bg-canvas p-2.5 font-mono text-[11px] text-amber-300 space-y-1"
+                    class="rounded-ui-sm border border-[var(--color-status-warn-border)] bg-inset p-3 font-mono text-xs text-[var(--color-status-warn)] space-y-1"
                   >
                     <template x-for="(w, wi) in job.warnings" :key="wi">
                       <div class="break-words" x-text="w"></div>
@@ -6967,63 +6970,63 @@
       <div
         x-show="jobsDrawerOpen"
         x-transition
-        class="relative z-10 flex h-full w-full max-w-lg flex-col border-l border-hairline bg-canvas shadow-2xl"
+        class="relative z-10 flex h-full w-full max-w-lg flex-col border-l border-default bg-elevated shadow-elevated"
       >
-        <div class="flex items-center justify-between gap-3 border-b border-hairline bg-surface px-4 py-3.5">
-          <div>
-            <h2 class="text-sm font-semibold text-zinc-100">Live Jobs</h2>
-            <p class="text-[11px] text-zinc-400">Real-time Stage 1 / Stage 2 progress &amp; CLI output</p>
+        <div class="flex items-center justify-between gap-3 border-b border-subtle bg-surface px-5 py-3.5">
+          <div class="min-w-0">
+            <h2 class="ui-section-title">Live Jobs</h2>
+            <p class="text-xs text-ink-secondary">Real-time Stage 1 / Stage 2 progress &amp; CLI output</p>
           </div>
           <button
             type="button"
             @click="closeJobsDrawer()"
             aria-label="Close jobs drawer"
-            class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-hairline bg-canvas text-zinc-400 hover:text-zinc-100"
+            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-ink-secondary transition hover:border-default hover:text-ink-primary"
           >
             ✕
           </button>
         </div>
 
         <div class="flex-1 overflow-y-auto p-5 space-y-4 pb-safe-drawer">
-          <!-- Active Job Card in Drawer -->
-          <div x-show="isJobRunning" class="rounded-xl border border-accent/40 bg-surface p-4 space-y-3">
+          <!-- Active Job Panel in Drawer -->
+          <div x-show="isJobRunning" class="ui-panel border-l-2 border-l-[var(--color-accent)] p-4 space-y-3">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0 flex-1">
-                <p class="truncate font-mono text-xs font-semibold text-zinc-100" x-text="Fmt.basenameOf(activeJobFilepath)"></p>
-                <p class="mt-0.5 text-xs text-indigo-300" x-text="activeJobStageLabel"></p>
+                <p class="min-w-0 truncate font-mono text-xs font-semibold text-ink-primary" x-text="Fmt.basenameOf(activeJobFilepath)"></p>
+                <p class="mt-0.5 text-xs font-medium text-accent" x-text="activeJobStageLabel"></p>
               </div>
               <button
                 type="button"
                 @click="cancelJobById(activeJobId)"
                 :disabled="!activeJobId || isCancellingJob(activeJobId)"
-                class="shrink-0 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                class="ui-btn ui-btn-sm ui-btn-danger shrink-0"
                 x-text="isCancellingJob(activeJobId) ? 'Cancelling…' : 'Cancel Job'"
               ></button>
             </div>
 
-            <div class="h-2 w-full overflow-hidden rounded-full bg-canvas">
+            <div class="h-1.5 w-full overflow-hidden rounded-full bg-inset">
               <div class="h-full rounded-full bg-accent transition-all duration-200" :style="`width: ${activeJobPercent}%`"></div>
             </div>
 
-            <div class="flex items-center justify-between font-mono text-xs text-zinc-400">
-              <span class="text-zinc-200" x-text="`${activeJobPercent}%`"></span>
+            <div class="ui-num flex items-center justify-between font-mono text-xs text-ink-secondary">
+              <span class="font-semibold text-ink-primary" x-text="`${activeJobPercent}%`"></span>
               <span x-text="[liveJob.speed, liveJob.eta ? `ETA ${liveJob.eta}` : null].filter(Boolean).join(' • ') || 'Running…'"></span>
             </div>
 
             <!-- Collapsible Live CLI Logs in Drawer -->
-            <div class="border-t border-hairline pt-2.5">
+            <div class="border-t border-subtle pt-2.5">
               <div class="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   @click="toggleCliLogs()"
-                  class="text-xs font-medium text-zinc-400 hover:text-zinc-200"
+                  class="text-xs font-medium text-ink-secondary transition hover:text-ink-primary"
                   x-text="showCliLogs ? '▾ Hide Live CLI Logs' : '▸ Show Live CLI Logs'"
                 ></button>
                 <button
                   type="button"
                   x-show="showCliLogs && !logsAutoScroll"
                   @click="scrollLogsToBottom(true)"
-                  class="rounded bg-zinc-800 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-zinc-700"
+                  class="ui-btn ui-btn-sm ui-btn-secondary min-h-[26px] px-2 text-xs"
                 >
                   ↓ Jump to latest
                 </button>
@@ -7033,10 +7036,10 @@
                 x-show="showCliLogs"
                 x-ref="drawerLogBox"
                 @scroll="onLogScroll($el)"
-                class="mt-2 max-h-64 overflow-y-auto rounded-lg border border-hairline bg-canvas p-3 font-mono text-[11px] leading-relaxed text-zinc-300"
+                class="mt-2 max-h-64 overflow-y-auto rounded-ui-sm border border-subtle bg-inset p-3 font-mono text-xs leading-relaxed text-ink-primary"
               >
                 <template x-if="liveLogs.length === 0">
-                  <p class="text-zinc-500">Waiting for CLI output…</p>
+                  <p class="text-ink-muted">Waiting for CLI output…</p>
                 </template>
                 <template x-for="(line, idx) in liveLogs" :key="`drlog-${idx}`">
                   <div class="whitespace-pre-wrap break-all" x-text="line"></div>
@@ -7045,22 +7048,22 @@
             </div>
           </div>
 
-          <div x-show="!isJobRunning" class="rounded-xl border border-hairline bg-surface p-4 text-center text-xs text-zinc-500">
+          <div x-show="!isJobRunning" class="ui-panel p-4 text-center text-xs text-ink-muted">
             No active job running.
           </div>
 
           <!-- Queued Items in Drawer -->
           <div x-show="jobsState.queued.length > 0" class="space-y-2">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Queued</h3>
-            <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
+            <h3 class="ui-section-title px-0.5">Queued</h3>
+            <div class="ui-list-group">
               <template x-for="job in jobsState.queued" :key="`dq-${job.id}`">
-                <div class="flex items-center justify-between gap-2 px-3.5 py-2.5">
-                  <span class="min-w-0 flex-1 truncate font-mono text-xs text-zinc-200" x-text="Fmt.basenameOf(job.filepath)"></span>
+                <div class="ui-row flex items-center justify-between gap-2 px-3.5 py-2.5">
+                  <span class="min-w-0 flex-1 truncate font-mono text-xs text-ink-primary" x-text="Fmt.basenameOf(job.filepath)"></span>
                   <button
                     type="button"
                     @click="cancelJobById(job.id)"
                     :disabled="isCancellingJob(job.id)"
-                    class="shrink-0 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    class="ui-btn ui-btn-sm ui-btn-danger shrink-0 min-h-[26px] px-2"
                   >
                     Remove
                   </button>
@@ -7071,14 +7074,14 @@
 
           <!-- Recent History in Drawer -->
           <div class="space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Recent History</h3>
+            <div class="flex items-center justify-between gap-2 px-0.5">
+              <h3 class="ui-section-title">Recent History</h3>
               <div x-show="jobsState.history.length > 0" class="flex items-center gap-1.5">
                 <button
                   type="button"
                   x-show="!confirmClearHistory"
                   @click="confirmClearHistory = true"
-                  class="rounded-md border border-hairline bg-surface px-2 py-0.5 text-[11px] font-medium text-zinc-300 transition hover:border-red-500/40 hover:text-red-300"
+                  class="ui-btn ui-btn-sm ui-btn-secondary min-h-[26px] px-2 text-xs"
                 >
                   Clear All
                 </button>
@@ -7088,13 +7091,13 @@
                       type="button"
                       @click="clearAllHistory()"
                       :disabled="clearingHistory"
-                      class="rounded-md border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-200 hover:bg-red-500/25 disabled:opacity-50"
+                      class="ui-btn ui-btn-sm ui-btn-danger min-h-[26px] px-2 text-xs"
                       x-text="clearingHistory ? 'Clearing…' : 'Confirm'"
                     ></button>
                     <button
                       type="button"
                       @click="confirmClearHistory = false"
-                      class="rounded-md border border-hairline bg-surface px-1.5 py-0.5 text-[11px] text-zinc-400"
+                      class="ui-btn ui-btn-sm ui-btn-ghost min-h-[26px] px-2 text-xs"
                     >
                       Cancel
                     </button>
@@ -7102,25 +7105,25 @@
                 </template>
               </div>
             </div>
-            <div class="overflow-hidden rounded-xl border border-hairline bg-surface divide-y divide-hairline">
+            <div class="ui-list-group">
               <template x-if="jobsState.history.length === 0">
-                <div class="p-4 text-center text-xs text-zinc-500">No completed jobs yet.</div>
+                <div class="p-4 text-center text-xs text-ink-muted">No completed jobs yet.</div>
               </template>
               <template x-for="job in jobsState.history.slice(0, 15)" :key="`dh-${job.id}`">
-                <div class="px-3.5 py-3 space-y-2">
+                <div class="ui-row px-3.5 py-3 space-y-2">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
-                      <p class="truncate font-mono text-xs font-medium text-zinc-100" x-text="Fmt.basenameOf(job.output_filepath || job.filepath)"></p>
+                      <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" x-text="Fmt.basenameOf(job.output_filepath || job.filepath)"></p>
                       <p
                         x-show="job.output_filepath && job.output_filepath !== job.filepath"
-                        class="mt-0.5 truncate font-mono text-[10px] text-zinc-500"
+                        class="mt-0.5 min-w-0 truncate font-mono text-xs text-ink-muted"
                         x-text="`/${job.filepath} → /${job.output_filepath}`"
                       ></p>
                     </div>
                     <div class="flex shrink-0 items-center gap-1.5">
                       <span
-                        class="rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
-                        :class="Fmt.jobStatusBadgeClass(job.status)"
+                        class="ui-status capitalize"
+                        :class="job.status === 'completed' ? 'ui-status-ok' : (job.status === 'failed' ? 'ui-status-err' : (job.status === 'cancelled' ? 'ui-status-warn' : 'ui-status-info'))"
                         x-text="job.status"
                       ></span>
                       <button
@@ -7129,23 +7132,22 @@
                         :disabled="isDeletingHistory(job.id)"
                         aria-label="Remove job from history"
                         title="Remove from history"
-                        class="inline-flex h-6 w-6 items-center justify-center rounded border border-hairline bg-canvas text-[11px] text-zinc-400 transition hover:border-red-500/40 hover:text-red-300 disabled:opacity-40"
+                        class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-muted transition hover:border-[var(--color-status-err-border)] hover:bg-[var(--color-status-err-bg)] hover:text-[var(--color-status-err)] disabled:opacity-40"
                       >
                         ✕
                       </button>
                     </div>
                   </div>
-                  <div x-show="job.changes && job.changes.length > 0" class="flex flex-wrap items-center gap-1">
+                  <div x-show="job.changes && job.changes.length > 0" class="flex flex-wrap items-center gap-1.5">
                     <template x-for="(chg, ci) in job.changes" :key="`dchg-${job.id}-${ci}`">
                       <span
-                        class="rounded px-1.5 py-0.5 font-mono text-[10px] font-medium"
-                        :class="Fmt.jobChangeBadgeClass(chg.kind)"
+                        class="ui-tag font-mono"
                         x-text="chg.label"
                       ></span>
                     </template>
                   </div>
-                  <p x-show="job.error_message" class="break-words text-[11px] text-red-300/90" x-text="job.error_message"></p>
-                  <p x-show="job.warnings && job.warnings.length > 0" class="text-[11px] text-amber-400" x-text="`${job.warnings.length} mkvmerge warning(s)`"></p>
+                  <p x-show="job.error_message" class="break-words text-xs text-[var(--color-status-err)]" x-text="job.error_message"></p>
+                  <p x-show="job.warnings && job.warnings.length > 0" class="text-xs text-[var(--color-status-warn)]" x-text="`${job.warnings.length} mkvmerge warning(s)`"></p>
                 </div>
               </template>
             </div>

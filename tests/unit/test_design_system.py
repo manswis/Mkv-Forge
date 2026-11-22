@@ -319,3 +319,45 @@ class TestDesignSystemTokensAndPrimitives:
         for line in phase4_html.splitlines():
             if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
                 assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"
+
+    def test_phase5_dashboard_jobs_and_drawer_hygiene(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+
+        dash_start = html.index("<!-- SCREEN 1: DASHBOARD")
+        dash_end = html.index("<!-- SCREEN 2: LIBRARY EXPLORER", dash_start)
+        dash_block = html[dash_start:dash_end]
+
+        jobs_start = html.index("<!-- SCREEN 4: JOBS PAGE")
+        jobs_end = html.index("<!-- SCREEN 5: FULL-SCREEN SETTINGS POPUP", jobs_start)
+        jobs_block = html[jobs_start:jobs_end]
+
+        drawer_start = html.index("<!-- Slide-Over Live Jobs Drawer")
+        drawer_end = html.index("<!-- Global Floating Context Menu", drawer_start)
+        drawer_block = html[drawer_start:drawer_end]
+
+        phase5_html = dash_block + "\n" + jobs_block + "\n" + drawer_block
+
+        # Guardrail 4: Zero stray text-[10px]/text-[9px] & zero hardcoded text-white on bg-accent
+        assert "text-[10px]" not in phase5_html
+        assert "text-[9px]" not in phase5_html
+        for line in phase5_html.splitlines():
+            if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
+                assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"
+
+        # Guardrail 1: Preserve charts.js SVG hosts & live-hydration bindings inside .ui-panel
+        assert 'x-ref="storagePieHost" x-effect="syncStoragePieChart($el)"' in dash_block
+        assert 'x-ref="audioPieHost" x-effect="syncAudioPieChart($el)"' in dash_block
+        assert "Fmt.dynamicRangeBadgeClass(" not in dash_block
+
+        # Guardrail 2: Unified hairline KPI strip + .ui-list-group for Recent Activity, Queued & History
+        assert "grid grid-cols-2 gap-px bg-[var(--color-border-subtle)] lg:grid-cols-4" in dash_block
+        assert dash_block.count('class="ui-list-group"') >= 3
+        assert jobs_block.count('class="ui-list-group"') >= 2
+        assert drawer_block.count('class="ui-list-group"') >= 2
+
+        # Guardrail 3: Recessed bg-inset CLI logs + elevated Slide-Over Drawer preserving pb-safe-drawer
+        assert 'x-ref="pageLogBox"' in jobs_block
+        assert "bg-inset p-3 font-mono text-xs leading-relaxed text-ink-primary" in jobs_block
+        assert 'x-ref="drawerLogBox"' in drawer_block
+        assert "border-l border-default bg-elevated shadow-elevated" in drawer_block
+        assert "pb-safe-drawer" in drawer_block

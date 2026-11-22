@@ -171,7 +171,7 @@ class TestIndexHtmlStructure:
         input_css = (
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
-        assert "/static/css/app.css?v=0.1.0-p17.4" in html
+        assert "/static/css/app.css?v=0.1.0-p17.5" in html
         assert "/static/js/app.js?v=0.1.0-p16.3" in html
         assert "/static/js/charts.js?v=0.1.0-p15.3" in html
         assert html.index("/static/js/test_media.js") < html.index("/static/js/app.js")

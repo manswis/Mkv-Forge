@@ -206,15 +206,15 @@ Target regions in `app/static/index.html`:
 - Jobs Page (`L3407–3655`)
 - Slide-Over Live Jobs Drawer (`L6999–7208`)
 
-- [ ] **5.1 Dashboard KPI Strip, Charts & Recent Activity (`L645–1092`)**
-  - [ ] Unify the KPI cards into a single hairline-divided stat strip (`divide-x` / `divide-y` inside `.ui-panel`) with bold `tabular-nums` metrics and clear hover affordance on interactive stats.
-  - [ ] Frame codec/library charts cleanly inside `.ui-panel` with quieter legends (keeping `charts.js` SVG in-place patching untouched).
-  - [ ] Convert Recent Activity rows into a clean `.ui-list-group` with monochrome timestamps, `by <User>` attribution tag, and quiet status dot.
-- [ ] **5.2 Jobs Page & Slide-Over Jobs Drawer (`L3407–3655`, `L6999–7208`)**
-  - [ ] Tighten active job progress card: clean Stage badge, smooth progress bar, aligned `tabular-nums` speed/ETA/percent readout, and recessed `--color-inset` live CLI log terminal.
-  - [ ] Use `.ui-list-group` for Queued Jobs and History rows with clear status indicators and expandable warning details.
-- [ ] **5.3 Phase 5 Verification**
-  - [ ] Compile CSS + run `pytest -q tests/unit` + inspect empty state, active scan, active job, and populated history states.
+- [x] **5.1 Dashboard KPI Strip, Charts & Recent Activity (`L645–1092`)**
+  - [x] Unify KPI tiles into a hairline-divided stat strip (`gap-px bg-[var(--color-border-subtle)]` inside `.ui-panel`) with bold `.ui-num` metrics and quiet hover feedback.
+  - [x] Frame Storage & Audio Codec charts inside `.ui-panel` with `.ui-list-group` hairline legends and monochrome Resolution/Dynamic Range tags while preserving `storagePieHost` / `audioPieHost` in-place SVG hooks.
+  - [x] Convert Recent Activity rows onto `.ui-list-group` with `.ui-status` semantic badges, `.ui-num` timestamps, and `.ui-tag` user attribution.
+- [x] **5.2 Jobs Page & Slide-Over Jobs Drawer (`L3407–3655`, `L6999–7208`)**
+  - [x] Upgrade active job panels onto `.ui-panel border-l-2 border-l-[var(--color-accent)]`, align speed/ETA/percent with `.ui-num`, and place live CLI logs inside recessed `bg-inset text-ink-primary` containers (`pageLogBox` & `drawerLogBox`).
+  - [x] Elevate Slide-Over Live Jobs Drawer onto `bg-elevated border-l border-default shadow-elevated` preserving `pb-safe-drawer`, and move Queued/History lists onto `.ui-list-group`.
+- [x] **5.3 Phase 5 Verification**
+  - [x] Recompile CSS via `./scripts/build_css.sh`, add Phase 5 hygiene test in `tests/unit/test_design_system.py`, and pass `pytest -q tests/unit` + `test_dashboard_analytics.py`.
 
 ---
 
