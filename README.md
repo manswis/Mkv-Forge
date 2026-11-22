@@ -7,7 +7,7 @@
   Fix surround sound, clean up messy movie titles, and manage subtitles right from your phone or computer—with zero video quality loss.
 
   <p>
-    <a href="https://www.buymeacoffee.com/manojbiswas" target="_blank">
+    <a href="https://buymeacoffee.com/cranbear" target="_blank">
       <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="42" />
     </a>
   </p>
@@ -261,6 +261,6 @@ By downloading, installing, running, containerizing, or interacting with MKV For
 
 If **MKV Forge** saves you time managing your media library, consider supporting its development:
 
-<a href="https://www.buymeacoffee.com/manojbiswas" target="_blank">
+<a href="https://buymeacoffee.com/cranbear" target="_blank">
   <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="42" />
 </a>
