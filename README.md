@@ -1,12 +1,10 @@
 <div align="center">
-  <img src="app/static/img/app-icon.svg" alt="MKV Forge Logo" width="110" height="110" />
+  <img src="app/static/img/app-icon.svg" alt="MKV Forge Logo" width="96" height="96" />
 
   # MKV Forge
 
   **The friendly, self-hosted media workshop for your movie & TV library.**  
-A lightweight, modern web alternative to MKVToolNix—with a built-in file browser and audio converter.
-
-Browse your movie and TV folders right from your phone or computer, pick any file, and fix it in place. There’s no tedious adding, exporting, or juggling multiple tools: clean up messy titles and metadata, add or reorder subtitles, and convert incompatible surround sound (like AAC or DTS to Dolby AC3/EAC3, and vice versa) in a few taps—without ever losing video quality or touching the command line.
+  Fix surround sound, clean up messy movie titles, and manage subtitles right from your phone or computer—with zero video quality loss.
 
   <p>
     <a href="https://www.buymeacoffee.com/manojbiswas" target="_blank">
@@ -15,82 +13,89 @@ Browse your movie and TV folders right from your phone or computer, pick any fil
   </p>
 </div>
 
+<p align="center">
+  <img src="docs/screenshots/dashboard-responsive.png" alt="MKV Forge Dashboard on Desktop and Mobile" width="94%" />
+</p>
+
 ---
 
 ## Why MKV Forge?
 
-If you collect movies or shows for **Plex, Jellyfin, Emby, Infuse, or a USB drive plugged into your TV**, you have probably run into these everyday frustrations:
+If you watch movies or TV shows on **Plex, Jellyfin, Emby, Infuse, or a TV/Soundbar**, you have probably run into these everyday headaches:
 
-* **"No surround sound on my TV/Soundbar"** — Many media files only include **AAC 5.1** audio, which most TVs and receivers downmix to stereo because they expect **Dolby Digital (AC3)** or **Dolby Digital Plus (EAC3)**.
-* **"Messy titles & release tags"** — Media players often display ugly embedded titles like `Movie.2026.1080p.WEB-DL.x265-GROUP` instead of the actual filename, or show cluttered track names.
-* **"Wrong default audio or subtitle track"** — A movie starts playing in the wrong language, or you want to drop 15 unused audio/subtitle languages to save gigabytes of space.
-* **"I have an `.mp4` or external `.srt` file"** — You just want to drop an `.srt`/`.ass` subtitle or extra audio file into your movie and save a clean `.mkv` without re-encoding the video.
+* **"Why is my surround sound playing in stereo (or silent)?"** — Many downloaded or ripped movies use **AAC 5.1**, **DTS**, or **TrueHD** audio that most TVs and soundbars cannot play natively. They need **Dolby Digital Plus (`EAC3`)** or **Dolby Digital (`AC3`)**.
+* **"Why does my TV show an ugly title like `Movie.2025.1080p.WEB-DL.x265-GROUP`?"** — Media files often hide messy release tags inside their internal metadata that override your clean filenames.
+* **"Why does Plex or Jellyfin pick the wrong audio language?"** — Audio and subtitle tracks are often left untagged as **`und` (Undefined)** or set to the wrong default track.
+* **"I just want to add a subtitle file or drop 10 languages I don't speak"** — Without opening a complicated desktop program, re-encoding the video, or typing command-line flags.
 
-**MKV Forge** solves all of this through a clean web interface that works just as smoothly on your **phone or tablet** as it does on your **desktop**. Your video stream is **never re-encoded**, so there is **zero video quality loss** and jobs finish at disk speed.
-
----
-
-## How It Works
-
-```mermaid
-flowchart LR
-    A["📁 Your Media Folder<br/>(.mkv & .mp4)"] --> B["⚡ Instant Auto-Scan<br/>(Finds AAC 5.1, HDR & Junk Tags)"]
-    B --> C["🎛️ Visual Editor<br/>(Add Dolby Audio, Clean Metadata,<br/>Keep/Drop Tracks, Add Subtitles)"]
-    C --> D["🛡️ Safe Atomic Remux<br/>(FFmpeg + MKVToolNix)"]
-    D --> E["🍿 Ready for TV,<br/>Soundbar, Plex & Jellyfin"]
-```
+**MKV Forge** gives you a clean, modern web app that runs on your home server or NAS and works just as smoothly on your **phone** as it does on your **desktop**. Because it **never re-encodes your video**, there is **zero video quality loss** and movies finish processing in seconds.
 
 ---
 
-## Key Features
+## Visual Tour & Features
 
-### 1. One-Click Dolby Audio Conversion (`EAC3` / `AC3` / `AAC`)
-* Convert incompatible **AAC 5.1**, **DTS**, or **TrueHD** audio into universally supported **Dolby Digital Plus (`EAC3`)** or **Dolby Digital (`AC3`)** at `640k`, `448k`, or `384k`.
-* Keep the original audio track alongside the new Dolby track, or drop the original automatically.
-* Automatically preserves audio sync delays and sets your new track as the default (`Audio Index 0`).
+### 1. Instant Library Health Dashboard (Web & Mobile)
+See your entire collection at a glance *(shown above)*—how much storage is used by video format (`HEVC`, `H.264`, `AV1`) or resolution (`4K`, `1080p`), what audio formats, channels, and languages your library has, and which files need attention. Tap any card, chart slice, or tag (`Needs Conversion`, `Extra Metadata`, `Untagged Audio (und)`, `No Subs`) to jump straight to those files.
 
-### 2. Automatic Metadata & Track Cleanup
-* **Remove All Metadata by Default:** Opening a file automatically prepares a clean slate—clearing embedded container titles, track titles, global tags, and unchecking attachments while keeping your chapters intact.
-* **One-Click `Sanitize metadata` & `Sanitize all`:** Replace messy track titles with clean, readable labels like `Video • HEVC/H.265/MPEG-H • 1920x1080` or `Audio • AAC • 5.1 • hin` (and `EAC3 5.1 • 640k • hin • muxed` for newly created audio).
+---
 
-### 3. Visual Track & External File Manager
-* Toggle video, audio, and subtitle tracks on/off, reorder tracks up/down, change language tags, and toggle **Default** / **Forced** flags.
-* Import external **Subtitles** (`.srt`, `.ass`, `.ssa`, `.vtt`, `.sup`) or **Audio** (`.ac3`, `.eac3`, `.aac`, `.dts`, `.flac`, `.mka`, `.mp3`, `.opus`, `.m4a`) from your server storage or directly from your phone/computer.
+### 2. Built-In Library Explorer (List View & Cover-Art Grid View)
+Browse your folders directly in the browser without copying files back and forth:
+* **Detailed List View:** Scan resolution, video format, HDR/Dolby Vision status, audio tracks, and subtitle counts at a glance, or filter by sound format with a single tap.
+* **Cover-Art Grid View:** Switch to **Grid View** to browse your folders as visual tiles—automatically displaying embedded container/MKV cover artwork (poster or album art) when present.
+* **Full File Manager:** Create folders and **Rename, Move, Duplicate, or Delete** files right from your browser or phone.
 
-### 4. Visual Dashboard & Explorer Library
-* **Interactive Dashboard:** See your storage breakdown (`MKV`, `MP4`, `Other / Non-Indexed`), audio codec distribution (`DD+`, `DD`, `AAC`, `DTS`, `TrueHD`), and video resolution / HDR pills (`2160p`, `1080p`, `DV HDR`, `HDR10`, `HLG`, `SDR`) at a glance.
-* **Actionable Filters:** Jump straight to files that have **AAC 5.1 Only**, **Extra Metadata**, or a specific **Audio Codec** with one tap.
-* **Built-In File Explorer:** Browse folders in **List** or **Grid** view, inspect full media details, create folders, and **Rename, Duplicate, Move, or Delete** files right from the browser.
+<p align="center">
+  <img src="docs/screenshots/library-explorer.png" alt="MKV Forge Library Explorer" width="92%" />
+</p>
 
-### 5. Safe by Design
-* **3 Output Modes:** **Keep Both** (`Movie.remux.mkv`), **Replace Original** (atomic swap only after the new file finishes cleanly), or **Save As…** (with an optional *Delete original file after Save As* toggle).
-* **Live File Watcher:** Automatically detects newly added or uploaded files on your drive without manual rescans.
-* **Optional Local Accounts:** Run in frictionless **Anonymous Homelab Mode** or enable **Local Sign-In** with per-user theme, accent color, and editor preferences.
+---
+
+### 3. All-in-One File Editor & One-Click Dolby Audio Converter
+Open any `.mkv` or `.mp4` file to inspect and fix everything in one place:
+* **Recommended Audio for Your Sound System:** Click **`+ Add / Convert`** to create a compatible **Dolby Digital Plus (`E-AC-3`)**, **Dolby Digital (`AC-3`)**, **AAC**, **Opus**, or **FLAC** track tailored to your TV, soundbar, or home theater receiver. Keep both audio tracks or replace the original automatically.
+* **One-Tap `Smart fill` & Metadata Cleanup:** Opening a file automatically prepares a clean slate by stripping junk container titles and extra tags while keeping your chapters intact. Tap **`Smart fill all`** to give every track a clean, readable label (like `EAC3 5.1 • 640k • eng • muxed`).
+* **Keep, Reorder & Import Tracks:** Toggle tracks on or off, reorder them, fix language tags, mark **Default** / **Forced** subtitles, or upload external **Subtitles** (`.srt`, `.ass`, `.vtt`, `.sup`) and **Audio** files straight from your device.
+* **Safe Output Choices:** Choose **Keep Both** (creates a `.remux.mkv` copy while leaving your original file untouched), **Replace Original** (safely swaps only after the new file finishes cleanly), or **Save As…**.
+
+<p align="center">
+  <img src="docs/screenshots/file-editor.png" alt="MKV Forge File Editor and Audio Converter" width="92%" />
+</p>
+
+---
+
+### 4. Built-In Speaker & Audio System Test Generator
+Not sure if your TV, soundbar, or receiver actually supports **Dolby Digital Plus 5.1**, **Lossless 7.1**, or **AAC 5.1**? Generate a short, speaker-by-speaker test clip directly into your library folder and play it on your TV to verify every speaker channel before converting your movies.
+
+<p align="center">
+  <img src="docs/screenshots/audio-test-generator.png" alt="MKV Forge Speaker and Audio Test Generator" width="92%" />
+</p>
+
+---
+
+### 5. Personalized Appearance, Sound Profile & Zero-Maintenance Storage
+Tailor MKV Forge to your household in **Settings**:
+* **Dark & Light Modes + 6 Accent Colors:** Switch between Dark, Light, or System theme, pick from 6 accent colors (`Blue`, `Indigo`, `Emerald`, `Violet`, `Rose`, `Amber`), adjust interface **Font Size Scale** (`85%`–`125%`), and toggle **Grid View Cover Art**.
+* **Household Sound System Profile:** Pick your setup once (TV Speakers, Dolby ARC Soundbar, Optical Receiver, or eARC 7.1 AVR) so MKV Forge knows which files in your library need audio conversion.
+* **Hands-Free Cleanup & Optional Sign-In:** Run in simple passwordless homelab mode or enable **Local Sign-In** with user accounts and API keys, plus automatic background database and temp-file cleanup.
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" alt="MKV Forge Settings and Appearance Customization" width="92%" />
+</p>
 
 ---
 
 ## Quick Start with Docker
 
-No cloning or local building required—**MKV Forge** publishes pre-built multi-architecture images (`linux/amd64` & `linux/arm64`) directly to GitHub Container Registry and Docker Hub.
-
-### Image Release Channels
-
-| Channel Tag | Image Reference | When It Updates | Who Should Use It |
-| :--- | :--- | :--- | :--- |
-| **`:latest` (Stable)** | `ghcr.io/manswis/mkv-forge:latest`<br/>*(or `manswis/mkv-forge:latest`)* | **Only on tagged releases** (`v*.*.*`, e.g. `v1.0.0`) | Recommended for daily homelab / NAS users who want tested, stable releases. |
-| **`:nightly` / `:beta`** | `ghcr.io/manswis/mkv-forge:nightly`<br/>`ghcr.io/manswis/mkv-forge:beta` | **Every commit pushed to `main`** | Users who want the newest features and fixes immediately as they land on `main`. |
-| **`:<version>` (Pinned)** | `ghcr.io/manswis/mkv-forge:1.0.0` | Immutable semantic version tag | Users who prefer pinning an exact release version. |
-
----
+No coding or manual building required—**MKV Forge** runs as a single, 100% offline Docker container (`linux/amd64` and `linux/arm64` for PCs, NAS devices, and Raspberry Pi / Apple Silicon).
 
 ### Option 1: Docker Compose (Recommended)
 
-Create a `docker-compose.yml` file anywhere on your server or NAS:
+1. Create a `docker-compose.yml` file and point `/path/to/your/media` to your movie/TV folder:
 
 ```yaml
 services:
   mkv-forge:
-    # Stable release channel (use :nightly or :beta for bleeding-edge commits)
     image: ghcr.io/manswis/mkv-forge:latest
     container_name: mkv-forge
     restart: unless-stopped
@@ -101,22 +106,18 @@ services:
       PGID: "1000"
       UMASK: "022"
       TZ: "America/Toronto"
-      # Optional: change watch mode ("watch" = default, "poll" = NFS/SMB, "off" = manual/HDD sleep)
-      # MKVFORGE_WATCH_MODE: "watch"
     volumes:
       - ./data:/app/data:rw
       - /path/to/your/media:/storage:rw
 ```
 
-> **Note:** As long as your `volumes:` mount to `/app/data` and `/storage`, you do **not** need to set `MKVFORGE_DATA_DIR` or `MKVFORGE_STORAGE_DIR`—those container paths are already the built-in defaults.
-
-Start the container:
+2. Start MKV Forge:
 
 ```bash
 docker compose up -d
 ```
 
-Then open **`http://localhost:7788`** (or `http://<your-server-ip>:7788`) in your browser.
+3. Open **`http://localhost:7788`** (or `http://<your-server-ip>:7788`) in your browser and follow the quick 3-step welcome setup.
 
 ---
 
@@ -138,7 +139,16 @@ docker run -d \
 
 ---
 
-### Option 3: Build from Source (Local Development)
+### Image Release Channels
+
+| Channel Tag | Image Reference | When It Updates | Who Should Use It |
+| :--- | :--- | :--- | :--- |
+| **`:latest` (Stable)** | `ghcr.io/manswis/mkv-forge:latest`<br/>*(or `manswis/mkv-forge:latest`)* | **Only on tagged releases** (`v*.*.*`, e.g. `v1.0.2`) | Recommended for daily home server / NAS users who want tested, stable releases. |
+| **`:nightly` / `:beta`** | `ghcr.io/manswis/mkv-forge:nightly`<br/>`ghcr.io/manswis/mkv-forge:beta` | **Every commit pushed to `main`** | Users who want the newest features and fixes immediately as they land on `main`. |
+| **`:<version>` (Pinned)** | `ghcr.io/manswis/mkv-forge:1.0.2` | Immutable version tag | Users who prefer pinning an exact release version. |
+
+<details>
+<summary><strong>Build from Source (Local Development)</strong></summary>
 
 ```bash
 git clone https://github.com/manswis/Mkv-Forge.git
@@ -146,59 +156,59 @@ cd Mkv-Forge
 docker build -t mkv-forge:local .
 ```
 
+</details>
+
 ---
 
 ## Configuration (Environment Variables)
 
-All `MKVFORGE_*` variables have sensible defaults baked into the container, so you only need to add them to `docker-compose.yml` when overriding default behavior:
+Everything works out of the box with default settings. Expand the guide below only if you want to customize file permissions, network drive watching (NFS/SMB), or external USB drive sleep behavior.
+
+<details>
+<summary><strong>View Environment Variables &amp; Network / USB Drive Watch Modes</strong></summary>
+
+<br/>
 
 | Variable | Default | Required? | What It Does |
 | :--- | :--- | :---: | :--- |
 | `PUID` / `PGID` | `1000` / `1000` | Optional | Linux user & group ID so created `.mkv` files match your NAS/host permissions. |
 | `UMASK` | `022` | Optional | File creation permission mask inside `/storage`. |
 | `TZ` | `UTC` | Recommended | Your local timezone for logs, timestamps, and scheduled maintenance. |
-| `MKVFORGE_WATCH_MODE` | `watch` | Optional | How MKV Forge detects filesystem changes (`watch`, `poll`, or `off`). See table below. |
-| `MKVFORGE_WATCH_DEBOUNCE_SEC` | `8` | Optional | Quiet window (seconds, `0.05`–`300`) to wait after a file write finishes before probing metadata. |
-| `MKVFORGE_SCAN_INTERVAL_MIN` | `0` | Optional | Periodic background incremental scan interval in minutes (`0` = disabled, max `10080` / 7 days). |
-| `MKVFORGE_STORAGE_DIR` | `/storage` | Optional | Container path where your media library is mounted. Only needed if you mount your media to a custom container path (e.g. `/data/media` in an `*arr`/Plex stack) or run outside Docker. |
-| `MKVFORGE_DATA_DIR` | `/app/data` | Optional | Container path for the SQLite cache database (`mkvforge.db`) and temporary uploads. Only needed if you mount data to a path other than `/app/data`. |
-| `MKVFORGE_LOG_LEVEL` | `INFO` | Optional | Application log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
+| `MKVFORGE_WATCH_MODE` | `watch` | Optional | How MKV Forge detects new or modified files (`watch`, `poll`, or `off`). See table below. |
+| `MKVFORGE_WATCH_DEBOUNCE_SEC` | `8` | Optional | Quiet window (seconds, `0.05`–`300`) to wait after a file finishes copying before scanning it. |
+| `MKVFORGE_SCAN_INTERVAL_MIN` | `0` | Optional | Periodic background scan interval in minutes (`0` = disabled, max `10080` / 7 days). |
+| `MKVFORGE_STORAGE_DIR` | `/storage` | Optional | Container path where your media library is mounted. Only change if you mount your media to a custom path other than `/storage`. |
+| `MKVFORGE_DATA_DIR` | `/app/data` | Optional | Container path for the SQLite cache database (`mkvforge.db`), thumbnails, and temporary uploads. |
+| `MKVFORGE_LOG_LEVEL` | `INFO` | Optional | Application log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 
 ### Choosing the Right `MKVFORGE_WATCH_MODE`
 
-`MKVFORGE_WATCH_MODE` defaults to **`watch`**, so you can omit it for most setups. Change it based on how your media drive is connected:
-
 | Mode | Default? | How It Works | Best For |
 | :--- | :---: | :--- | :--- |
-| **`watch`** | **Yes** | Listens to native OS kernel events (`inotify` on Linux) and waits for file size & timestamp to settle (`MKVFORGE_WATCH_DEBOUNCE_SEC`) before probing. Zero idle disk polling. | Local SSDs/HDDs, direct-attached USB drives on the Docker host, or local ZFS/RAID/Unraid arrays. |
-| **`poll`** | No | Polls `/storage` every `2` seconds to detect added, modified, or deleted files when the host kernel does not receive filesystem events. | Remote network shares (**NFS**, **SMB/CIFS**, or **rclone/FUSE**) mounted from a separate NAS where `inotify` events are not forwarded over the network. |
-| **`off`** | No | Disables the background filesystem watcher completely. Library updates occur only when you click **Scan** in the web UI, browse a folder in **Explorer**, or enable `MKVFORGE_SCAN_INTERVAL_MIN`. | External USB spinning hard drives that you want to spin down/sleep completely when idle without any background watcher attached. |
+| **`watch`** | **Yes** | Listens to instant OS file events (`inotify` on Linux) with zero idle disk activity. | Local SSDs/HDDs, direct USB drives on the host, or local ZFS/RAID/Unraid arrays. |
+| **`poll`** | No | Checks `/storage` every `2` seconds to detect changes over network mounts. | Remote network shares (**NFS**, **SMB/CIFS**, or **rclone**) mounted from a separate NAS. |
+| **`off`** | No | Turns off background file watching completely; scans only happen when you click **Scan** or browse a folder. | External USB spinning hard drives that you want to spin down and sleep when idle. |
+
+</details>
 
 ---
 
 ## Dashboard Integrations & API Keys
 
-MKV Forge provides a JSON API for external dashboards (such as [Homepage](https://gethomepage.dev/), Dashy, or Heimdall) and custom automation scripts.
+MKV Forge includes a built-in JSON API for homelab dashboards (like [Homepage](https://gethomepage.dev/), Dashy, or Heimdall).
+
+<details>
+<summary><strong>View API Key Setup &amp; Homepage (gethomepage.dev) Widget Snippet</strong></summary>
+
+<br/>
 
 ### Generating an API Key
+If **Local Sign-In** is enabled:
+1. Open **Settings (⚙️) → Account & Sign-In**.
+2. Under **API Keys & Integrations**, enter a name (e.g., `Homepage`) and click **+ Generate New Key**.
+3. Copy the key (`mkv_...`) and pass it via `x-api-key: mkv_your_key_here` or `Authorization: Bearer mkv_your_key_here`. *(In passwordless Anonymous mode, no API key is required.)*
 
-If **Local Authentication** (Sign-In) is enabled:
-1. Open MKV Forge and go to **Settings (⚙️) → Account & Sign-In**.
-2. Scroll to the **API Keys & Integrations** card and enter a descriptive name (e.g., `Homepage`).
-3. Click **+ Generate New Key**.
-4. Copy the displayed key (`mkv_...`) immediately. For security, keys are hashed with SHA-256 and will never be shown again.
-
-To authenticate requests, pass the key via either:
-* Header: `x-api-key: mkv_your_key_here`
-* Header: `Authorization: Bearer mkv_your_key_here`
-
-*(Note: If you run MKV Forge in passwordless "Anonymous" mode, API keys are optional and endpoints are accessible without headers.)*
-
----
-
-### Homepage (`gethomepage.dev`) Widget
-
-Add the following to your Homepage `services.yaml`:
+### Homepage (`services.yaml`) Example
 
 ```yaml
     - MKV Forge:
@@ -216,42 +226,18 @@ Add the following to your Homepage `services.yaml`:
             - field: stats.total_files
               label: Movies & Shows
               format: number
-            - field: stats.aac51_only
-              label: Needs Dolby
+            - field: stats.needs_conversion
+              label: Needs Conversion
               format: number
             - field: stats.has_metadata
-              label: Junk Metadata
+              label: Extra Metadata
               format: number
-            - field: analytics.top_codec_label
-              label: Top Codec
-            - field: analytics.top_codec_percent
-              label: Top %
-              format: percent
+            - field: stats.untagged_audio
+              label: Untagged Audio
+              format: number
 ```
 
-> **Tips for Homepage:**
-> * Always specify the port (`:7788`) in the URL unless using a reverse proxy.
-> * Use `type: customapi` (Homepage's generic REST API widget).
-> * The `analytics.top_codec_label` and `analytics.top_codec_percent` fields provide flattened audio codec breakdown directly without requiring array parsing.
-
----
-
-## Under the Hood (Technical Details)
-
-* **100% Offline Single Container:** No cloud dependencies, no external CDNs, and no telemetry—runs completely on your local network.
-* **Backend:** Python **FastAPI** + **SQLite (WAL mode)** + **Server-Sent Events (SSE)** for real-time scan progress, job logs, and live folder updates.
-* **Media Engine:** **MKVToolNix** (`mkvmerge -J` for nanosecond-accurate probing & Stage 2 lossless remuxing) + **FFmpeg / ffprobe** (Stage 1 audio transcoding with automatic Dolby sample-rate and 5.1 channel-layout safety).
-* **Frontend:** Lightweight **Alpine.js** + **Tailwind CSS** (compiled offline during the Docker build) with 6 accent themes, Dark/Light/System modes, and mobile touch gestures.
-
----
-
-## Roadmap
-
-- [ ] **Browser File Upload & Download** — Upload media files directly into `/storage` folders and download finished `.mkv` files straight from the web UI.
-- [ ] **Batch Processing** — Apply audio conversion, track filtering, and metadata cleanup across an entire TV season or folder in one click.
-- [ ] **Saved Presets & Profiles** — Save custom remux profiles (e.g., *"Keep Hindi + English, Convert AAC 5.1 → EAC3 640k, Strip All Tags"*).
-- [ ] **Subtitle Tools** — Extract embedded subtitles to `.srt`/`.ass` and preview subtitle text before remuxing.
-- [ ] **Media Server Webhooks** — Automatically notify **Plex**, **Jellyfin**, **Emby**, **Sonarr**, or **Radarr** to refresh a folder after a remux completes.
+</details>
 
 ---
 
@@ -267,6 +253,7 @@ By downloading, installing, running, containerizing, or interacting with MKV For
 4. **No Litigation & Covenant Not to Sue:** You irrevocably covenant that you will not initiate, maintain, or participate in any lawsuit, arbitration, claim, or class-action litigation against the author in any jurisdiction worldwide.
 5. **Sole User Responsibility for Backups:** Media processing operations (including "Replace Original" and in-place deletions) modify files on disk. The user bears sole responsibility for maintaining independent, verified backups of all original media prior to remuxing or converting audio.
 6. **100% Offline & Private:** MKV Forge contains zero telemetry, zero analytics, zero external tracking, and zero remote cloud connectivity. All processing executes locally on your private machine or server.
+7. **Trademarks, Non-Affiliation & Codec Patent Notice:** "Dolby", "Dolby Digital", "Dolby Digital Plus", "Dolby TrueHD", "Dolby Atmos", and "Dolby Vision" are trademarks or registered trademarks of Dolby Laboratories Licensing Corporation. "DTS" and "DTS-HD" are registered trademarks of DTS, Inc. (Xperi Inc.). "HDMI" is a registered trademark of HDMI Licensing Administrator, Inc. "Plex", "Jellyfin", "Emby", and "Infuse" are trademarks of their respective owners. All third-party trademarks, service marks, trade names, and format names referenced in MKV Forge or its documentation are the property of their respective owners and are used strictly for nominative, descriptive, and technical interoperability identification. **MKV Forge is an independent open-source project and is not affiliated with, endorsed by, certified by, sponsored by, or licensed by Dolby Laboratories, DTS, Inc., or any other trademark holder.** Audio transcoding and container muxing are performed by external open-source packages (`FFmpeg` and `MKVToolNix`) in the user's local environment; this software does not grant any third-party patent or trademark licenses.
 
 ---
 

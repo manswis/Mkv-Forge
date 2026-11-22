@@ -108,9 +108,13 @@ class TestIndexHtmlStructure:
 
     def test_about_section_has_settings_icon_and_dedicated_category(self) -> None:
         html = _read_index_html()
+        readme = (INDEX_HTML_PATH.parents[2] / "README.md").read_text(encoding="utf-8")
 
         assert 'x-show="sec.id === C.SETTINGS_SECTIONS.ABOUT"' in html
         assert "CATEGORY 4: ABOUT & LEGAL TERMS" in html
+        assert "7. Trademarks, Non-Affiliation &amp; Codec Licensing Notice" in html
+        assert "Dolby Laboratories Licensing Corporation" in html
+        assert "Dolby Laboratories Licensing Corporation" in readme
 
     def test_editor_displays_video_and_audio_track_sizes_when_available(self) -> None:
         html = _read_index_html()
