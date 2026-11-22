@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
 from pathlib import Path
@@ -11,6 +12,7 @@ import pytest
 from app.config import AppConstants
 from app.models.schemas import TestMediaGenerateRequest
 from app.services.test_media_generator import (
+    TestMediaGenerationError,
     TestMediaTimeoutError,
     TestMediaValidationError,
     build_audio_filter_complex,
@@ -307,8 +309,39 @@ class TestSpeakerTestValidationAndBuilders:
         assert f"volume={AppConstants.TEST_MEDIA_PINK_VOLUME_DB}dB" in audio_fc
 
     async def test_timeout_enforced_and_temp_files_cleaned_up(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        class _HangingProcess:
+            def __init__(self) -> None:
+                self.killed = False
+                self.waited = False
+                self.returncode: int | None = None
+
+            async def communicate(self) -> tuple[bytes, bytes]:
+                await asyncio.Event().wait()
+                return b"", b""
+
+            def kill(self) -> None:
+                self.killed = True
+                self.returncode = -9
+
+            async def wait(self) -> int:
+                self.waited = True
+                return self.returncode if self.returncode is not None else -9
+
+        fake_proc = _HangingProcess()
+
+        async def _fake_create_subprocess_exec(*argv: str, **_kwargs: object) -> _HangingProcess:
+            assert argv[0] == "ffmpeg"
+            # Simulate partial temp output written before timeout triggers
+            Path(argv[-1]).write_bytes(b"partial-mkv-bytes")
+            return fake_proc
+
+        monkeypatch.setattr(
+            "app.services.test_media_generator.asyncio.create_subprocess_exec",
+            _fake_create_subprocess_exec,
+        )
+
         req = TestMediaGenerateRequest(
             output_mode="video",
             codec="eac3",
@@ -319,9 +352,32 @@ class TestSpeakerTestValidationAndBuilders:
             await generate_test_media(
                 req,
                 storage_root=tmp_path,
-                timeout_sec=0.001,
+                timeout_sec=0.01,
             )
-        # No leftover temp artifacts or partial output
+        assert fake_proc.killed is True
+        assert fake_proc.waited is True
+        # No leftover temp artifacts (.srt or partial .mkvforge.tmp)
+        assert list(tmp_path.iterdir()) == []
+
+    async def test_missing_ffmpeg_binary_raises_generation_error_and_cleans_temp_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def _missing_binary(*_argv: str, **_kwargs: object) -> object:
+            raise FileNotFoundError(2, "No such file or directory", "ffmpeg")
+
+        monkeypatch.setattr(
+            "app.services.test_media_generator.asyncio.create_subprocess_exec",
+            _missing_binary,
+        )
+
+        req = TestMediaGenerateRequest(
+            output_mode="video",
+            codec="eac3",
+            layout="5.1",
+            destination_dir="/",
+        )
+        with pytest.raises(TestMediaGenerationError, match="ffmpeg executable not found in PATH"):
+            await generate_test_media(req, storage_root=tmp_path)
         assert list(tmp_path.iterdir()) == []
 
 

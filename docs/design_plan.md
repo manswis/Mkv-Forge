@@ -231,22 +231,22 @@ Target regions in `app/static/index.html`:
 - File MediaInfo Modal (`L7345–7715`)
 - 3-Step Onboarding Wizard & Sign-In Screen (`L7843–8405`)
 
-- [ ] **6.1 Settings Split View (`L3656–5472`)**
-  - [ ] Refactor General & Display, Sound System / Playback Profile, Media & Remuxing, Storage & System (Maintenance + Auth + API Keys), and About into clean `.ui-list-group` sections (Apple Settings clarity + Linear density).
-  - [ ] Preserve every landmark verified by `test_index_html_structure.py` (Local Auth panel scoping, API key `Fmt.formatDateTime`, Sound System controls, Danger Zone).
-- [ ] **6.2 Feature Modals (`L5545–6424`, `L7345–7715`)**
-  - [ ] Apply `.ui-sheet`, `.ui-segmented`, `.ui-list-group`, and `.ui-btn` across Convert Audio, Import Track, Speaker Test Generator, and MediaInfo modals.
-  - [ ] Keep Progressive Disclosure (`Advanced options`) crisp and unobtrusive with identical disclosure row chrome across Convert Audio and Audio Test.
-- [ ] **6.3 Utility & Confirmation Dialogs (`L6425–6998`, `L7716–7842`)**
-  - [ ] Standardize Folder Picker, New Folder, Rename, Sign Out, Cancel Job, Delete, and Factory Reset dialogs onto uniform `.ui-sheet` header/footer rhythm and crisp destructive confirmation hierarchy.
-- [ ] **6.4 Onboarding Wizard & Sign-In Polish (`L7843–8405`)**
-  - [ ] Align typography, input wells, and button heights with the new tokens while strictly preserving the locked uniform 3-zone `.onboarding-wizard-shell` geometry and directional slide animations.
-- [ ] **6.5 Apple HIG Micro-Copy Audit (All Screens)**
-  - [ ] Shorten verbose multi-sentence helper blurbs into crisp, scannable one-liners without losing any technical warnings or safety explanations.
-- [ ] **6.6 Legacy Light Mode Override Cleanup (`frontend/input.css`)**
-  - [ ] Only after all screens (Phases 2–6) use the new semantic tokens, remove obsolete `!important` `.text-zinc-*` / `.bg-zinc-*` Light Mode overrides from `frontend/input.css` and verify Light Mode contrast across every screen.
-- [ ] **6.7 Phase 6 Verification**
-  - [ ] Compile CSS + run `pytest -q tests/unit` + verify zero stray `text-[10px]` or dropped Alpine directives.
+- [x] **6.1 Settings Split View (`L3656–5472`)**
+  - [x] Refactor General & Display, Sound System / Playback Profile, Media & Remuxing, Storage & System (Maintenance + Auth + API Keys), and About into clean `.ui-list-group` sections (Apple Settings clarity + Linear density).
+  - [x] Preserve every landmark verified by `test_index_html_structure.py` (Local Auth panel scoping, API key `Fmt.formatDateTime`, Sound System controls, Danger Zone).
+- [x] **6.2 Feature Modals (`L5545–6424`, `L7345–7715`)**
+  - [x] Apply `.ui-sheet`, `.ui-segmented`, `.ui-list-group`, and `.ui-btn` across Convert Audio, Import Track, Speaker Test Generator, and MediaInfo modals.
+  - [x] Keep Progressive Disclosure (`Advanced options`) crisp and unobtrusive with identical disclosure row chrome across Convert Audio and Audio Test.
+- [x] **6.3 Utility & Confirmation Dialogs (`L6425–6998`, `L7716–7842`)**
+  - [x] Standardize Folder Picker, New Folder, Rename, Sign Out, Cancel Job, Delete, and Factory Reset dialogs onto uniform `.ui-sheet` header/footer rhythm and crisp destructive confirmation hierarchy.
+- [x] **6.4 Onboarding Wizard & Sign-In Polish (`L7843–8405`)**
+  - [x] Align typography, input wells, and button heights with the new tokens while strictly preserving the locked uniform 3-zone `.onboarding-wizard-shell` geometry and directional slide animations.
+- [x] **6.5 Apple HIG Micro-Copy Audit (All Screens)**
+  - [x] Shorten verbose multi-sentence helper blurbs into crisp, scannable one-liners without losing any technical warnings or safety explanations.
+- [x] **6.6 Legacy Light Mode Override Cleanup (`frontend/input.css`)**
+  - [x] Only after all screens (Phases 2–6) use the new semantic tokens, remove obsolete `!important` `.text-zinc-*` / `.bg-zinc-*` Light Mode overrides from `frontend/input.css` and verify Light Mode contrast across every screen.
+- [x] **6.7 Phase 6 Verification**
+  - [x] Compile CSS + run `pytest -q tests/unit` + verify zero stray `text-[10px]` or dropped Alpine directives.
 
 ---
 

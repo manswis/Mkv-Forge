@@ -84,10 +84,19 @@ class TestDesignSystemTokensAndPrimitives:
             assert token in input_css, f"Missing token in frontend/input.css: {token}"
             assert token in compiled_css, f"Missing token in compiled app.css: {token}"
 
-        # Legacy Light Mode overrides must remain intact until end of Phase 6
-        assert "html:not(.dark) .text-zinc-100" in input_css
-        assert "html:not(.dark) .text-emerald-200" in input_css
-        assert "html:not(.dark) .text-amber-200" in input_css
+        # Phase 6: Legacy !important Light Mode overrides have been stripped — Light Mode runs natively on tokens
+        for legacy_override in (
+            "html:not(.dark) .text-zinc-100",
+            "html:not(.dark) .bg-zinc-800",
+            "html:not(.dark) .text-emerald-200",
+            "html:not(.dark) .text-amber-200",
+            "html:not(.dark) .text-red-200",
+            "html:not(.dark) .text-sky-200",
+        ):
+            assert legacy_override not in input_css, f"Legacy Light Mode override still present in input.css: {legacy_override}"
+            assert legacy_override not in compiled_css, f"Legacy Light Mode override still present in app.css: {legacy_override}"
+        # Legitimate Light Mode select chevron SVG override remains intact
+        assert "html:not(.dark) .select-dark" in input_css
 
         required_primitives = (
             ".ui-num",
@@ -361,3 +370,60 @@ class TestDesignSystemTokensAndPrimitives:
         assert 'x-ref="drawerLogBox"' in drawer_block
         assert "border-l border-default bg-elevated shadow-elevated" in drawer_block
         assert "pb-safe-drawer" in drawer_block
+
+    def test_phase6_settings_modals_onboarding_and_native_light_mode(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+        constants_js = (ROOT_DIR / "app" / "static" / "js" / "constants.js").read_text(encoding="utf-8")
+
+        settings_start = html.index("<!-- SCREEN 5: FULL-SCREEN SETTINGS POPUP")
+        settings_end = html.index("<!-- Sticky Bottom Action Bar", settings_start)
+        settings_block = html[settings_start:settings_end]
+
+        modals_start = html.index("<!-- + Add Audio: Base Audio Selector")
+        modals_end = html.index("<!-- Slide-Over Live Jobs Drawer", modals_start)
+        modals_block = html[modals_start:modals_end]
+
+        tail_start = html.index("<!-- File Info / Full Media Metadata Modal")
+        tail_block = html[tail_start:]
+
+        phase6_html = settings_block + "\n" + modals_block + "\n" + tail_block
+
+        # Guardrail 5: Zero stray text-[10px]/text-[9px] across the ENTIRE index.html
+        assert "text-[10px]" not in html
+        assert "text-[9px]" not in html
+
+        # Guardrail 5: Zero hardcoded text-white on solid bg-accent across the ENTIRE index.html
+        for line in html.splitlines():
+            if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
+                assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"
+
+        # Guardrail 4: Zero legacy zinc / pastel overrides left anywhere in index.html or settings badges
+        for legacy_cls in (
+            "text-zinc-",
+            "bg-zinc-",
+            "border-zinc-",
+            "text-emerald-200",
+            "text-amber-200",
+            "text-red-200",
+            "text-sky-200",
+            "text-indigo-",
+        ):
+            assert legacy_cls not in html, f"Legacy Light-Mode-incompatible class found in index.html: {legacy_cls}"
+        assert "text-indigo-300" not in constants_js
+        assert "text-emerald-300" not in constants_js
+
+        # Guardrail 1: Settings Split View uses .ui-list-group sections & hairline diagnostics strip
+        assert settings_block.count('class="ui-list-group"') >= 8
+        assert "grid grid-cols-2 gap-px bg-[var(--color-border-subtle)] lg:grid-cols-4" in settings_block
+
+        # Guardrail 2: All feature & confirmation dialogs standardized onto .ui-sheet + pb-safe-modal
+        assert phase6_html.count("ui-sheet relative z-10") >= 12
+        assert phase6_html.count("pb-safe-modal") >= 12
+        assert "Fmt.videoCodecBadgeClass(" not in tail_block
+        assert "Fmt.dynamicRangeBadgeClass(" not in tail_block
+
+        # Guardrail 3: Onboarding Wizard preserves locked 3-zone geometry & animations with semantic surfaces
+        assert "onboarding-wizard-shell flex w-full max-w-lg flex-col overflow-hidden rounded-ui-lg border border-default bg-elevated shadow-elevated" in tail_block
+        assert "onboarding-header-row" in tail_block
+        assert 'x-ref="onboardingBody" class="onboarding-body' in tail_block
+        assert "onboarding-footer" in tail_block

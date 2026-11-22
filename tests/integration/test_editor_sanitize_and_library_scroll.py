@@ -254,8 +254,8 @@ class TestRemoveAllMetadataDefaultAndSanitizeAll:
         assert "[overflow-wrap:anywhere]" in html
         assert "Deleted after Save As succeeds" in html
         input_css = (_PROJECT_ROOT / "frontend/input.css").read_text(encoding="utf-8")
-        assert "html:not(.dark) .text-emerald-200" in input_css
-        assert "html:not(.dark) .text-amber-200" in input_css
+        assert "--color-status-ok:" in input_css
+        assert "--color-status-warn:" in input_css
 
         # Queued file lock banner & notification landmarks
         assert "Controls are locked. Remove this file from the job queue to modify." in html
