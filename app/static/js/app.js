@@ -34,6 +34,37 @@
     renderPieSvg: () => "",
     patchPieSvg: () => false,
   };
+  const TM = global.MKVForgeTestMedia || {
+    createTestMediaDraft: () => ({
+      outputMode: "video",
+      codec: "eac3",
+      layout: "5.1",
+      container: "mkv",
+      bitrate: "640k",
+      signalType: "tones",
+      destinationDir: "/",
+      filename: "MKVForge_Test_EAC3_5.1.mkv",
+      filenameEdited: false,
+      advancedOpen: false,
+    }),
+    applyTestMediaPreset: (d) => d,
+    buildDefaultTestFilename: () => "MKVForge_Test_EAC3_5.1.mkv",
+    getAllowedContainers: () => ["mkv"],
+    getBitrateConfig: () => ({ options: ["640k"], defaultBitrate: "640k" }),
+    resolveProfileRecommendedSpec: () => null,
+    detectMatchingPresetId: () => null,
+    evaluateTestMediaConfig: () => ({
+      valid: true,
+      blockReason: null,
+      warnings: [],
+      summary: "",
+      effectiveContainer: "mkv",
+      effectiveBitrate: "640k",
+      channels: 6,
+      estimatedDurationSec: 16.5,
+    }),
+    buildTestMediaPayload: (d) => d,
+  };
   const Theme = global.MKVForgeTheme || {
     normalizeThemeMode: (m) => m || "dark",
     normalizeAccentColor: (a) => a || "blue",
@@ -307,6 +338,7 @@
       Ed,
       FT,
       PP,
+      TM,
       Theme,
       I18n,
 
@@ -517,6 +549,13 @@
       // Mobile Pull-to-Refresh gesture state
       pullRefresh: PR.createPullRefreshState(),
 
+      // Phase 16: Speaker & Audio System Test Generator modal state
+      testMediaModalOpen: false,
+      testMediaDraft: null,
+      testMediaBusy: false,
+      testMediaError: null,
+      testMediaResult: null,
+
       // Scan SSE state
       scanTriggering: false,
       scanProgress: {
@@ -605,6 +644,8 @@
               this.newFolderModal = null;
             } else if (this.folderPickerOpen) {
               this.closeFolderPicker();
+            } else if (this.testMediaModalOpen) {
+              this.closeTestMediaModal();
             } else if (this.importTrackModal) {
               this.closeImportTrackModal();
             } else if (this.addAudioModalOpen) {
@@ -2657,6 +2698,7 @@
           noDolby: false,
           hasMetadata: false,
           audioType: "",
+          audioCodec: "",
           folder: normalized === C.FOLDER_TREE.ROOT_PATH ? "" : normalized,
           q: "",
           sort: this.sortField,
@@ -2826,6 +2868,7 @@
             this.jobsDrawerOpen ||
             this.settingsModalOpen ||
             this.factoryResetModalOpen ||
+            this.testMediaModalOpen ||
             this.logoutConfirmOpen ||
             this.upgradeAuthOpen ||
             this.disableAuthOpen ||
@@ -4292,6 +4335,206 @@
         this.folderPickerSubmitting = false;
       },
 
+      // Phase 16: Speaker & Audio System Test Generator modal lifecycle
+      get testMediaEval() {
+        return TM.evaluateTestMediaConfig(
+          this.testMediaDraft,
+          this.activePlaybackProfile
+        );
+      },
+
+      get testMediaAllowedContainers() {
+        if (!this.testMediaDraft) return [C.TEST_MEDIA.VIDEO_CONTAINER];
+        return TM.getAllowedContainers(
+          this.testMediaDraft.outputMode,
+          this.testMediaDraft.codec
+        );
+      },
+
+      get testMediaBitrateConfig() {
+        if (!this.testMediaDraft) return { options: [], defaultBitrate: null };
+        return TM.getBitrateConfig(
+          this.testMediaDraft.codec,
+          this.testMediaDraft.layout
+        );
+      },
+
+      get testMediaProfilePresetSpec() {
+        return TM.resolveProfileRecommendedSpec(this.activePlaybackProfile);
+      },
+
+      get testMediaActivePresetId() {
+        if (!this.testMediaDraft) return null;
+        return TM.detectMatchingPresetId(
+          this.testMediaDraft,
+          this.activePlaybackProfile,
+          this.testMediaDraft.activePresetId || null
+        );
+      },
+
+      openTestMediaModal({
+        destinationDir = null,
+        fromProfile = false,
+      } = {}) {
+        this.scanMenuOpen = false;
+        this.folderBarMenuOpen = false;
+        const resolvedDir =
+          destinationDir ||
+          (this.route === C.ROUTES.LIBRARY && this.isDirView
+            ? this.currentDir
+            : C.TEST_MEDIA.DEFAULT_DESTINATION_DIR);
+        this.testMediaDraft = TM.createTestMediaDraft({
+          playbackProfile: this.activePlaybackProfile,
+          destinationDir: resolvedDir,
+          fromProfile: Boolean(
+            fromProfile ||
+              (this.activePlaybackProfile &&
+                this.activePlaybackProfile.preset !== "neutral")
+          ),
+        });
+        this.testMediaBusy = false;
+        this.testMediaError = null;
+        this.testMediaResult = null;
+        this.testMediaModalOpen = true;
+      },
+
+      closeTestMediaModal() {
+        if (this.testMediaBusy) return;
+        this.testMediaModalOpen = false;
+        this.testMediaError = null;
+      },
+
+      async openTestMediaFolderPicker() {
+        if (!this.testMediaDraft) return;
+        await this._openFolderPickerWithConfig({
+          purpose: "test_media",
+          initialPath:
+            this.testMediaDraft.destinationDir ||
+            C.TEST_MEDIA.DEFAULT_DESTINATION_DIR,
+          title: "Choose Destination Folder",
+          confirmLabel: "Select Folder",
+        });
+      },
+
+      _syncTestMediaDraftDefaults() {
+        if (!this.testMediaDraft) return;
+        const allowed = TM.getAllowedContainers(
+          this.testMediaDraft.outputMode,
+          this.testMediaDraft.codec
+        );
+        if (!allowed.includes(this.testMediaDraft.container)) {
+          this.testMediaDraft.container = allowed[0];
+        }
+        const brCfg = TM.getBitrateConfig(
+          this.testMediaDraft.codec,
+          this.testMediaDraft.layout
+        );
+        if (
+          brCfg.defaultBitrate === null ||
+          !brCfg.options.includes(this.testMediaDraft.bitrate)
+        ) {
+          this.testMediaDraft.bitrate = brCfg.defaultBitrate;
+        }
+        if (!this.testMediaDraft.filenameEdited) {
+          this.testMediaDraft.filename = TM.buildDefaultTestFilename(
+            this.testMediaDraft
+          );
+        }
+        this.testMediaDraft.activePresetId = TM.detectMatchingPresetId(
+          this.testMediaDraft,
+          this.activePlaybackProfile,
+          null
+        );
+        this.testMediaError = null;
+      },
+
+      onTestMediaOutputModeChange(mode) {
+        if (!this.testMediaDraft) return;
+        this.testMediaDraft.outputMode = mode;
+        this._syncTestMediaDraftDefaults();
+      },
+
+      onTestMediaCodecChange(codec) {
+        if (!this.testMediaDraft) return;
+        this.testMediaDraft.codec = codec;
+        this._syncTestMediaDraftDefaults();
+      },
+
+      onTestMediaLayoutChange(layout) {
+        if (!this.testMediaDraft) return;
+        this.testMediaDraft.layout = layout;
+        this._syncTestMediaDraftDefaults();
+      },
+
+      onTestMediaSignalChange(signalType) {
+        if (!this.testMediaDraft) return;
+        this.testMediaDraft.signalType = signalType;
+        this._syncTestMediaDraftDefaults();
+      },
+
+      onTestMediaContainerChange(container) {
+        if (!this.testMediaDraft) return;
+        this.testMediaDraft.container = container;
+        if (!this.testMediaDraft.filenameEdited) {
+          this.testMediaDraft.filename = TM.buildDefaultTestFilename(
+            this.testMediaDraft
+          );
+        }
+        this.testMediaDraft.activePresetId = TM.detectMatchingPresetId(
+          this.testMediaDraft,
+          this.activePlaybackProfile,
+          null
+        );
+        this.testMediaError = null;
+      },
+
+      onTestMediaPresetClick(presetId) {
+        if (!this.testMediaDraft) return;
+        this.testMediaDraft = TM.applyTestMediaPreset(
+          this.testMediaDraft,
+          presetId,
+          this.activePlaybackProfile
+        );
+        this.testMediaError = null;
+      },
+
+      async submitTestMediaGenerate() {
+        if (!this.testMediaDraft || this.testMediaBusy) return;
+        const evalRes = this.testMediaEval;
+        if (!evalRes.valid) {
+          this.testMediaError = evalRes.blockReason || "Invalid configuration.";
+          return;
+        }
+        this.testMediaBusy = true;
+        this.testMediaError = null;
+        try {
+          const payload = TM.buildTestMediaPayload(this.testMediaDraft);
+          const result = await Api.generateTestMedia(payload);
+          this.testMediaResult = result;
+          this.showToast(`Generated ${result.filename}`, "success");
+          this.loadDashboard();
+          if (this.route === C.ROUTES.LIBRARY) {
+            this.loadLibrary({ preserveSelection: true, silent: true });
+          }
+        } catch (err) {
+          this.testMediaError =
+            err.message || "Failed to generate speaker test file.";
+        } finally {
+          this.testMediaBusy = false;
+        }
+      },
+
+      viewGeneratedTestInLibrary() {
+        const res = this.testMediaResult;
+        const targetFolder =
+          (res && res.folder) ||
+          (this.testMediaDraft && this.testMediaDraft.destinationDir) ||
+          C.FOLDER_TREE.ROOT_PATH;
+        this.testMediaModalOpen = false;
+        this.settingsModalOpen = false;
+        this.openFolderInLibrary(targetFolder);
+      },
+
       async _loadFolderChildren(folderPath) {
         if (!this.folderTree) return;
         const normalized = FT.normalizeFolderPath(folderPath);
@@ -4343,6 +4586,15 @@
         if (this.folderPickerPurpose === "save_as") {
           if (this.editor && this.editor.saveAs) {
             this.editor.saveAs.folder = chosenPath;
+          }
+          this.closeFolderPicker();
+          return;
+        }
+
+        if (this.folderPickerPurpose === "test_media") {
+          if (this.testMediaDraft) {
+            this.testMediaDraft.destinationDir = chosenPath;
+            this.testMediaError = null;
           }
           this.closeFolderPicker();
           return;

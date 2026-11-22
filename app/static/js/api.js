@@ -459,5 +459,12 @@
       requestJson(`${API.UPLOADS}/${encodeURIComponent(uploadId)}`, {
         method: "DELETE",
       }),
+    generateTestMedia: (payload) =>
+      requestJson(API.TOOLS_GENERATE_TEST_MEDIA, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+        timeoutMs: TIMINGS_MS.TEST_MEDIA_REQUEST_TIMEOUT,
+      }),
   });
 })(window);

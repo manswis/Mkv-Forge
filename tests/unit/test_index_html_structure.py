@@ -172,8 +172,29 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p15.2" in html
-        assert "/static/js/app.js?v=0.1.0-p15.3" in html
+        assert "/static/js/app.js?v=0.1.0-p16.3" in html
         assert "/static/js/charts.js?v=0.1.0-p15.3" in html
+        assert html.index("/static/js/test_media.js") < html.index("/static/js/app.js")
+        assert "testMediaActivePresetId === preset.id" in html
+
+        # Phase 16 Speaker & Audio System Test Generator entrypoints & exact ordering
+        # Desktop sidebar: Library -> Audio Test -> Jobs
+        lib_nav_idx = html.index("<span>Library</span>")
+        audio_test_nav_idx = html.index("<span>Audio Test</span>")
+        jobs_nav_idx = html.index("<span>Jobs</span>")
+        assert lib_nav_idx < audio_test_nav_idx < jobs_nav_idx
+
+        # Mobile 3-dot menu: Full Re-scan -> Audio Test Generator -> Select
+        full_rescan_idx = html.index("<span>Full Re-scan</span>")
+        mobile_audio_test_idx = html.index("<span>Audio Test Generator</span>")
+        mobile_select_idx = html.index("toggleMobileSelectFromMenu()")
+        assert full_rescan_idx < mobile_audio_test_idx < mobile_select_idx
+
+        # Contextual Settings & Library entrypoints + Modal landmark
+        assert "Generate Speaker Test File…" in html
+        assert 'aria-label="Speaker &amp; Audio System Test Generator"' in html
+        assert "submitTestMediaGenerate()" in html
+        assert "submitTestMediaGenerate()" in app_js
         assert "onboarding-wizard-shell" in html
         for selector in (
             ".onboarding-wizard-shell",

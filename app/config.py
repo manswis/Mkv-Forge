@@ -515,7 +515,122 @@ class AppConstants:
     HTTP_BAD_GATEWAY: int = 502
     HTTP_PAYLOAD_TOO_LARGE: int = 413
     HTTP_SERVICE_UNAVAILABLE: int = 503
+    HTTP_GATEWAY_TIMEOUT: int = 504
+    HTTP_INSUFFICIENT_STORAGE: int = 507
     EXIT_CODE_SUCCESS: int = 0
+
+    # Phase 16: Speaker & Audio System Test Generator constants (zero magic numbers)
+    TEST_MEDIA_OUTPUT_VIDEO: str = "video"
+    TEST_MEDIA_OUTPUT_AUDIO: str = "audio"
+    TEST_MEDIA_OUTPUT_MODES: frozenset[str] = frozenset({"video", "audio"})
+    TEST_MEDIA_DEFAULT_INCLUDE_SUBTITLES: bool = True
+    TEST_MEDIA_SIGNAL_TONES: str = "tones"
+    TEST_MEDIA_SIGNAL_PINK: str = "pink_noise"
+    TEST_MEDIA_SIGNAL_TYPES: frozenset[str] = frozenset({"tones", "pink_noise"})
+    TEST_MEDIA_CODEC_PCM: str = "pcm"
+    TEST_MEDIA_ALLOWED_CODECS: frozenset[str] = frozenset(
+        {"eac3", "ac3", "aac", "opus", "flac", "pcm"}
+    )
+    TEST_MEDIA_LOSSLESS_CODECS: frozenset[str] = frozenset({"flac", "pcm"})
+    TEST_MEDIA_ENCODER_MAP: Mapping[str, str] = {
+        "eac3": "eac3",
+        "ac3": "ac3",
+        "aac": "aac",
+        "opus": "libopus",
+        "flac": "flac",
+        "pcm": "pcm_s16le",
+    }
+    # Fixed per-encoder audio frame sizes for asetnsamples (prevents FFmpeg 5.x non-last-frame errors)
+    TEST_MEDIA_ENCODER_FRAME_SIZE_MAP: Mapping[str, int] = {
+        "eac3": 1536,
+        "ac3": 1536,
+        "aac": 1024,
+        "opus": 960,
+        "flac": 4096,
+        "pcm": 1024,
+    }
+    TEST_MEDIA_CODEC_LABELS: Mapping[str, str] = {
+        "eac3": "E-AC-3",
+        "ac3": "AC-3",
+        "aac": "AAC",
+        "opus": "Opus",
+        "flac": "FLAC",
+        "pcm": "PCM (LPCM 16-bit)",
+    }
+    TEST_MEDIA_CODEC_MAX_CHANNELS: Mapping[str, int] = {
+        "eac3": 6,
+        "ac3": 6,
+        "aac": 8,
+        "opus": 8,
+        "flac": 8,
+        "pcm": 8,
+    }
+    TEST_MEDIA_LAYOUT_CHANNELS: Mapping[str, int] = {
+        "1.0": 1,
+        "2.0": 2,
+        "2.1": 3,
+        "5.1": 6,
+        "7.1": 8,
+    }
+    TEST_MEDIA_ALLOWED_LAYOUTS: frozenset[str] = frozenset(
+        {"1.0", "2.0", "2.1", "5.1", "7.1"}
+    )
+    TEST_MEDIA_FFMPEG_LAYOUT_MAP: Mapping[str, str] = {
+        "1.0": "mono",
+        "2.0": "stereo",
+        "2.1": "2.1",
+        "5.1": "5.1",
+        "7.1": "7.1",
+    }
+    # Encoders that prefer canonical "5.1" vs "5.1(side)" explicitly documented here
+    TEST_MEDIA_51_ENCODER_LAYOUT_MAP: Mapping[str, str] = {
+        "eac3": "5.1",
+        "ac3": "5.1",
+        "aac": "5.1",
+        "opus": "5.1",
+        "flac": "5.1",
+        "pcm": "5.1",
+    }
+    TEST_MEDIA_AUDIO_CONTAINERS_BY_CODEC: Mapping[str, tuple[str, ...]] = {
+        "eac3": ("mka", "eac3"),
+        "ac3": ("mka", "ac3"),
+        "aac": ("mka", "m4a"),
+        "opus": ("mka",),
+        "flac": ("mka", "flac"),
+        "pcm": ("mka", "wav"),
+    }
+    TEST_MEDIA_VIDEO_CONTAINER: str = "mkv"
+    TEST_MEDIA_DEFAULT_DESTINATION_DIR: str = "/"
+    TEST_MEDIA_TIMEOUT_SEC: float = 30.0
+    TEST_MEDIA_SAMPLE_RATE: int = 48_000
+    TEST_MEDIA_SLOT_DURATION_SEC: float = 2.0
+    TEST_MEDIA_MIN_SLOT_DURATION_SEC: float = 0.5
+    TEST_MEDIA_MAX_SLOT_DURATION_SEC: float = 10.0
+    TEST_MEDIA_GAP_DURATION_SEC: float = 0.35
+    TEST_MEDIA_MIN_GAP_DURATION_SEC: float = 0.0
+    TEST_MEDIA_MAX_GAP_DURATION_SEC: float = 3.0
+    TEST_MEDIA_ALL_CHANNEL_DURATION_SEC: float = 2.0
+    TEST_MEDIA_FADE_DURATION_SEC: float = 0.025
+    TEST_MEDIA_TONE_VOLUME_DB: int = -14
+    TEST_MEDIA_LFE_VOLUME_DB: int = -18
+    TEST_MEDIA_PINK_VOLUME_DB: int = -20
+    TEST_MEDIA_ALL_CHANNEL_VOLUME_DB: int = -18
+    TEST_MEDIA_LFE_FREQ_HZ: int = 60
+    TEST_MEDIA_LFE_LOWPASS_HZ: int = 120
+    TEST_MEDIA_ALL_CHANNEL_FREQ_HZ: int = 440
+    TEST_MEDIA_VIDEO_WIDTH: int = 1280
+    TEST_MEDIA_VIDEO_HEIGHT: int = 720
+    TEST_MEDIA_VIDEO_FPS: int = 24
+    TEST_MEDIA_VIDEO_CRF: str = "28"
+    TEST_MEDIA_VIDEO_PRESET: str = "ultrafast"
+    TEST_MEDIA_VIDEO_BG_COLOR: str = "0x09090b"
+    TEST_MEDIA_BOX_W: int = 180
+    TEST_MEDIA_BOX_H: int = 96
+    TEST_MEDIA_BOX_DIM_COLOR: str = "0x27272a"
+    TEST_MEDIA_BOX_ACTIVE_COLOR: str = "0x3b82f6"
+    TEST_MEDIA_BOX_LFE_ACTIVE_COLOR: str = "0x10b981"
+    TEST_MEDIA_MIN_FREE_BYTES: int = 50 * 1024 * 1024  # 50 MiB safety floor
+    TEST_MEDIA_MAX_FILENAME_LEN: int = 120
 
     STATIC_ROUTE_PREFIX: str = "/static"
     STATIC_REVALIDATE_PREFIXES: tuple[str, ...] = ("/static/js/", "/static/css/")

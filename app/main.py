@@ -24,6 +24,7 @@ from app.api.jobs import router as jobs_router
 from app.api.maintenance import router as maintenance_router
 from app.api.scan import router as scan_router
 from app.api.settings import router as settings_router
+from app.api.tools import router as tools_router
 from app.api.uploads import router as uploads_router
 from app.config import AppConstants, Settings, load_settings
 from app.db.connection import DatabaseManager
@@ -191,6 +192,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(folders_router)
     application.include_router(scan_router)
     application.include_router(jobs_router)
+    application.include_router(tools_router)
 
     @application.middleware("http")
     async def local_auth_middleware(request: Request, call_next) -> Response:

@@ -496,6 +496,22 @@ Goal: Eliminate hardcoded AAC/Dolby assumptions across the Dashboard and Library
   - [x] Unit tests (`tests/unit/test_playback_profile.py`) covering all 7 presets, `aac_20` vs `aac_51` splitting, anti-stereo-commentary multichannel false-negative protection, `2.0 / 5.1 / 7.1` channel ceilings, `neutral` mode, malformed/null inputs, and Node VM tests for `playback_profile.js` + `app.js` 3-step wizard transitions.
   - [x] Integration tests (`tests/integration/test_phase15_onboarding_and_profile.py`) covering global household profile persistence across 2 local users, Dashboard `needs_conversion` counts, `GET /api/files?needs_conversion=1` filtering with stereo-commentary edge cases, Step 1–3 onboarding flow on fresh install vs zero interruption on existing configured installs, and HTML tag balance + landmarks.
 
+---
+
+## Phase 16: Speaker & Audio System Test Generator
+
+Goal: Provide a synchronous, zero-font, zero-external-asset **Speaker & Audio System Test Generator** supporting `Video + Audio (.mkv)` (with `drawbox` visual speaker room diagram + synced forced `.srt` labels) and `Audio Only` across `E-AC-3`, `AC-3`, `AAC`, `Opus`, `FLAC`, and uncompressed `PCM (LPCM 16-bit)`, with anti-pop `afade` envelopes, smart hard-block/soft-warning validation, and natural entrypoints on Desktop, Mobile, Settings, and Library.
+
+- [x] **16.1 Pure Test Media Generator Service & API (`app/config.py`, `app/models/schemas.py`, `app/services/test_media_generator.py`, `app/api/tools.py`, `app/main.py`)**
+  - [x] Centralize all codecs (`eac3`, `ac3`, `aac`, `opus`, `flac`, `pcm`), speaker layouts (`1.0`, `2.0`, `2.1`, `5.1`, `7.1`), `25 ms` `afade` pop-prevention envelopes, conservative `-14/-18/-20 dBFS` levels, `30s` subprocess timeout, and default `/` folder in `AppConstants`.
+  - [x] Implement `validate_test_media_spec()`, `build_speaker_timeline()`, `build_audio_filter_complex()`, `build_video_filter_graph()`, `build_test_srt_content()`, and `generate_test_media()` with atomic non-overwrite move, disk-space pre-flight, `scanner.probe_single_file()`, and `library_broker` broadcast.
+  - [x] Expose `POST /api/tools/generate-test-media` via `app/api/tools.py`.
+- [x] **16.2 Progressive-Disclosure Frontend Module & Modal (`app/static/js/test_media.js`, `app/static/js/constants.js`, `app/static/js/api.js`, `app/static/js/app.js`, `app/static/index.html`)**
+  - [x] Create pure `test_media.js` with quick presets, Playback Profile pre-fill, hard-block/soft-warning evaluator, and payload serializer.
+  - [x] Wire Desktop Sidebar (`Library` → `Audio Test` → `Jobs`), Mobile 3-Dot Menu (`Full Re-scan` → separate `Audio Test Generator` section → `Select`), Settings → Sound System (`Generate Speaker Test File…`), Library Folder Menu (`Generate Test File`), and Folder Picker reuse.
+- [x] **16.3 Exhaustive Unit & Real FFmpeg/`mkvmerge` Integration Tests (`tests/unit/test_test_media_generator.py`, `tests/integration/test_phase16_test_media.py`)**
+  - [x] Verify all hard blocks, soft warnings, `afade` pop-prevention envelopes, subprocess timeout cleanup, `test_media.js` Node VM logic, and real `ffmpeg` + `mkvmerge -J` channel counts/forced subtitles across `eac3`, `ac3`, `aac`, `opus`, `flac`, and `pcm`.
+
 
 
 

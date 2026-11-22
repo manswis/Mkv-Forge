@@ -181,6 +181,23 @@ Triggered **only** on fresh installs (`auth_mode === "unconfigured"`). Existing 
 
 ---
 
+### Screen 3.5: Speaker & Audio System Test Generator Modal (Phase 16)
+
+Accessible via four contextual entrypoints opening the same progressive-disclosure modal:
+* **Desktop Sidebar:** **`Audio Test`** positioned directly below **Library** and above **Jobs**.
+* **Mobile Top 3-Dot Menu:** **`Audio Test Generator`** positioned in its own hairline-separated section below **Full Re-scan** and above **Select**.
+* **Settings → Sound System:** **`Generate Speaker Test File…`** button pre-filled from the household's active Playback Profile.
+* **Library Folder Bar Menu (`⋮`):** **`Generate Test File`** pre-filled with the currently browsed folder (`currentDir`).
+
+* **Progressive-Disclosure Layout:**
+  * **Output Mode Toggle:** `Video + Audio (.mkv)` *(default — zero-font `drawbox` speaker room diagram + synced forced `.srt` speaker labels)* vs. `Audio Only`.
+  * **1-Tap Quick Presets:** `Your System` *(when Playback Profile configured)*, `Dolby 5.1 (ARC)`, `Optical 5.1`, `Lossless 7.1 (eARC)`, `Uncompressed 5.1 (PCM)`, `Stereo 2.0`.
+  * **Core Controls:** Audio Format (`E-AC-3`, `AC-3`, `AAC`, `Opus`, `FLAC`, `PCM`), Speaker Configuration (`1.0`, `2.0`, `2.1`, `5.1`, `7.1`), Destination Directory picker (reusing existing Folder Tree Picker, defaulting to `/`), and editable auto-named Filename.
+  * **Collapsed `▸ Advanced options`:** Test Signal (`Speaker ID Tones` vs. `Pink Noise (-20 dBFS)`), Tone Length (`1s` · `2s` default · `3s` · `5s`), Gap Between Speakers (`0s` · `0.35s` default · `0.5s` · `1s`), Bitrate pills (hidden for lossless `FLAC`/`PCM`), and Audio-Only Container pills.
+  * **Smart Validation & Feedback:** Hard blocks show a red alert and disable `Generate` (`E-AC-3`/`AC-3` + `7.1`, `Opus` + `2.1`, invalid container/filename); soft warnings show amber/sky notices while keeping `Generate` enabled. Synchronous execution (~1–3s) shows an inline spinner and keeps the modal open with a **`Test File Ready`** card + **`View in Library`** CTA so multiple test files can be generated back-to-back.
+
+---
+
 ### Screen 4: Live Progress & Jobs Drawer
 
 Opens automatically when you tap **Process File** (or when you tap the Global Progress Pill).

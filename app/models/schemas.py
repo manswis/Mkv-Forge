@@ -1147,3 +1147,53 @@ class ApiKeysListResponse(BaseModel):
 
     api_keys: list[ApiKeySummary] = Field(default_factory=list)
 
+
+class TestMediaGenerateRequest(BaseModel):
+    """Request payload for POST /api/tools/generate-test-media."""
+
+    __test__ = False
+    model_config = ConfigDict(frozen=True)
+
+    output_mode: Literal["video", "audio"] = AppConstants.TEST_MEDIA_OUTPUT_VIDEO
+    codec: Literal["eac3", "ac3", "aac", "opus", "flac", "pcm"] = (
+        AppConstants.TARGET_CODEC_EAC3
+    )
+    layout: Literal["1.0", "2.0", "2.1", "5.1", "7.1"] = "5.1"
+    container: str | None = None
+    bitrate: str | None = None
+    signal_type: Literal["tones", "pink_noise"] = AppConstants.TEST_MEDIA_SIGNAL_TONES
+    tone_duration_sec: float = Field(
+        default=AppConstants.TEST_MEDIA_SLOT_DURATION_SEC,
+        ge=AppConstants.TEST_MEDIA_MIN_SLOT_DURATION_SEC,
+        le=AppConstants.TEST_MEDIA_MAX_SLOT_DURATION_SEC,
+    )
+    gap_duration_sec: float = Field(
+        default=AppConstants.TEST_MEDIA_GAP_DURATION_SEC,
+        ge=AppConstants.TEST_MEDIA_MIN_GAP_DURATION_SEC,
+        le=AppConstants.TEST_MEDIA_MAX_GAP_DURATION_SEC,
+    )
+    include_subtitles: bool = AppConstants.TEST_MEDIA_DEFAULT_INCLUDE_SUBTITLES
+    destination_dir: str = AppConstants.TEST_MEDIA_DEFAULT_DESTINATION_DIR
+    filename: str | None = None
+
+
+class TestMediaGenerateResponse(BaseModel):
+    """Response payload returned after generating a speaker test file."""
+
+    __test__ = False
+    model_config = ConfigDict(frozen=True)
+
+    filepath: str
+    filename: str
+    folder: str
+    size_bytes: int
+    duration_sec: float
+    codec: str
+    layout: str
+    channels: int
+    output_mode: str
+    container: str
+    file_id: int | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+

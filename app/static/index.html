@@ -43,11 +43,11 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p15.2" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p15.3"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/api.js?v=0.1.0-p15.1"></script>
+  <script defer src="/static/js/api.js?v=0.1.0-p16.0"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p15.1"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
@@ -55,7 +55,8 @@
   <script defer src="/static/js/charts.js?v=0.1.0-p15.3"></script>
   <script defer src="/static/js/library_return.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/playback_profile.js?v=0.1.0-p15.1"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p15.3"></script>
+  <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 <body class="min-h-dvh bg-canvas text-zinc-100 font-sans antialiased selection:bg-accent/30 selection:text-zinc-100">
@@ -106,6 +107,22 @@
             class="rounded-full bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-zinc-400"
             x-text="dashboard.stats.total_files"
           ></span>
+        </button>
+
+        <button
+          type="button"
+          @click="openTestMediaModal()"
+          class="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition"
+          :class="testMediaModalOpen ? 'bg-accent/15 text-indigo-300 border border-accent/25' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100 border border-transparent'"
+        >
+          <span class="flex items-center gap-3">
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+            </svg>
+            <span>Audio Test</span>
+          </span>
         </button>
 
         <button
@@ -426,6 +443,22 @@
                 <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"></path>
               </svg>
               <span>Full Re-scan</span>
+            </button>
+
+            <div class="my-1 border-t border-hairline"></div>
+
+            <button
+              type="button"
+              role="menuitem"
+              @click="openTestMediaModal()"
+              class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <svg class="h-4 w-4 shrink-0 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+              <span>Audio Test Generator</span>
             </button>
 
             <div class="my-1 border-t border-hairline"></div>
@@ -1442,6 +1475,18 @@
                       <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"></path>
                     </svg>
                     <span>New Folder</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    @click="openTestMediaModal({ destinationDir: currentDir })"
+                    class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+                  >
+                    <svg class="h-4 w-4 shrink-0 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <span>Generate Test File</span>
                   </button>
                 </div>
               </div>
@@ -4683,6 +4728,21 @@
                             </div>
                           </div>
                         </div>
+
+                        <!-- Contextual Action: Generate Speaker Test File -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-hairline bg-canvas/50 px-4 py-3">
+                          <div class="min-w-0">
+                            <p class="text-xs font-semibold text-zinc-100">Verify Your Sound System</p>
+                            <p class="mt-0.5 text-[11px] text-zinc-400">Generate a short speaker-sweep MKV or audio file matching your hardware setup.</p>
+                          </div>
+                          <button
+                            type="button"
+                            @click="openTestMediaModal({ fromProfile: true })"
+                            class="min-h-[36px] shrink-0 rounded-lg border border-accent/40 bg-accent/15 px-3 py-1.5 text-xs font-medium text-indigo-200 transition hover:bg-accent/25"
+                          >
+                            Generate Speaker Test File…
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -5985,6 +6045,378 @@
               class="min-h-[40px] rounded-lg bg-accent px-5 py-2 text-xs font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
               x-text="importTrackModal.isEditing ? 'Save Track' : 'Add Imported Track'"
             ></button>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- Phase 16: Speaker & Audio System Test Generator Modal               -->
+    <!-- Placed before Folder Picker so Folder Picker stacks cleanly above   -->
+    <!-- =================================================================== -->
+    <div
+      x-cloak
+      x-show="testMediaModalOpen && testMediaDraft"
+      class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Speaker &amp; Audio System Test Generator"
+    >
+      <div
+        x-show="testMediaModalOpen"
+        x-transition.opacity
+        @click="closeTestMediaModal()"
+        class="fixed inset-0 bg-black/75 backdrop-blur-sm"
+      ></div>
+
+      <template x-if="testMediaDraft">
+        <div
+          x-show="testMediaModalOpen"
+          x-transition
+          class="relative z-10 flex w-full max-w-lg max-h-[88dvh] flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-hairline bg-surface shadow-2xl"
+        >
+          <!-- Modal Header -->
+          <div class="flex shrink-0 items-start justify-between gap-3 border-b border-hairline px-5 py-4 sm:px-6">
+            <div class="min-w-0">
+              <h2 class="text-base font-semibold text-zinc-100">Speaker &amp; Audio Test Generator</h2>
+              <p class="mt-0.5 text-xs text-zinc-400">Create a clean speaker-by-speaker test clip to verify your AVR, soundbar, or DAC.</p>
+            </div>
+            <button
+              type="button"
+              @click="closeTestMediaModal()"
+              :disabled="testMediaBusy"
+              aria-label="Close test generator"
+              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hairline bg-canvas text-zinc-400 transition hover:text-zinc-100 disabled:opacity-40"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Scrollable Modal Body -->
+          <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 space-y-4">
+            <!-- Output Mode Segmented Control -->
+            <div>
+              <label class="block text-xs font-medium text-zinc-400">Output Mode</label>
+              <div class="mt-1.5 grid grid-cols-2 gap-1.5 rounded-xl border border-hairline bg-canvas p-1">
+                <button
+                  type="button"
+                  @click="onTestMediaOutputModeChange(C.TEST_MEDIA.OUTPUT_VIDEO)"
+                  class="min-h-[38px] rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                  :class="testMediaDraft.outputMode === C.TEST_MEDIA.OUTPUT_VIDEO ? 'bg-accent text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-100'"
+                >
+                  Video + Audio (.mkv)
+                </button>
+                <button
+                  type="button"
+                  @click="onTestMediaOutputModeChange(C.TEST_MEDIA.OUTPUT_AUDIO)"
+                  class="min-h-[38px] rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                  :class="testMediaDraft.outputMode === C.TEST_MEDIA.OUTPUT_AUDIO ? 'bg-accent text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-100'"
+                >
+                  Audio Only
+                </button>
+              </div>
+              <p class="mt-1 text-[11px] text-zinc-500" x-text="testMediaDraft.outputMode === C.TEST_MEDIA.OUTPUT_VIDEO ? 'Includes dark room speaker diagram + synced forced subtitles showing each active speaker.' : 'Generates a compact audio-only file without a video stream.'"></p>
+            </div>
+
+            <!-- 1-Tap Quick Presets -->
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs font-medium text-zinc-400">Quick Presets</p>
+                <span x-show="!testMediaProfilePresetSpec" class="text-[10px] text-zinc-500">Sound System not set — pick any preset</span>
+              </div>
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                <button
+                  x-show="testMediaProfilePresetSpec"
+                  type="button"
+                  @click="onTestMediaPresetClick('your_system')"
+                  class="min-h-[34px] rounded-lg border px-2.5 py-1 text-[11px] font-medium transition focus:outline-none focus:ring-1 focus:ring-accent"
+                  :class="testMediaActivePresetId === 'your_system' ? 'border-accent bg-accent/15 text-indigo-200' : 'border-hairline bg-canvas/60 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'"
+                >
+                  Your System
+                </button>
+                <template x-for="preset in C.TEST_MEDIA.PRESETS" :key="`tm-pre-${preset.id}`">
+                  <button
+                    type="button"
+                    @click="onTestMediaPresetClick(preset.id)"
+                    class="min-h-[34px] rounded-lg border px-2.5 py-1 text-[11px] font-medium transition focus:outline-none focus:ring-1 focus:ring-accent"
+                    :class="testMediaActivePresetId === preset.id ? 'border-accent bg-accent/15 text-indigo-200' : 'border-hairline bg-canvas/60 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'"
+                    x-text="preset.label"
+                  ></button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Audio Format (Codec) -->
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-xs font-medium text-zinc-400">Audio Format</label>
+                <span class="font-mono text-[11px] text-zinc-500" x-text="TM.getCodecMeta(testMediaDraft.codec).shortDesc"></span>
+              </div>
+              <div class="mt-1.5 grid grid-cols-3 gap-1.5">
+                <template x-for="codec in C.TEST_MEDIA.CODECS" :key="`tm-codec-${codec.id}`">
+                  <button
+                    type="button"
+                    @click="onTestMediaCodecChange(codec.id)"
+                    class="min-h-[38px] rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition"
+                    :class="testMediaDraft.codec === codec.id ? 'border-accent bg-accent/15 text-indigo-200' : 'border-hairline bg-canvas/50 text-zinc-300 hover:border-zinc-600'"
+                    x-text="codec.label"
+                  ></button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Speaker Configuration (Channels) -->
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-xs font-medium text-zinc-400">Speaker Configuration</label>
+                <span class="font-mono text-[11px] text-zinc-500" x-text="`~${testMediaEval.estimatedDurationSec}s clip`"></span>
+              </div>
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                <template x-for="lay in C.TEST_MEDIA.LAYOUTS" :key="`tm-lay-${lay.id}`">
+                  <button
+                    type="button"
+                    @click="onTestMediaLayoutChange(lay.id)"
+                    class="min-h-[42px] flex-1 min-w-0 rounded-lg border px-2 py-1.5 text-center transition"
+                    :class="testMediaDraft.layout === lay.id ? 'border-accent bg-accent/15 text-indigo-200' : 'border-hairline bg-canvas/50 text-zinc-300 hover:border-zinc-600'"
+                  >
+                    <p class="font-mono text-xs font-semibold" x-text="lay.label"></p>
+                    <p class="truncate text-[10px] text-zinc-500" x-text="lay.name"></p>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Destination Folder & Filename -->
+            <div class="space-y-2.5 rounded-xl border border-hairline bg-canvas/40 p-3.5">
+              <div>
+                <label class="block text-xs font-medium text-zinc-400">Destination Directory</label>
+                <div class="mt-1.5 flex items-center gap-2">
+                  <div
+                    class="flex h-10 min-w-0 flex-1 items-center rounded-lg border border-hairline bg-surface px-3 font-mono text-xs text-zinc-200"
+                    :title="testMediaDraft.destinationDir"
+                  >
+                    <span class="truncate" x-text="testMediaDraft.destinationDir || '/'"></span>
+                  </div>
+                  <button
+                    type="button"
+                    @click="openTestMediaFolderPicker()"
+                    class="h-10 shrink-0 rounded-lg border border-hairline bg-surface px-3 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  >
+                    Browse…
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label for="test-media-filename" class="block text-xs font-medium text-zinc-400">Filename</label>
+                <input
+                  id="test-media-filename"
+                  type="text"
+                  x-model="testMediaDraft.filename"
+                  @input="testMediaDraft.filenameEdited = true; testMediaError = null"
+                  placeholder="MKVForge_Test_EAC3_5.1.mkv"
+                  class="mt-1.5 h-10 w-full rounded-lg border border-hairline bg-surface px-3 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+            </div>
+
+            <!-- Collapsible Advanced Options (Signal, Bitrate, Container) -->
+            <div class="overflow-hidden rounded-xl border border-hairline bg-canvas/40">
+              <button
+                type="button"
+                @click="testMediaDraft.advancedOpen = !testMediaDraft.advancedOpen"
+                :aria-expanded="testMediaDraft.advancedOpen ? 'true' : 'false'"
+                class="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition hover:bg-zinc-800/40"
+              >
+                <span class="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-zinc-200">
+                  <svg
+                    class="h-3.5 w-3.5 text-zinc-400 transition-transform duration-150"
+                    :class="testMediaDraft.advancedOpen ? 'onboarding-chevron-open text-indigo-300' : ''"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"></path>
+                  </svg>
+                  <span>Advanced options</span>
+                </span>
+                <span class="min-w-0 truncate text-right font-mono text-[11px] text-zinc-400" x-text="testMediaEval.summary"></span>
+              </button>
+
+              <div x-show="testMediaDraft.advancedOpen" class="border-t border-hairline p-3.5 space-y-3">
+                <!-- Test Signal Type -->
+                <div>
+                  <label class="block text-[11px] font-medium text-zinc-400">Test Signal</label>
+                  <div class="mt-1.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    <template x-for="sig in C.TEST_MEDIA.SIGNALS" :key="`tm-sig-${sig.id}`">
+                      <button
+                        type="button"
+                        @click="onTestMediaSignalChange(sig.id)"
+                        class="rounded-lg border px-3 py-2 text-left transition"
+                        :class="testMediaDraft.signalType === sig.id ? 'border-accent bg-accent/15 text-indigo-200' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-600'"
+                      >
+                        <p class="text-xs font-semibold" x-text="sig.label"></p>
+                        <p class="mt-0.5 text-[10px] text-zinc-400" x-text="sig.hint"></p>
+                      </button>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Tone Length & Gap Length -->
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label class="block text-[11px] font-medium text-zinc-400">Tone Length (per speaker)</label>
+                    <div class="mt-1.5 flex gap-1 rounded-lg border border-hairline bg-surface p-1">
+                      <template x-for="opt in C.TEST_MEDIA.TONE_DURATION_OPTIONS" :key="`tm-td-${opt.value}`">
+                        <button
+                          type="button"
+                          @click="testMediaDraft.toneDurationSec = opt.value; testMediaError = null"
+                          class="flex-1 min-h-[34px] rounded-md px-2 font-mono text-xs font-medium transition"
+                          :class="Number(testMediaDraft.toneDurationSec) === opt.value ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                          x-text="opt.label"
+                        ></button>
+                      </template>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-medium text-zinc-400">Gap Between Speakers</label>
+                    <div class="mt-1.5 flex gap-1 rounded-lg border border-hairline bg-surface p-1">
+                      <template x-for="opt in C.TEST_MEDIA.GAP_DURATION_OPTIONS" :key="`tm-gd-${opt.value}`">
+                        <button
+                          type="button"
+                          @click="testMediaDraft.gapDurationSec = opt.value; testMediaError = null"
+                          class="flex-1 min-h-[34px] rounded-md px-2 font-mono text-xs font-medium transition"
+                          :class="Number(testMediaDraft.gapDurationSec) === opt.value ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                          x-text="opt.label"
+                        ></button>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Speaker Label Subtitles Toggle (Video + Audio MKV only, default enabled) -->
+                <div
+                  x-show="testMediaDraft.outputMode === C.TEST_MEDIA.OUTPUT_VIDEO"
+                  class="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-surface px-3.5 py-2.5"
+                >
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-zinc-200">Speaker Label Subtitles</p>
+                    <p class="mt-0.5 text-[11px] text-zinc-500">Embed forced .srt subtitles naming each active speaker on screen.</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label="Include speaker label subtitles"
+                    :aria-checked="testMediaDraft.includeSubtitles ? 'true' : 'false'"
+                    @click="testMediaDraft.includeSubtitles = !testMediaDraft.includeSubtitles; testMediaError = null"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-accent/50"
+                    :class="testMediaDraft.includeSubtitles ? 'bg-accent' : 'bg-zinc-700'"
+                  >
+                    <span
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition"
+                      :class="testMediaDraft.includeSubtitles ? 'translate-x-6' : 'translate-x-1'"
+                    ></span>
+                  </button>
+                </div>
+
+                <!-- Bitrate (lossy codecs only) -->
+                <div x-show="testMediaBitrateConfig.options.length > 0">
+                  <label class="block text-[11px] font-medium text-zinc-400">Bitrate</label>
+                  <div class="mt-1.5 flex flex-wrap gap-1.5">
+                    <template x-for="rate in testMediaBitrateConfig.options" :key="`tm-br-${rate}`">
+                      <button
+                        type="button"
+                        @click="testMediaDraft.bitrate = rate"
+                        class="min-h-[34px] rounded-lg border px-2.5 py-1 font-mono text-xs font-medium transition"
+                        :class="testMediaDraft.bitrate === rate ? 'border-accent bg-accent text-white' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-600'"
+                        x-text="rate"
+                      ></button>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Audio-only Container Selector -->
+                <div x-show="testMediaDraft.outputMode === C.TEST_MEDIA.OUTPUT_AUDIO">
+                  <label class="block text-[11px] font-medium text-zinc-400">Audio Container</label>
+                  <div class="mt-1.5 flex flex-wrap gap-1.5">
+                    <template x-for="ext in testMediaAllowedContainers" :key="`tm-ext-${ext}`">
+                      <button
+                        type="button"
+                        @click="onTestMediaContainerChange(ext)"
+                        class="min-h-[34px] rounded-lg border px-2.5 py-1 font-mono text-xs font-medium transition"
+                        :class="testMediaDraft.container === ext ? 'border-accent bg-accent text-white' : 'border-hairline bg-surface text-zinc-300 hover:border-zinc-600'"
+                        x-text="`.${ext}`"
+                      ></button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hard Block Error Banner (disables Generate button) -->
+            <div
+              x-show="testMediaEval.blockReason || testMediaError"
+              class="rounded-xl border border-red-500/35 bg-red-500/10 px-3.5 py-2.5 text-xs leading-relaxed text-red-200"
+              x-text="testMediaError || testMediaEval.blockReason"
+            ></div>
+
+            <!-- Soft Warnings (Generate remains enabled) -->
+            <div x-show="testMediaEval.valid && testMediaEval.warnings.length > 0" class="space-y-1.5">
+              <template x-for="(warn, wi) in testMediaEval.warnings" :key="`tm-warn-${wi}`">
+                <div
+                  class="rounded-xl border px-3.5 py-2 text-[11px] leading-relaxed"
+                  :class="warn.severity === 'warning' ? 'border-amber-500/35 bg-amber-500/10 text-amber-200' : 'border-sky-500/30 bg-sky-500/10 text-sky-200'"
+                  x-text="warn.message"
+                ></div>
+              </template>
+            </div>
+
+            <!-- Success Banner (stay in modal to generate more, or jump straight to Library/Editor) -->
+            <div
+              x-show="testMediaResult"
+              class="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3.5 space-y-2"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs font-semibold text-emerald-200">Test File Ready</p>
+                  <p class="mt-0.5 truncate font-mono text-[11px] text-emerald-300" x-text="testMediaResult ? `${testMediaResult.filepath} (${Fmt.formatBytes(testMediaResult.size_bytes)})` : ''"></p>
+                </div>
+                <button
+                  type="button"
+                  @click="viewGeneratedTestInLibrary()"
+                  class="min-h-[34px] shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-500/25 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:opacity-90"
+                >
+                  View in Library
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pinned Modal Footer -->
+          <div class="flex shrink-0 items-center justify-between gap-2.5 border-t border-hairline bg-surface px-5 py-3.5 pb-safe-modal sm:px-6">
+            <span class="min-w-0 truncate font-mono text-[11px] text-zinc-400" x-text="testMediaEval.summary"></span>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                @click="closeTestMediaModal()"
+                :disabled="testMediaBusy"
+                class="min-h-[40px] rounded-lg border border-hairline bg-canvas px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                @click="submitTestMediaGenerate()"
+                :disabled="testMediaBusy || !testMediaEval.valid"
+                class="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-accent px-5 py-2 text-xs font-semibold text-white transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <svg x-show="testMediaBusy" class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" class="opacity-25"></circle>
+                  <path d="M21 12a9 9 0 0 0-9-9" class="opacity-90"></path>
+                </svg>
+                <span x-text="testMediaBusy ? 'Generating…' : 'Generate'"></span>
+              </button>
+            </div>
           </div>
         </div>
       </template>

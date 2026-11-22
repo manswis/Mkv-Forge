@@ -103,6 +103,19 @@ Clicking any file opens the **Track & Metadata Editor**:
   * **Guardrails:** Refuses with `409 Conflict` if any scan or conversion job is active; in `local` auth mode requires admin role (`403` otherwise) and verified current password; in `anonymous` mode requires `confirm_text == "RESET"`.
   * **Physical Rebuild:** Acquires `op_lock`, pauses background loops (`maintenance_scheduler`, `library_watcher`, `job_worker`), unlinks `mkvforge.db` / `-wal` / `-shm`, clears contents inside `data/uploads/` while keeping the directory intact, calls `db.initialize()`, resets in-memory `job_broker` and `library_broker` buffers, resumes background loops, clears the browser session cookie + client `localStorage`/`sessionStorage`, and lands automatically on Onboarding Step 1.
 
+### 3.3.2 Speaker & Audio System Test Generator (Phase 16)
+
+* **Purpose:** Synchronous (`POST /api/tools/generate-test-media`, ~1–3s) generator enabling users to verify AVR, soundbar, TV, and DAC decoding and speaker wiring without any bundled sample files or external font dependencies.
+* **Supported Formats & Speaker Configurations:**
+  * **Output Modes:** `Video + Audio (.mkv)` *(720p dark room `drawbox` speaker diagram lighting each active speaker + synced default/forced `.srt` speaker-label subtitles)* or `Audio Only` (`.mka`, `.eac3`, `.ac3`, `.m4a`, `.flac`, `.wav` filtered per codec).
+  * **Audio Codecs (6):** `eac3`, `ac3`, `aac`, `opus` (`libopus`), `flac`, and `pcm` (`pcm_s16le` uncompressed LPCM 16-bit).
+  * **Speaker Layouts:** `1.0` (mono), `2.0` (stereo), `2.1` (FL+FR+LFE), `5.1` (6 ch), `7.1` (8 ch).
+  * **Test Signals:** `tones` (distinct musical frequency per speaker + `60 Hz` LFE pulse + final all-channel balance chord) or `pink_noise` (band-limited `-20 dBFS` calibration pink noise with `120 Hz` LFE lowpass).
+* **Safety & Quality Guardrails:**
+  * **Anti-Pop Envelope & Safe Headroom:** Every speaker slot applies `25 ms` `afade` in/out (`afade=t=in:st=0:d=0.025`, `afade=t=out:...`) with conservative `-14 dBFS` tones, `-18 dBFS` LFE / all-channel chord, and `-20 dBFS` pink noise (`amix=normalize=0`).
+  * **Smart Hard Blocks vs. Soft Warnings:** Hard-blocks physically invalid combinations (`eac3`/`ac3` > `5.1`, `opus` + `2.1` per RFC 7845, illegal audio-only container pairings, invalid/colliding filenames, paths outside `/storage`); surfaces soft warnings (with `Generate` enabled) for Playback Profile mismatches, multichannel LPCM over optical, AAC surround downmix, and audio-only TV display caveats.
+  * **Subprocess Timeout & Default Destination:** Strict `30s` timeout per FFmpeg/`mkvmerge` call with clean `finally` temp cleanup; defaults to `"/"` (or `currentDir` when launched from Library) without auto-creating unexpected subfolders; atomically moves output without overwrite and probes `.mkv` outputs into SQLite immediately.
+
 ### 3.4 Two-Stage Processing Pipeline & Atomic Writes
 
 Jobs execute sequentially in a single-worker background queue (1 active job at a time to avoid USB I/O thrashing).
@@ -276,3 +289,245 @@ See [ui spec.md](file:///Users/manojbiswas/Documents/Projects/cranbear/MkvEdit/u
 * **`.mp4` Overwrite Guard:** Refuse to overwrite an existing `<stem>.mkv` when replacing an `.mp4`.
 * **Crash Cleanup:** On container startup, mark any stale `running` jobs in SQLite as `failed` and sweep `/storage` for orphaned `*.mkvforge.*` temp files.
 * **MKVToolNix Exit Codes:** Treat `mkvmerge` exit code `0` as success, `1` as success-with-warnings (surface warnings in job log, still complete atomic swap), and `2` as hard failure (delete temp files, preserve original).
+
+---
+
+## 10. UI Action → Exact CLI Command Translation Reference (1:1 Code Audit)
+
+> **Purpose:** Single source of truth mapping every user UI action directly to the exact JSON payload (`app/static/js/editor.js`) and shell-free subprocess `argv` (`app/services/ffmpeg_runner.py`, `app/services/mkv_builder.py`, `app/services/mkv_runner.py`, `app/services/scanner.py`, `app/services/health_service.py`). Use this table as the 1:1 review checklist whenever verifying or changing UI-to-CLI translation.
+
+*(Note: All commands execute via `asyncio.create_subprocess_exec(*argv)` with zero shell interpolation. MKV Forge uses `mkvmerge` from MKVToolNix—not MakeMKV—for container inspection and remuxing, and `ffmpeg` / `ffprobe` for audio verification and transcoding.)*
+
+### 10.1 Read-Only & System Subprocess Commands
+
+| User / System Action | Trigger / Source | Exact Command(s) Executed |
+| :--- | :--- | :--- |
+| **Health Check** (`GET /api/health`) | `health_service.py` | 1. `mkvmerge --version`<br>2. `ffmpeg -version`<br>3. `ffprobe -version` |
+| **Library Scan / Single-File Rescan / Post-Job Re-Probe** | `scanner.py` (`run_mkvmerge_probe`) | 1. `mkvmerge -J <source_path>`<br>2. *(Only if `global_tags` array is non-empty in step 1)* `ffprobe -v quiet -print_format json -show_entries format_tags <source_path>` |
+
+---
+
+### 10.2 Container Metadata & Attachment Actions (File Editor → Stage 2 `mkvmerge`)
+
+All source-file options are emitted strictly **before** `<source_path>` in `build_mkvmerge_command()` (`app/services/mkv_builder.py`).
+
+| User UI Action | Frontend State / Payload Field (`editor.js`) | Exact `mkvmerge` Flag(s) Emitted |
+| :--- | :--- | :--- |
+| **Edit Container Title** | `container.title = "<new_title>"` *(if changed from original)* | `--title "<new_title>"` *(global option after `-o <output_tmp>`)* |
+| **Leave Container Title Unchanged** | `container.title = null` | *(Omitted — existing title preserved)* |
+| **Click `× Clear` on Container Title** | `container.title = ""` | `--title ""` *(clears container title)* |
+| **Uncheck `Keep Global Tags`** | `container.strip_global_tags = true` | `--no-global-tags` *(before `<source_path>`)* |
+| **Uncheck `Keep Track Tags`** | `container.strip_track_tags = true` | `--no-track-tags` *(before `<source_path>`)* |
+| **Uncheck `Keep Chapters`** | `container.strip_chapters = true` | `--no-chapters` *(before `<source_path>`)* |
+| **Strip All Attachments** *(uncheck all attachments or toggle `Strip Attachments`)* | `container.strip_attachments = true` *(or `keep_attachment_ids = []`)* | `--no-attachments` *(before `<source_path>`)* |
+| **Keep Subset of Attachments** *(e.g. keep IDs 1 & 3, drop ID 2)* | `container.strip_attachments = false`, `container.keep_attachment_ids = [1, 3]` | `--attachments 1,3` *(before `<source_path>`)* |
+| **Default Preset: `Remove All Metadata` ON** *(Settings → default on file open)* | Sets `containerTitle = ""`, every track's `track_name = ""`, `stripGlobalTags = true` *(if present)*, `stripTrackTags = true` *(if present)*, `stripAttachments = true` *(if present)*; keeps `stripChapters = false` | Combines `--title ""` *(if title existed)*, `--no-global-tags`, `--no-track-tags`, `--no-attachments`, and `--track-name <id>:` for each kept source track *(chapters preserved)* |
+
+---
+
+### 10.3 Source Track Actions (Video / Audio / Subtitles → Stage 2 `mkvmerge`)
+
+| User UI Action | Frontend State / Payload Field (`editor.js`) | Exact `mkvmerge` Flag(s) Emitted |
+| :--- | :--- | :--- |
+| **Keep Selected Video / Audio / Subtitle Tracks** | `tracks[i].enabled = true` | `--video-tracks <id1,id2>` / `--audio-tracks <id1,id2>` / `--subtitle-tracks <id1,id2>` *(before `<source_path>`)* |
+| **Uncheck ALL Tracks of a Type** *(e.g. drop all subtitles)* | Zero enabled tracks of that type | `--no-video` / `--no-audio` / `--no-subtitles` *(never emits invalid empty `--*-tracks ""`)* |
+| **Edit Track Title** | `tracks[i].track_name = "<name>"` | `--track-name <id>:<name>` *(empty string `--track-name <id>:` clears title)* |
+| **Change Track Language** | `tracks[i].language = "<iso>"` *(e.g. `eng`, `hin`, `jpn`, `und`)* | `--language <id>:<iso>` |
+| **Toggle `Default` Flag** | `tracks[i].default_track = true\|false` | `--default-track-flag <id>:yes\|no` *(auto-forced to `no` on all source audio tracks if a converted or imported audio track owns default; auto-forced to `no` on all source subtitle tracks if an imported subtitle owns default)* |
+| **Toggle `Forced` Flag** | `tracks[i].forced_track = true\|false` | `--forced-display-flag <id>:yes\|no` |
+| **Reorder Tracks (`↑` / `↓` buttons)** | `tracks` array order + `external_tracks[i].order_index` | Global `--track-order <file_id>:<track_id>,...` at end of command (`file_id = 0` for Stage 1 converted audio; `source_file_index = 1` if Stage 1 ran else `0`; external imports start at `source_file_index + 1`) |
+
+---
+
+### 10.4 Audio Conversion Actions (`+ Add / Convert` → Pre-Check `ffprobe` + Stage 1 `ffmpeg` + Stage 2 `mkvmerge`)
+
+When `audio_conversion.enabled = true`, MKV Forge executes **3 sequential commands** (plus the post-job `mkvmerge -J` re-probe):
+
+#### Command 1 — Stream Verification (`verify_audio_stream_with_ffprobe` in `app/services/ffmpeg_runner.py`)
+```bash
+ffprobe -v quiet -print_format json \
+  -show_entries format=duration:stream=index,codec_name,channels,sample_rate,channel_layout \
+  -select_streams a \
+  <source_path>
+```
+*Verifies relative stream `0:a:<source_audio_index>` exists and matches `expected_codec` and `expected_channels`, and extracts real `sample_rate`, `channels`, and `format_duration_us`.*
+
+#### Command 2 — Stage 1 Audio Transcode (`build_ffmpeg_command` in `app/services/ffmpeg_runner.py`)
+```bash
+ffmpeg -y \
+  [-drc_scale 0] \
+  -i <source_path> \
+  -map 0:a:<source_audio_index> \
+  -map_metadata -1 -map_chapters -1 \
+  -c:a <encoder> \
+  [-b:a <effective_bitrate>] \
+  -ac <target_channels> \
+  [-channel_layout <layout>] \
+  [-mapping_family 1] \
+  [-ar <target_sample_rate>] \
+  -progress pipe:1 -nostats \
+  <temp_audio_path>
+```
+
+**Exact Per-Codec & Conditional Flag Translation Matrix:**
+
+| UI Selection / Condition | Exact Flag / Value Translated | Code Source |
+| :--- | :--- | :--- |
+| **Target Codec = `E-AC-3`** | `-c:a eac3`, temp `<dir>/<filename>.mkvforge.eac3`, max `6` ch (`5.1`), `-ar 48000` only if source SR ∉ `{48000, 44100, 32000}` | `AppConstants`, `paths.py`, `ffmpeg_runner.py` |
+| **Target Codec = `AC-3`** | `-c:a ac3`, temp `<dir>/<filename>.mkvforge.ac3`, max `6` ch (`5.1`), max bitrate `640k`, `-ar 48000` only if source SR ∉ `{48000, 44100, 32000}` | `AppConstants`, `paths.py`, `ffmpeg_runner.py` |
+| **Target Codec = `AAC`** | `-c:a aac`, temp `<dir>/<filename>.mkvforge.mka`, max `8` ch (`7.1`), native SR preserved | `AppConstants`, `paths.py`, `ffmpeg_runner.py` |
+| **Target Codec = `Opus`** | `-c:a libopus`, temp `<dir>/<filename>.mkvforge.mka`, max `8` ch (`7.1`), `-ar 48000` whenever source SR ≠ `48000` (or unknown), `-mapping_family 1` when `target_channels > 2`, mono (`1.0`) bitrate clamped at `256k` | `AppConstants`, `paths.py`, `ffmpeg_runner.py` |
+| **Target Codec = `FLAC` (Lossless)** | `-c:a flac`, temp `<dir>/<filename>.mkvforge.mka`, max `8` ch (`7.1`), **`-b:a` omitted**, native bit depth & SR preserved *(UI only enables for lossless sources)* | `AppConstants`, `paths.py`, `ffmpeg_runner.py` |
+| **Source Codec is `AC-3` or `E-AC-3`** | Emits `-drc_scale 0` **before `-i`** to disable Dolby Dynamic Range Compression on decode | `ffmpeg_runner.py:242-247` |
+| **Channels = `Match Source`** | `target_channels = null` → `min(source_channels, codec.max_channels)` *(never upmixes)* | `ffmpeg_runner.py:93-118` |
+| **Channels = Explicit Downmix** (`5.1`, `2.0`, `1.0`, etc.) | `-ac <N>` strictly bounded by `1 <= N <= min(source_channels, codec.max_channels)` | `ffmpeg_runner.py:93-118` |
+| **Multichannel Output (`target_channels > 2`)** | Emits `-channel_layout <layout>` using `3→3.0`, `4→quad`, `5→5.0`, `6→5.1`, `7→6.1`, `8→7.1` | `config.py:140-149`, `ffmpeg_runner.py:269-272` |
+
+#### Command 3 — Stage 2 MKV Mux (`build_mkvmerge_command` in `app/services/mkv_builder.py`)
+Prepends `<temp_audio_path>` as **Input File 0** (shifting `<source_path>` to **Input File 1**):
+
+| UI Option | Payload Field | Exact `mkvmerge` Translation |
+| :--- | :--- | :--- |
+| **Converted Track (File 0)** | `audio_conversion.*` | `--no-global-tags --no-track-tags --no-attachments --no-chapters [--track-name 0:<track_title>] [--language 0:<language>] --default-track-flag 0:<yes\|no> --forced-display-flag 0:no [--sync 0:<delay_ms>] <temp_audio_path>` |
+| **Placement at Audio Index 0** | Automatic | Inserts `0:0` in `--track-order` immediately before the first kept source audio track (or immediately after the last kept video track if no source audio remains) |
+| **Set Converted Track as Default** | `set_as_default = true` | `--default-track-flag 0:yes` on File 0 **and** forces `--default-track-flag <id>:no` on every kept source audio track |
+| **Drop Base Audio Track** | `drop_source_track = true` | Removes `source_track_id` from File 1's `--audio-tracks` (or emits `--no-audio` if no other source audio tracks remain) and excludes `1:<source_track_id>` from `--track-order` |
+| **Preserve Source Audio Sync Delay** | `source_minimum_timestamp_ns != 0` | Computes `delay_ms = round(ns / 1_000_000)` and emits `--sync 0:<delay_ms>` on File 0 |
+
+---
+
+### 10.5 Import External Audio / Subtitle Actions (`+ Add / Convert → Import …`)
+
+Each imported file is appended after `<source_path>` as Input File `source_file_index + 1 + i`:
+
+| User UI Action | Payload Field (`external_tracks[i]`) | Exact `mkvmerge` Flag(s) Emitted Before `<ext_path>` |
+| :--- | :--- | :--- |
+| **Import External Audio** (`.ac3`, `.eac3`, `.aac`, `.mka`, `.dts`, `.flac`, `.mp3`, `.opus`, `.m4a`) | `kind = "audio"` | `--no-global-tags --no-track-tags --no-attachments --no-chapters --no-video --no-subtitles [--track-name 0:<name>] [--language 0:<lang>] --default-track-flag 0:<yes\|no> --forced-display-flag 0:<yes\|no> [--sync 0:<sync_delay_ms>] <ext_path>` |
+| **Import External Subtitle** (`.srt`, `.ass`, `.ssa`, `.vtt`, `.sup`) | `kind = "subtitles"` | `--no-global-tags --no-track-tags --no-attachments --no-chapters --no-video --no-audio [--track-name 0:<name>] [--language 0:<lang>] --default-track-flag 0:<yes\|no> --forced-display-flag 0:<yes\|no> [--sync 0:<sync_delay_ms>] <ext_path>` |
+| **Set Imported Track Position** | `order_index = <pos>` | Inserts `<file_idx>:0` at position `<pos>` in `--track-order` |
+
+---
+
+### 10.6 Output Mode & Post-Remux Finalization (`app/services/mkv_runner.py`)
+
+| User UI Action (`Output Mode`) | `mkvmerge -o` Temp Target | Atomic Finalization + Re-Probe |
+| :--- | :--- | :--- |
+| **Replace Original (`.mkv` source)** | `<dir>/<filename>.mkvforge.tmp` | `os.replace(tmp, source)` → `mkvmerge -J <source>` |
+| **Replace Original (`.mp4` source → `.mkv`)** | `<dir>/<stem>.mkv.mkvforge.tmp` | Fail if `<stem>.mkv` exists → atomic link/move to `<stem>.mkv` → `source.unlink()` *(only after `.mkv` verified)* → delete old `.mp4` DB row → `mkvmerge -J <stem>.mkv` |
+| **Keep Both** | `<dir>/<filename>.mkvforge.tmp` | Atomic move to `<stem>.remux.mkv` (or `.remux.2.mkv`, …) → `mkvmerge -J <new_path>` |
+| **Save As (`output_path`, optional `delete_original`)** | `<target_dir>/<target_name>.mkvforge.tmp` | Fail if target exists → atomic move to `<output_path>` → if `delete_original = true`, delete original & old DB row → `mkvmerge -J <output_path>` |
+
+---
+
+### 10.7 Concrete End-to-End 1:1 Worked Examples
+
+#### Example 1 — User Action: *Remove All Metadata Only* (keep video `#0`, audio `#1`, sub `#2`; Replace Original)
+* **Commands executed (1 remux command + 1 post-job re-probe):**
+```bash
+# Stage 1 (Remux — FFmpeg skipped)
+mkvmerge --gui-mode -o "/storage/Movies/Movie.mkv.mkvforge.tmp" \
+  --title "" \
+  --no-global-tags --no-track-tags --no-attachments \
+  --video-tracks 0 --audio-tracks 1 --subtitle-tracks 2 \
+  --track-name 0: --language 0:eng --default-track-flag 0:yes --forced-display-flag 0:no \
+  --track-name 1: --language 1:eng --default-track-flag 1:yes --forced-display-flag 1:no \
+  --track-name 2: --language 2:eng --default-track-flag 2:no --forced-display-flag 2:no \
+  "/storage/Movies/Movie.mkv" \
+  --track-order 0:0,0:1,0:2
+
+# Post-swap cache refresh (after atomic os.replace)
+mkvmerge -J "/storage/Movies/Movie.mkv"
+```
+
+#### Example 2 — User Action: *Convert AAC 5.1 (`#1`, audio index `0`) → E-AC-3 5.1 640k (Default, Keep Original) + Strip Global Tags*
+* **Commands executed (3 pipeline commands + 1 post-job re-probe):**
+```bash
+# 1. Pre-Stage 1 Stream Verification
+ffprobe -v quiet -print_format json \
+  -show_entries format=duration:stream=index,codec_name,channels,sample_rate,channel_layout \
+  -select_streams a "/storage/Movies/Movie.mkv"
+
+# 2. Stage 1 — Audio Transcode (FFmpeg)
+ffmpeg -y -i "/storage/Movies/Movie.mkv" \
+  -map 0:a:0 -map_metadata -1 -map_chapters -1 \
+  -c:a eac3 -b:a 640k -ac 6 -channel_layout 5.1 \
+  -progress pipe:1 -nostats \
+  "/storage/Movies/Movie.mkv.mkvforge.eac3"
+
+# 3. Stage 2 — MKV Remux (mkvmerge: File 0 = new EAC3, File 1 = original MKV)
+mkvmerge --gui-mode -o "/storage/Movies/Movie.mkv.mkvforge.tmp" \
+  --no-global-tags --no-track-tags --no-attachments --no-chapters \
+  --track-name "0:EAC3 5.1 • 640k • eng • muxed" --language 0:eng \
+  --default-track-flag 0:yes --forced-display-flag 0:no \
+  "/storage/Movies/Movie.mkv.mkvforge.eac3" \
+  --no-global-tags \
+  --video-tracks 0 --audio-tracks 1 --no-subtitles \
+  --track-name 0: --language 0:eng --default-track-flag 0:yes --forced-display-flag 0:no \
+  --track-name 1: --language 1:eng --default-track-flag 1:no --forced-display-flag 1:no \
+  "/storage/Movies/Movie.mkv" \
+  --track-order 1:0,0:0,1:1
+
+# 4. Post-swap cache refresh (temp audio deleted in finally block)
+mkvmerge -J "/storage/Movies/Movie.mkv"
+```
+
+#### Example 3 — User Action: *Convert AC-3 5.1 (`#1`) → Opus 5.1 320k + Drop Base Track*
+* **Commands executed (shows `-drc_scale 0`, `libopus`, `-mapping_family 1`, `-ar 48000`, `.mka` temp, and `--no-audio` on source):**
+```bash
+# 1. Stream verification
+ffprobe -v quiet -print_format json \
+  -show_entries format=duration:stream=index,codec_name,channels,sample_rate,channel_layout \
+  -select_streams a "/storage/Movies/Movie.mkv"
+
+# 2. Stage 1 — FFmpeg (DRC disabled before -i, canonical 5.1 layout + Opus mapping_family 1)
+ffmpeg -y -drc_scale 0 -i "/storage/Movies/Movie.mkv" \
+  -map 0:a:0 -map_metadata -1 -map_chapters -1 \
+  -c:a libopus -b:a 320k -ac 6 -channel_layout 5.1 -mapping_family 1 -ar 48000 \
+  -progress pipe:1 -nostats \
+  "/storage/Movies/Movie.mkv.mkvforge.mka"
+
+# 3. Stage 2 — mkvmerge (base audio dropped -> --no-audio on File 1)
+mkvmerge --gui-mode -o "/storage/Movies/Movie.mkv.mkvforge.tmp" \
+  --no-global-tags --no-track-tags --no-attachments --no-chapters \
+  --track-name "0:Opus 5.1 • 320k • eng • muxed" --language 0:eng \
+  --default-track-flag 0:yes --forced-display-flag 0:no \
+  "/storage/Movies/Movie.mkv.mkvforge.mka" \
+  --video-tracks 0 --no-audio --no-subtitles \
+  --track-name 0: --language 0:eng --default-track-flag 0:yes --forced-display-flag 0:no \
+  "/storage/Movies/Movie.mkv" \
+  --track-order 1:0,0:0
+```
+
+#### Example 4 — User Action: *Import External `.srt` Subtitle (`eng`, Forced, `+250 ms` Sync Delay)*
+* **Commands executed (1 remux command + 1 post-job re-probe):**
+```bash
+mkvmerge --gui-mode -o "/storage/Movies/Movie.mkv.mkvforge.tmp" \
+  --video-tracks 0 --audio-tracks 1 --no-subtitles \
+  --track-name 0: --language 0:eng --default-track-flag 0:yes --forced-display-flag 0:no \
+  --track-name 1: --language 1:eng --default-track-flag 1:yes --forced-display-flag 1:no \
+  "/storage/Movies/Movie.mkv" \
+  --no-global-tags --no-track-tags --no-attachments --no-chapters \
+  --no-video --no-audio \
+  --track-name "0:English (Forced)" --language 0:eng \
+  --default-track-flag 0:no --forced-display-flag 0:yes --sync 0:250 \
+  "/app/data/uploads/<upload_id>.srt" \
+  --track-order 0:0,0:1,1:0
+```
+
+---
+
+### 10.8 Translation Review Invariants (Checklist for Future Changes)
+
+1. **Per-file option scoping:** Every `--track-name`, `--language`, `--default-track-flag`, `--forced-display-flag`, `--sync`, `--*-tracks`, and `--no-*` flag in `mkvmerge` **must precede** the input path it targets.
+2. **Never emit empty track lists:** Zero kept tracks of a type must emit `--no-video` / `--no-audio` / `--no-subtitles`, never `--*-tracks ""`.
+3. **Single default track ownership:** Converted audio (`set_as_default=true`) > Imported default audio > Source default audio; Imported default subtitle > Source default subtitle.
+4. **No silent upmixing:** `target_channels` is always clamped to `1 <= N <= min(source_channels, codec.max_channels)` in both `editor.js` and `ffmpeg_runner.py`.
+5. **DRC decode safety:** `-drc_scale 0` must always appear **before `-i`** and **only** for `ac3` / `eac3` sources (FFmpeg rejects `-drc_scale` on non-Dolby decoders).
+6. **Sample-accurate container for priming-delay codecs:** `aac`, `opus`, and `flac` Stage 1 outputs must write to `.mka` (never raw ADTS/elementary streams) so `mkvmerge` preserves encoder priming delay / Opus pre-skip.
+
+### 10.9 Speaker & Audio System Test Generator Commands (`app/services/test_media_generator.py`)
+
+* **`Video + Audio (.mkv)` mode (single-pass FFmpeg command + post-gen `mkvmerge -J` index when available):**
+  1. `ffmpeg -y -i <tmp_labels.srt> -filter_complex "<video_drawbox_graph>;<audio_channel_graph>" -map [vout] -map [aout] -map 0:s:0 -c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p -t <total_sec> -c:a <encoder> -ar 48000 [-b:a <bitrate>] [-mapping_family 1] -metadata title="MKV Forge Speaker Test — <Codec> <Layout>" -metadata:s:v:0 title="Speaker Layout Diagram (<Layout>)" -metadata:s:a:0 title="<Codec> <Layout> • <Bitrate|Lossless>" -metadata:s:a:0 language=eng -disposition:v:0 default -disposition:a:0 default -c:s srt -metadata:s:s:0 title="Active Speaker Labels" -metadata:s:s:0 language=eng -disposition:s:0 default+forced -f matroska <tmp_final>`
+* **`Audio Only` mode (1 command):**
+  1. `ffmpeg -y -filter_complex "<audio_channel_graph>" -map [aout] -c:a <encoder> -ar 48000 [-b:a <bitrate>] [-mapping_family 1] <tmp_audio.<ext>>`
