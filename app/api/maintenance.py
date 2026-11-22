@@ -5,14 +5,18 @@ from __future__ import annotations
 import asyncio
 from typing import Callable, TypeVar
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 
+from app.api.auth import _clear_session_cookie
 from app.config import AppConstants
 from app.models.schemas import (
+    FactoryResetRequest,
+    FactoryResetResponse,
     MaintenanceActionResponse,
     MaintenanceRunAllResponse,
     MaintenanceStatusResponse,
 )
+from app.services.auth_service import AuthCredentialsError, AuthService
 from app.services.maintenance_service import (
     MaintenanceBusyError,
     MaintenanceService,
@@ -83,3 +87,64 @@ async def run_all_maintenance(request: Request) -> MaintenanceRunAllResponse:
     """Execute clean-temp, prune-missing, prune-jobs, and optimize-db sequentially."""
     service: MaintenanceService = request.app.state.maintenance_service
     return await _run_serialized(service, service.run_all)
+
+
+@router.post("/factory-reset", response_model=FactoryResetResponse)
+async def factory_reset_app(
+    request: Request,
+    response: Response,
+    payload: FactoryResetRequest,
+) -> FactoryResetResponse:
+    """Physically rebuild SQLite and wipe app data without touching media files.
+
+    - In `local` auth mode: requires signed-in admin user + valid current password.
+    - In `anonymous` / `unconfigured` mode: requires `confirm_text == 'RESET'`.
+    """
+    auth_service: AuthService = request.app.state.auth_service
+    auth_mode = await asyncio.to_thread(auth_service.get_auth_mode)
+
+    if auth_mode == AppConstants.AUTH_MODE_LOCAL:
+        current_user = getattr(request.state, "current_user", None)
+        if current_user is None or getattr(current_user, "is_anonymous", True):
+            raise HTTPException(
+                status_code=AppConstants.HTTP_UNAUTHORIZED,
+                detail="Sign in as an administrator to perform a factory reset.",
+            )
+        if getattr(current_user, "role", None) != AppConstants.AUTH_ROLE_ADMIN:
+            raise HTTPException(
+                status_code=AppConstants.HTTP_FORBIDDEN,
+                detail="Administrator privileges are required to perform a factory reset.",
+            )
+        try:
+            await asyncio.to_thread(
+                auth_service.verify_user_password,
+                user_id=int(current_user.id),
+                password=payload.password,
+            )
+        except AuthCredentialsError as exc:
+            raise HTTPException(
+                status_code=AppConstants.HTTP_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+    else:
+        if (payload.confirm_text or "").strip() != AppConstants.FACTORY_RESET_CONFIRM_TOKEN:
+            raise HTTPException(
+                status_code=AppConstants.HTTP_BAD_REQUEST,
+                detail=f"Type {AppConstants.FACTORY_RESET_CONFIRM_TOKEN} to confirm factory reset.",
+            )
+
+    service: MaintenanceService = request.app.state.maintenance_service
+    try:
+        result = await service.factory_reset(
+            job_worker=getattr(request.app.state, "job_worker", None),
+            library_watcher=getattr(request.app.state, "library_watcher", None),
+            job_broker=getattr(request.app.state, "job_broker", None),
+        )
+    except MaintenanceBusyError as exc:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+    _clear_session_cookie(response, request)
+    return result

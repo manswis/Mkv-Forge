@@ -159,4 +159,75 @@ class TestIndexHtmlStructure:
         assert "onDraftTargetCodecChange(" in app_js
         assert "onDraftChannelsChange(" in app_js
 
+    def test_phase15_three_step_onboarding_and_playback_profile_landmarks(self) -> None:
+        html = _read_index_html()
+        app_js = APP_JS_PATH.read_text(encoding="utf-8")
+
+        # Playback Profile script loaded before app.js
+        assert html.index("/static/js/playback_profile.js") < html.index("/static/js/app.js")
+
+        # 3-Step Apple-style Onboarding Wizard landmarks (uniform shell + direct Step 1 form)
+        css_text = (INDEX_HTML_PATH.parent / "css" / "app.css").read_text(encoding="utf-8")
+        input_css = (
+            INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
+        ).read_text(encoding="utf-8")
+        assert "/static/css/app.css?v=0.1.0-p15.2" in html
+        assert "/static/js/app.js?v=0.1.0-p15.3" in html
+        assert "/static/js/charts.js?v=0.1.0-p15.3" in html
+        assert "onboarding-wizard-shell" in html
+        for selector in (
+            ".onboarding-wizard-shell",
+            ".onboarding-header-row",
+            ".onboarding-header-slot",
+            ".onboarding-body",
+            ".onboarding-step-center",
+            ".onboarding-step-inner",
+            ".onboarding-footer",
+            ".onboarding-chevron-open",
+            ".onboarding-step-fwd",
+            ".onboarding-step-back",
+            "@keyframes onboarding-slide-fwd",
+            "@keyframes onboarding-slide-back",
+            "scrollbar-gutter",
+        ):
+            assert selector in input_css, f"Missing {selector} in frontend/input.css (Docker CSS source)"
+            assert selector in css_text, f"Missing {selector} in app/static/css/app.css"
+        assert "onboarding-header-row" in html
+        assert 'x-ref="onboardingBody"' in html
+        assert "onboarding-footer" in html
+        assert "C.ONBOARDING.STEP_ACCESS" in html
+        assert "C.ONBOARDING.STEP_SOUND_SYSTEM" in html
+        assert "C.ONBOARDING.STEP_INITIALIZE" in html
+        assert "onboardingStepAnimClass" in html
+        assert "Create Admin Account" not in html
+        assert "onboardingNextFromAccess()" in html
+        assert "onboardingContinueAnonymous()" in html
+        assert "Continue Without Sign-In" in html
+        assert "Re-enter Password" in html
+        assert "Start Scanning Library" in html
+        assert "Enter Dashboard without scanning" not in html
+
+        # Settings Sound System & Playback Profile section
+        assert "C.SETTINGS_SECTIONS.PLAYBACK_PROFILE" in html
+        assert "selectSettingsPlaybackPreset(" in html
+        assert "toggleSettingsPlaybackCodec(" in html
+
+        # Dashboard generic profile-driven KPI replaces hardcoded AAC 5.1 Only card
+        assert "dashboard.stats.playback_profile_configured" in html
+        assert "dashboard.stats.needs_conversion" in html
+        assert "AAC 5.1 Only" not in html
+
+        # Controller handlers exist
+        assert "finishOnboarding(" in app_js
+        assert "selectSettingsPlaybackPreset(" in app_js
+
+        # Factory Reset Danger Zone + plain-language alertdialog modal landmarks
+        assert "Danger Zone · Factory Reset" in html
+        assert "openFactoryResetModal()" in html
+        assert 'id="factory-reset-title"' in html
+        assert 'aria-labelledby="factory-reset-title"' in html
+        assert "Your Media Files Are 100% Safe" in html
+        assert "submitFactoryReset()" in html
+        assert "submitFactoryReset()" in app_js
+
 

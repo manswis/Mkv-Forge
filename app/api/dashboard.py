@@ -136,7 +136,15 @@ async def get_dashboard(request: Request) -> DashboardResponse:
     user_settings_service = getattr(request.app.state, "user_settings_service", None)
     storage_dir: Path = request.app.state.settings.storage_dir
 
-    counts = await asyncio.to_thread(media_repo.get_dashboard_counts)
+    playback_profile = (
+        await asyncio.to_thread(user_settings_service.get_playback_profile)
+        if user_settings_service is not None
+        else None
+    )
+    counts = await asyncio.to_thread(
+        media_repo.get_dashboard_counts,
+        playback_profile=playback_profile,
+    )
     raw_analytics = await asyncio.to_thread(media_repo.get_dashboard_analytics)
     analytics = await asyncio.to_thread(
         _build_dashboard_analytics, raw_analytics, storage_dir
@@ -174,6 +182,20 @@ async def get_dashboard(request: Request) -> DashboardResponse:
             total_files=counts["total_files"],
             aac51_only=counts["aac51_only"],
             has_metadata=counts["has_metadata"],
+            needs_conversion=counts.get("needs_conversion", 0),
+            playback_profile_configured=bool(
+                playback_profile is not None and playback_profile.configured
+            ),
+            playback_profile_preset=(
+                playback_profile.preset
+                if playback_profile is not None
+                else AppConstants.DEFAULT_PLAYBACK_PROFILE_PRESET
+            ),
+            playback_profile_label=(
+                playback_profile.label
+                if playback_profile is not None
+                else "Not Configured"
+            ),
             last_scan_at=last_scan_at,
             last_scan_status=last_scan_status,
         ),

@@ -164,6 +164,23 @@ Instead of a global Simple/Advanced Settings switch, audio conversion uses **inl
 
 ---
 
+### Screen 0: 3-Step Apple-Style Onboarding Wizard & Global Playback Profile (Phase 15)
+
+Triggered **only** on fresh installs (`auth_mode === "unconfigured"`). Existing configured instances skip the wizard automatically and access the exact same Playback Profile controls inside **Settings → Sound System**.
+
+* **Visual Motion & Ergonomics:**
+  * Single centered uniform-height 3-zone responsive card (`max-w-lg`, `.onboarding-wizard-shell` with `height` and `min-height` locked to `min(36rem, calc(100dvh - 1.5rem))`) featuring a fixed-height top progress header (`.onboarding-header-row`, 3-segment bar + Back chevron on Steps 2–3), scrollable middle step body (`.onboarding-body`, `scrollbar-gutter: stable`, auto-resetting `scrollTop` on step transitions), and pinned 2-slot bottom action footer with safe-area padding so window dimensions never jump across Steps 1–3 on desktop or mobile.
+  * Smooth directional horizontal slide + fade transitions (`260ms cubic-bezier(0.22, 1, 0.36, 1)`) forward and backward, respecting `prefers-reduced-motion: reduce`.
+  * Lossless Back/Next navigation: auth setup, playback profile save, and optional initial scan commit cleanly on Step 3 so refreshing mid-wizard never leaves the instance half-configured.
+* **Step 1 — Access:** Direct Username / Password / Re-enter Password inputs with primary blue **`Create`** button and subtle **`Continue Without Sign-In`** text button directly beneath it.
+* **Step 2 — Sound System:** Select a hardware preset card (*HDMI ARC Soundbar/TV*, *Optical/Legacy AVR*, *HDMI eARC AVR 7.1*, *Plex/Jellyfin/Infuse*, *Stereo/Mobile 2.0*), optionally expand `▸ Customize codecs & channels` (`aac_20` vs `aac_51`, `eac3`, `ac3`, `dts`, `dts_hd_ma`, `truehd`, `flac`, `opus`, `pcm`, `mp3`; max channels `2.0 / 5.1 / 7.1`; preferred target `E-AC-3 / AC-3 / AAC`), or click *Skip for now*.
+* **Step 3 — Ready to Scan:** Displays setup summary + mounted storage path & write-check badge + "What happens next" overview, with single mandatory CTA **`Start Scanning Library`** (commits auth + playback profile, triggers background scan, and lands directly in Dashboard).
+* **Generic Dashboard & Library Integration:**
+  * Replaces hardcoded Dashboard `"AAC 5.1 Only"` KPI card and Library `"No Dolby"` chip with profile-driven **`Needs Conversion`** (or a 1-tap **`Configure Sound System`** card when profile is `neutral`).
+  * Settings includes a dedicated **Sound System (Playback Profile)** panel (global across household users) allowing instant profile switching without re-scanning.
+
+---
+
 ### Screen 4: Live Progress & Jobs Drawer
 
 Opens automatically when you tap **Process File** (or when you tap the Global Progress Pill).

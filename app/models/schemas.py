@@ -107,6 +107,7 @@ class MediaFileListItem(BaseModel):
     has_metadata: bool = False
     has_aac_51: bool = False
     has_ac3_eac3: bool = False
+    needs_conversion: bool = False
     scan_status: Literal["ready", "scanning", "error"] = AppConstants.FILE_SCAN_STATUS_READY  # type: ignore[assignment]
     scanned_at: str
 
@@ -128,6 +129,7 @@ class LibraryFacets(BaseModel):
     aac51_only: int = 0
     has_metadata: int = 0
     no_dolby: int = 0
+    needs_conversion: int = 0
     audio_types: list[AudioTypeFacet] = Field(default_factory=list)
 
 
@@ -376,6 +378,10 @@ class DashboardStats(BaseModel):
     total_files: int
     aac51_only: int
     has_metadata: int
+    needs_conversion: int = 0
+    playback_profile_configured: bool = False
+    playback_profile_preset: str = AppConstants.DEFAULT_PLAYBACK_PROFILE_PRESET
+    playback_profile_label: str = "Not Configured"
     last_scan_at: str | None = None
     last_scan_status: str | None = None
 
@@ -450,6 +456,20 @@ class UserSettings(BaseModel):
     auto_cleanup_jobs: bool = AppConstants.DEFAULT_AUTO_CLEANUP_JOBS
     auto_cleanup_optimize_db: bool = AppConstants.DEFAULT_AUTO_CLEANUP_OPTIMIZE_DB
 
+    # Global Playback Profile (Phase 15 — household-wide in app_state)
+    playback_profile_preset: Literal[
+        "neutral",
+        "dolby_arc",
+        "optical_legacy",
+        "earc_avr",
+        "streaming_clients",
+        "stereo_mobile",
+        "custom",
+    ] = AppConstants.DEFAULT_PLAYBACK_PROFILE_PRESET  # type: ignore[assignment]
+    playback_supported_codecs: list[str] = Field(default_factory=list)
+    playback_max_channels: Literal[2, 6, 8] = AppConstants.DEFAULT_PLAYBACK_MAX_CHANNELS  # type: ignore[assignment]
+    playback_preferred_codec: Literal["eac3", "ac3", "aac"] = AppConstants.DEFAULT_PLAYBACK_PREFERRED_CODEC  # type: ignore[assignment]
+
 
 class UserSettingsUpdate(BaseModel):
     """Partial update payload for PATCH /api/settings."""
@@ -487,6 +507,21 @@ class UserSettingsUpdate(BaseModel):
     auto_cleanup_temp: bool | None = None
     auto_cleanup_jobs: bool | None = None
     auto_cleanup_optimize_db: bool | None = None
+    playback_profile_preset: (
+        Literal[
+            "neutral",
+            "dolby_arc",
+            "optical_legacy",
+            "earc_avr",
+            "streaming_clients",
+            "stereo_mobile",
+            "custom",
+        ]
+        | None
+    ) = None
+    playback_supported_codecs: list[str] | None = None
+    playback_max_channels: Literal[2, 6, 8] | None = None
+    playback_preferred_codec: Literal["eac3", "ac3", "aac"] | None = None
 
 
 class MaintenanceStatusResponse(BaseModel):
@@ -533,6 +568,27 @@ class MaintenanceRunAllResponse(BaseModel):
     optimize_db: MaintenanceActionResponse
     total_bytes_reclaimed: int = 0
     total_duration_ms: float = 0.0
+
+
+class FactoryResetRequest(BaseModel):
+    """Confirmation payload for POST /api/maintenance/factory-reset."""
+
+    model_config = ConfigDict(frozen=True)
+
+    password: str | None = None
+    confirm_text: str | None = None
+
+
+class FactoryResetResponse(BaseModel):
+    """Outcome payload after physically rebuilding SQLite and clearing app state."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: Literal["reset"] = "reset"
+    removed_db_files: int = 0
+    removed_uploads: int = 0
+    duration_ms: float = 0.0
+    message: str
 
 
 class StorageBreakdown(BaseModel):
@@ -974,6 +1030,8 @@ class AuthStatusResponse(BaseModel):
     authenticated: bool
     needs_setup: bool
     user: AuthUserSummary | None = None
+    storage_path: str | None = None
+    storage_writable: bool = True
 
 
 class AuthSetupRequest(BaseModel):

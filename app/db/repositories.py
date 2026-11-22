@@ -9,6 +9,10 @@ from typing import Any, Iterable
 
 from app.config import AppConstants
 from app.db.connection import DatabaseManager
+from app.services.playback_profile import (
+    PlaybackProfileSpec,
+    evaluate_file_needs_conversion,
+)
 
 
 def utc_now_iso() -> str:
@@ -564,6 +568,8 @@ class MediaFileRepository:
         aac51: bool = False,
         has_metadata: bool = False,
         no_dolby: bool = False,
+        needs_conversion: bool = False,
+        playback_profile: PlaybackProfileSpec | None = None,
         sort: str = AppConstants.DEFAULT_SORT_FIELD,
         order: str = AppConstants.DEFAULT_SORT_ORDER,
         page: int = AppConstants.DEFAULT_PAGE,
@@ -598,6 +604,36 @@ class MediaFileRepository:
             no_dolby=no_dolby,
         )
 
+        if needs_conversion:
+            if playback_profile is None or not playback_profile.configured:
+                return [], 0
+            ready_where = (
+                f"{where_sql} AND scan_status = 'ready'"
+                if where_sql
+                else "WHERE scan_status = 'ready'"
+            )
+            with self._db.connect() as conn:
+                all_rows = conn.execute(
+                    f"""
+                    SELECT {self._LIST_COLUMNS}
+                    FROM media_files
+                    {ready_where}
+                    ORDER BY {sort_col} COLLATE NOCASE {sort_dir}, id ASC
+                    """,
+                    params,
+                ).fetchall()
+            matched = [
+                dict(row)
+                for row in all_rows
+                if evaluate_file_needs_conversion(
+                    decode_audio_summary_json(row["audio_summary_json"]),
+                    playback_profile,
+                    scan_status=str(row["scan_status"] or AppConstants.FILE_SCAN_STATUS_READY),
+                )
+            ]
+            total = len(matched)
+            return matched[offset : offset + safe_limit], total
+
         with self._db.connect() as conn:
             total_row = conn.execute(
                 f"SELECT COUNT(*) AS cnt FROM media_files {where_sql}",
@@ -627,6 +663,8 @@ class MediaFileRepository:
         aac51: bool = False,
         has_metadata: bool = False,
         no_dolby: bool = False,
+        needs_conversion: bool = False,
+        playback_profile: PlaybackProfileSpec | None = None,
     ) -> list[str]:
         """Return distinct sorted folder paths matching all non-folder filters."""
         where_sql, params = self._build_filter_where(
@@ -638,6 +676,30 @@ class MediaFileRepository:
             has_metadata=has_metadata,
             no_dolby=no_dolby,
         )
+        if needs_conversion:
+            if playback_profile is None or not playback_profile.configured:
+                return []
+            ready_where = (
+                f"{where_sql} AND scan_status = 'ready'"
+                if where_sql
+                else "WHERE scan_status = 'ready'"
+            )
+            with self._db.connect() as conn:
+                rows = conn.execute(
+                    f"SELECT folder, audio_summary_json, scan_status FROM media_files {ready_where}",
+                    params,
+                ).fetchall()
+            matched_folders = {
+                str(row["folder"])
+                for row in rows
+                if evaluate_file_needs_conversion(
+                    decode_audio_summary_json(row["audio_summary_json"]),
+                    playback_profile,
+                    scan_status=str(row["scan_status"] or AppConstants.FILE_SCAN_STATUS_READY),
+                )
+            }
+            return sorted(matched_folders, key=str.lower)
+
         with self._db.connect() as conn:
             rows = conn.execute(
                 f"SELECT DISTINCT folder FROM media_files {where_sql} ORDER BY folder COLLATE NOCASE ASC",
@@ -654,6 +716,8 @@ class MediaFileRepository:
         aac51: bool = False,
         has_metadata: bool = False,
         no_dolby: bool = False,
+        needs_conversion: bool = False,
+        playback_profile: PlaybackProfileSpec | None = None,
     ) -> list[dict[str, Any]]:
         """Return distinct sorted audio types with file counts matching non-audio filters."""
         where_sql, params = self._build_filter_where(
@@ -665,6 +729,42 @@ class MediaFileRepository:
             has_metadata=has_metadata,
             no_dolby=no_dolby,
         )
+        if needs_conversion:
+            if playback_profile is None or not playback_profile.configured:
+                return []
+            ready_where = (
+                f"{where_sql} AND scan_status = 'ready'"
+                if where_sql
+                else "WHERE scan_status = 'ready'"
+            )
+            with self._db.connect() as conn:
+                rows = conn.execute(
+                    f"SELECT audio_summary_json, scan_status FROM media_files {ready_where}",
+                    params,
+                ).fetchall()
+            label_counts: dict[str, int] = {}
+            for row in rows:
+                summary = decode_audio_summary_json(row["audio_summary_json"])
+                if not evaluate_file_needs_conversion(
+                    summary,
+                    playback_profile,
+                    scan_status=str(row["scan_status"] or AppConstants.FILE_SCAN_STATUS_READY),
+                ):
+                    continue
+                seen_labels: set[str] = set()
+                for entry in summary:
+                    codec = str(entry.get("codec") or "").strip()
+                    layout = str(entry.get("channel_layout") or "").strip()
+                    label = f"{codec} {layout}".strip() if layout else codec
+                    if label and label not in seen_labels:
+                        seen_labels.add(label)
+                        label_counts[label] = label_counts.get(label, 0) + 1
+            return [
+                {"label": lbl, "count": cnt}
+                for lbl, cnt in sorted(
+                    label_counts.items(), key=lambda kv: (-kv[1], kv[0].lower())
+                )
+            ]
         extra_pred = "COALESCE(json_extract(je.value, '$.codec'), '') != ''"
         combined_where = (
             f"{where_sql} AND {extra_pred}" if where_sql else f"WHERE {extra_pred}"
@@ -696,12 +796,49 @@ class MediaFileRepository:
             if row["label"]
         ]
 
+    def count_needs_conversion(
+        self,
+        playback_profile: PlaybackProfileSpec | None,
+        *,
+        q: str | None = None,
+        folder: str | None = None,
+        audio_type: str | None = None,
+    ) -> int:
+        """Count ready media files requiring conversion under `playback_profile`."""
+        if playback_profile is None or not playback_profile.configured:
+            return 0
+        where_sql, params = self._build_filter_where(
+            q=q,
+            folder=folder,
+            audio_type=audio_type,
+        )
+        ready_where = (
+            f"{where_sql} AND scan_status = 'ready'"
+            if where_sql
+            else "WHERE scan_status = 'ready'"
+        )
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT audio_summary_json, scan_status FROM media_files {ready_where}",
+                params,
+            ).fetchall()
+        count = 0
+        for row in rows:
+            if evaluate_file_needs_conversion(
+                decode_audio_summary_json(row["audio_summary_json"]),
+                playback_profile,
+                scan_status=str(row["scan_status"] or AppConstants.FILE_SCAN_STATUS_READY),
+            ):
+                count += 1
+        return count
+
     def get_workflow_facet_counts(
         self,
         *,
         q: str | None = None,
         folder: str | None = None,
         audio_type: str | None = None,
+        playback_profile: PlaybackProfileSpec | None = None,
     ) -> dict[str, int]:
         """Return cascading workflow chip counts for the current search/folder/audio view."""
         where_sql, params = self._build_filter_where(
@@ -722,15 +859,31 @@ class MediaFileRepository:
                 params,
             ).fetchone()
 
+        needs_conv = self.count_needs_conversion(
+            playback_profile,
+            q=q,
+            folder=folder,
+            audio_type=audio_type,
+        )
         if row is None:
-            return {"aac51_only": 0, "has_metadata": 0, "no_dolby": 0}
+            return {
+                "aac51_only": 0,
+                "has_metadata": 0,
+                "no_dolby": 0,
+                "needs_conversion": needs_conv,
+            }
         return {
             "aac51_only": int(row["aac51_only"]),
             "has_metadata": int(row["has_metadata"]),
             "no_dolby": int(row["no_dolby"]),
+            "needs_conversion": needs_conv,
         }
 
-    def get_dashboard_counts(self) -> dict[str, int]:
+    def get_dashboard_counts(
+        self,
+        *,
+        playback_profile: PlaybackProfileSpec | None = None,
+    ) -> dict[str, int]:
         """Return aggregate Dashboard counts in a single SQL query."""
         with self._db.connect() as conn:
             row = conn.execute(
@@ -743,13 +896,20 @@ class MediaFileRepository:
                 """
             ).fetchone()
 
+        needs_conv = self.count_needs_conversion(playback_profile)
         if row is None:
-            return {"total_files": 0, "aac51_only": 0, "has_metadata": 0}
+            return {
+                "total_files": 0,
+                "aac51_only": 0,
+                "has_metadata": 0,
+                "needs_conversion": needs_conv,
+            }
 
         return {
             "total_files": int(row["total_files"]),
             "aac51_only": int(row["aac51_only"]),
             "has_metadata": int(row["has_metadata"]),
+            "needs_conversion": needs_conv,
         }
 
     def get_dashboard_analytics(self) -> dict[str, Any]:

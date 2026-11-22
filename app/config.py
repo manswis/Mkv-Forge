@@ -12,7 +12,7 @@ class AppConstants:
     """Centralized immutable constants to eliminate magic values."""
 
     APP_NAME: str = "MKV Forge"
-    DEFAULT_APP_VERSION: str = "1.0.0"
+    DEFAULT_APP_VERSION: str = "1.0.1"
     ENV_APP_VERSION: str = "MKVFORGE_APP_VERSION"
     APP_VERSION: str = (
         os.environ.get("MKVFORGE_APP_VERSION", "").strip() or DEFAULT_APP_VERSION
@@ -259,6 +259,10 @@ class AppConstants:
             "auto_cleanup_temp",
             "auto_cleanup_jobs",
             "auto_cleanup_optimize_db",
+            "playback_profile_preset",
+            "playback_supported_codecs",
+            "playback_max_channels",
+            "playback_preferred_codec",
         }
     )
     USER_SETTING_KEYS: frozenset[str] = frozenset(
@@ -320,10 +324,53 @@ class AppConstants:
     DEFAULT_AUTO_CLEANUP_JOBS: bool = True
     DEFAULT_AUTO_CLEANUP_OPTIMIZE_DB: bool = True
 
+    # Phase 15 Global Playback Profile & 3-Step Onboarding constants
+    PLAYBACK_PRESET_NEUTRAL: str = "neutral"
+    PLAYBACK_PRESET_DOLBY_ARC: str = "dolby_arc"
+    PLAYBACK_PRESET_OPTICAL_LEGACY: str = "optical_legacy"
+    PLAYBACK_PRESET_EARC_AVR: str = "earc_avr"
+    PLAYBACK_PRESET_STREAMING: str = "streaming_clients"
+    PLAYBACK_PRESET_STEREO_MOBILE: str = "stereo_mobile"
+    PLAYBACK_PRESET_CUSTOM: str = "custom"
+    ALLOWED_PLAYBACK_PRESETS: frozenset[str] = frozenset(
+        {
+            "neutral",
+            "dolby_arc",
+            "optical_legacy",
+            "earc_avr",
+            "streaming_clients",
+            "stereo_mobile",
+            "custom",
+        }
+    )
+    PLAYBACK_CODEC_KEYS: tuple[str, ...] = (
+        "eac3",
+        "ac3",
+        "dts",
+        "dts_hd_ma",
+        "truehd",
+        "aac_51",
+        "aac_20",
+        "opus",
+        "flac",
+        "pcm",
+        "mp3",
+        "alac",
+    )
+    ALLOWED_PLAYBACK_CODEC_KEYS: frozenset[str] = frozenset(PLAYBACK_CODEC_KEYS)
+    ALLOWED_PLAYBACK_MAX_CHANNELS: frozenset[int] = frozenset({2, 6, 8})
+    ALLOWED_PLAYBACK_PREFERRED_CODECS: frozenset[str] = frozenset(
+        {"eac3", "ac3", "aac"}
+    )
+    DEFAULT_PLAYBACK_PROFILE_PRESET: str = "neutral"
+    DEFAULT_PLAYBACK_MAX_CHANNELS: int = 6
+    DEFAULT_PLAYBACK_PREFERRED_CODEC: str = "eac3"
+
     # Phase 11 maintenance & scheduled cleanup constants
     ORPHAN_UPLOAD_MIN_AGE_SEC: int = 3600
     MAINTENANCE_SCHEDULER_POLL_SEC: float = 300.0
     SECONDS_PER_DAY: int = 86400
+    FACTORY_RESET_CONFIRM_TOKEN: str = "RESET"
 
     # Phase 3 processing constants
     DISK_SPACE_SIZE_MULTIPLIER: float = 1.1

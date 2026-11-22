@@ -356,6 +356,16 @@ class AuthService:
             self._auth_repo.delete_session(hash_session_token(raw_cookie_token.strip()))
             logger.info("Local session revoked: auth_mode=%s", self.get_auth_mode())
 
+    def verify_user_password(self, *, user_id: int, password: str | None) -> None:
+        """Verify `password` matches the stored hash for `user_id` or raise AuthCredentialsError."""
+        if not password:
+            raise AuthCredentialsError("Current password is required.")
+        user_row = self._auth_repo.get_user_by_id(user_id)
+        if user_row is None or not verify_password(
+            password, str(user_row.get("password_hash") or "")
+        ):
+            raise AuthCredentialsError("Incorrect password.")
+
     def list_users(self) -> list[AuthUserSummary]:
         """Return all local (non-anonymous) user accounts."""
         return [_row_to_user_summary(row) for row in self._auth_repo.list_local_users()]

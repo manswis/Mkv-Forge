@@ -76,6 +76,33 @@ Clicking any file opens the **Track & Metadata Editor**:
     * Exact channel layout labels (`8 → 7.1`, `7 → 6.1`, `6 → 5.1`, `4 → 4.0`, `3 → 3.0`, `2 → 2.0`, `1 → 1.0`) drive auto-generated track titles (e.g. `FLAC 7.1 • eng • muxed`, `EAC3 5.1 • 768k • eng • muxed`, `AAC 2.0 • 256k • eng • muxed`).
   * **Placement & Default Flag Demotion:** Automatically inserted at **Audio Index 0** with `--default-track-flag 0:yes`, while explicitly clearing the default flag (`--default-track-flag <id>:no`) on existing audio tracks (unless overridden) so players never see double default audio tracks. User may optionally drop the original source track.
 
+### 3.3.1 Global Playback Profile & 3-Step First-Run Onboarding (Phase 15)
+
+* **Global Playback Profile (`app_state` / `SYSTEM_SETTING_KEYS`):**
+  * MKV Forge operates on a single shared household media library, so the active **Playback Profile** (`playback_profile_preset`, `playback_supported_codecs`, `playback_max_channels`, `playback_preferred_codec`) is persisted **system-wide** in `app_state['user_settings']` (while UI preferences like theme, accent, font scale, and pagination remain per-user).
+  * **Hardware Presets (all default target codecs strictly within `eac3`, `ac3`, `aac`):**
+    * `dolby_arc` (*Soundbar / Smart TV · HDMI ARC*): supported `["eac3", "ac3", "aac_20"]`, max `6` (5.1), preferred target `"eac3"`.
+    * `optical_legacy` (*Optical Soundbar / Legacy AVR · TOSLINK*): supported `["ac3", "aac_20"]`, max `6` (5.1), preferred target `"ac3"`.
+    * `earc_avr` (*Home Theater AVR · HDMI eARC 7.1 / Atmos*): supported `["truehd", "dts_hd_ma", "eac3", "ac3", "dts", "flac", "pcm", "aac_20"]`, max `8` (7.1), preferred target `"eac3"`.
+    * `streaming_clients` (*Plex / Jellyfin / Infuse · Apple TV, Shield, Web*): supported `["eac3", "ac3", "aac_20", "aac_51", "opus", "flac"]`, max `8` (7.1), preferred target `"aac"`.
+    * `stereo_mobile` (*Stereo / Headphones / Mobile · 2.0*): supported `["aac_20", "opus", "ac3", "eac3", "mp3"]`, max `2` (2.0), preferred target `"aac"`.
+    * `custom`: User-customized codec list, max channels (`2`, `6`, `8`), and preferred target codec (`eac3`, `ac3`, `aac`).
+    * `neutral`: Unconfigured / skipped profile — never flags files as needing conversion until the user configures a sound system in Onboarding or Settings.
+  * **Anti-Stereo-Commentary False-Negative Compatibility Rule:**
+    * Splits `aac_20` (AAC `<= 2ch`) from `aac_51` (AAC `> 2ch`) and `dts_hd_ma` from lossy `dts`.
+    * A track is compatible iff its normalized codec key is in `supported_codecs` **and** `channels <= max_channels` (when known).
+    * **Multichannel Guard:** Whenever `max_channels > 2` and a file contains at least one multichannel audio track (`channels > 2`), the file is compatible **only if at least one multichannel track is compatible** — a stereo `2.0` commentary track can never mask an incompatible `5.1`/`7.1` main track.
+    * Evaluated dynamically from cached `audio_summary_json` in SQLite (zero re-scan when changing sound systems).
+* **3-Step First-Run Onboarding Wizard (`auth_mode == "unconfigured"` only):**
+  * **Existing configured installs (`auth_mode != "unconfigured"`) are NEVER interrupted** on upgrade; they configure or change their Playback Profile anytime in Settings.
+  * **Step 1 — Access & Authentication:** Two-card progressive choice between *Create Admin Account* (`local`) and *Continue Without Sign-In* (`anonymous`), with client-side validation and lossless Back/Next navigation.
+  * **Step 2 — Sound System / Playback Profile:** Hardware preset cards + collapsible *Customize codecs & channels* + *Skip for now — configure later in Settings* (`neutral`).
+  * **Step 3 — Initialize & Start Scan:** Confirmation summary + storage mount path/write-status check + mandatory CTA *Start Scanning Library* (commits auth + playback profile + triggers non-blocking `POST /api/scan` and lands directly on Dashboard).
+* **Factory Reset (`POST /api/maintenance/factory-reset`):**
+  * Located in a Danger Zone card inside **Settings → Storage & Database Maintenance**; never touches any media file inside `STORAGE_DIR`.
+  * **Guardrails:** Refuses with `409 Conflict` if any scan or conversion job is active; in `local` auth mode requires admin role (`403` otherwise) and verified current password; in `anonymous` mode requires `confirm_text == "RESET"`.
+  * **Physical Rebuild:** Acquires `op_lock`, pauses background loops (`maintenance_scheduler`, `library_watcher`, `job_worker`), unlinks `mkvforge.db` / `-wal` / `-shm`, clears contents inside `data/uploads/` while keeping the directory intact, calls `db.initialize()`, resets in-memory `job_broker` and `library_broker` buffers, resumes background loops, clears the browser session cookie + client `localStorage`/`sessionStorage`, and lands automatically on Onboarding Step 1.
+
 ### 3.4 Two-Stage Processing Pipeline & Atomic Writes
 
 Jobs execute sequentially in a single-worker background queue (1 active job at a time to avoid USB I/O thrashing).

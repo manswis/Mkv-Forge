@@ -465,6 +465,37 @@ Goal: Evolve MKV Forge's hardcoded 5.1 Dolby converter into a capability-driven,
   - [x] **End-to-end API integration tests (`tests/integration/test_phase14_audio_conversion.py`):**
     - Verify `POST /api/jobs` accepts valid `opus 7.1`, `flac 7.1`, `eac3 5.1 @ 768k`, and `aac 2.0` downmix payloads and rejects invalid combinations with `422`.
 
+---
+
+## Phase 15: 3-Step Apple-Style Onboarding & Global Playback Profile
+
+Goal: Eliminate hardcoded AAC/Dolby assumptions across the Dashboard and Library by introducing a **global household Playback Profile** (`app_state` / `SYSTEM_SETTING_KEYS`) paired with a frictionless, Apple-grade **3-Step First-Run Onboarding Wizard** (Access → Sound System → Start Scan) and a dedicated **Sound System** Settings panel—while never interrupting existing production installs and preventing stereo-commentary false negatives.
+
+- [x] **15.1 Pure Playback Profile Engine & Constants (`app/services/playback_profile.py`, `app/config.py`, `app/models/schemas.py`, `app/services/user_settings.py`)**
+  - [x] Create dedicated `app/services/playback_profile.py` with centralized presets (`dolby_arc`, `optical_legacy`, `earc_avr`, `streaming_clients`, `stereo_mobile`, `custom`, `neutral`) whose default target codecs are strictly within `("eac3", "ac3", "aac")`.
+  - [x] Implement `classify_track_codec_key(codec, channels)` (separating `aac_20` vs `aac_51` and `dts_hd_ma` vs `dts`) and `evaluate_file_needs_conversion(audio_tracks, profile)` enforcing the **anti-stereo-commentary multichannel guard** (if `max_channels > 2` and file has multichannel tracks, require at least one compatible multichannel track).
+  - [x] Extend `AppConstants.SYSTEM_SETTING_KEYS`, `UserSettings`, `UserSettingsUpdate`, and `UserSettingsService` so `playback_profile_preset`, `playback_supported_codecs`, `playback_max_channels`, and `playback_preferred_codec` persist globally across all household users while UI preferences stay per-user.
+  - [x] Extend `AuthStatusResponse` (`storage_path`, `storage_writable`), `DashboardStats` (`needs_conversion`, `playback_profile_configured`, `playback_profile_label`, `playback_profile_preset`), `LibraryFacets` (`needs_conversion`), and `MediaFileListItem` (`needs_conversion`).
+
+- [x] **15.2 Zero-Rescan SQLite Compatibility Filtering & API Wiring (`app/db/repositories.py`, `app/api/dashboard.py`, `app/api/files.py`, `app/api/auth.py`)**
+  - [x] Evaluate `needs_conversion` dynamically from cached `audio_summary_json` against the active global `PlaybackProfile` across `GET /api/dashboard` and `GET /api/files?needs_conversion=1` (zero re-scan, zero schema migration, preserving backward-compatible legacy query aliases).
+  - [x] Expose mounted `storage_path` and `storage_writable` on `GET /api/auth/status` for Step 3 verification.
+
+- [x] **15.3 Pure Frontend Playback Profile Module & Editor Integration (`app/static/js/playback_profile.js`, `app/static/js/constants.js`, `app/static/js/editor.js`, `app/static/js/app.js`)**
+  - [x] Create `app/static/js/playback_profile.js` exporting preset definitions, codec labels, summary formatters, and profile-aware target codec prioritization (strictly within `eac3`, `ac3`, `aac` for preset defaults).
+  - [x] Wire `editor.js` `getRecommendedAddAudioOptions(editorState, playbackProfile)` to respect the household's Playback Profile when configured.
+  - [x] Wire 3-step onboarding controller state (`onboardingWizardStep`, `onboardingDirection`, `onboardingAuthChoice`, `onboardingProfileDraft`, lossless Back/Next, atomic Step 3 commit: `setupAuth → patchUserSettings → optional triggerScan → Dashboard`), Settings Playback Profile handlers, and profile-driven `needsConversion` Library filter state in `app.js`.
+
+- [x] **15.4 Apple-Style Animated 3-Step Onboarding UI, Settings Panel & Generic Dashboard/Library (`app/static/index.html`, `app/static/css/app.css`)**
+  - [x] Add smooth directional slide+fade transition animations (`.onboarding-step-fwd`, `.onboarding-step-back`) with `prefers-reduced-motion: reduce` support in `app/static/css/app.css`.
+  - [x] Replace single-step first-run modal in `index.html` with the responsive 3-step Onboarding Wizard (only shown when `auth_mode === "unconfigured"`).
+  - [x] Add dedicated **Sound System (Playback Profile)** Settings section so users can configure or change presets/custom codecs/max channels anytime.
+  - [x] Replace hardcoded Dashboard `"AAC 5.1 Only"` KPI card and Library `"No Dolby"` chip with profile-driven **`Needs Conversion`** (or a 1-tap `Set Up Sound System` prompt when `neutral`).
+
+- [x] **15.5 Exhaustive Unit & Integration Tests**
+  - [x] Unit tests (`tests/unit/test_playback_profile.py`) covering all 7 presets, `aac_20` vs `aac_51` splitting, anti-stereo-commentary multichannel false-negative protection, `2.0 / 5.1 / 7.1` channel ceilings, `neutral` mode, malformed/null inputs, and Node VM tests for `playback_profile.js` + `app.js` 3-step wizard transitions.
+  - [x] Integration tests (`tests/integration/test_phase15_onboarding_and_profile.py`) covering global household profile persistence across 2 local users, Dashboard `needs_conversion` counts, `GET /api/files?needs_conversion=1` filtering with stereo-commentary edge cases, Step 1–3 onboarding flow on fresh install vs zero interruption on existing configured installs, and HTML tag balance + landmarks.
+
 
 
 

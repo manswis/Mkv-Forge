@@ -3,7 +3,7 @@
 window.MKVForgeConstants = Object.freeze({
   APP: Object.freeze({
     NAME: "MKV Forge",
-    VERSION: "1.0.0",
+    VERSION: "1.0.1",
     AUTHOR: "Manoj Biswas",
     GITHUB_URL: "https://github.com/manswis/Mkv-Forge",
     RELEASES_URL: "https://github.com/manswis/Mkv-Forge/releases",
@@ -24,6 +24,7 @@ window.MKVForgeConstants = Object.freeze({
     DASHBOARD: "/api/dashboard",
     SETTINGS: "/api/settings",
     MAINTENANCE: "/api/maintenance",
+    MAINTENANCE_FACTORY_RESET: "/api/maintenance/factory-reset",
     FILES: "/api/files",
     FOLDERS: "/api/folders",
     UPLOADS: "/api/uploads",
@@ -84,6 +85,10 @@ window.MKVForgeConstants = Object.freeze({
     auto_cleanup_temp: true,
     auto_cleanup_jobs: true,
     auto_cleanup_optimize_db: true,
+    playback_profile_preset: "neutral",
+    playback_supported_codecs: Object.freeze([]),
+    playback_max_channels: 6,
+    playback_preferred_codec: "eac3",
   }),
 
   THEMES: Object.freeze({
@@ -120,6 +125,7 @@ window.MKVForgeConstants = Object.freeze({
   SETTINGS_SECTIONS: Object.freeze({
     APPEARANCE: "appearance",
     ACCOUNT: "account",
+    PLAYBACK_PROFILE: "playback_profile",
     AUDIO_TRACKS: "audio_tracks",
     OUTPUT_METADATA: "output_metadata",
     MAINTENANCE: "maintenance",
@@ -150,6 +156,12 @@ window.MKVForgeConstants = Object.freeze({
       id: "remuxing",
       title: "Media & Remuxing",
       sections: Object.freeze([
+        Object.freeze({
+          id: "playback_profile",
+          title: "Sound System & Profile",
+          subtitle: "Household playback codecs, channels & compatibility",
+          badgeClass: "border-violet-500/35 bg-violet-500/15 text-violet-300",
+        }),
         Object.freeze({
           id: "audio_tracks",
           title: "Audio & Track Defaults",
@@ -280,10 +292,28 @@ window.MKVForgeConstants = Object.freeze({
 
   FILTERS: Object.freeze({
     ALL: "all",
+    NEEDS_CONVERSION: "needs_conversion",
     AAC51_ONLY: "aac51_only",
     AAC51: "aac51",
     HAS_METADATA: "has_metadata",
     NO_DOLBY: "no_dolby",
+  }),
+
+  ONBOARDING: Object.freeze({
+    STEP_ACCESS: 1,
+    STEP_SOUND_SYSTEM: 2,
+    STEP_INITIALIZE: 3,
+    TOTAL_STEPS: 3,
+    AUTH_CHOICE_LOCAL: "local",
+    AUTH_CHOICE_ANONYMOUS: "anonymous",
+    DIR_FORWARD: "forward",
+    DIR_BACK: "back",
+    MIN_USERNAME_LEN: 2,
+    MIN_PASSWORD_LEN: 6,
+  }),
+
+  MAINTENANCE: Object.freeze({
+    FACTORY_RESET_CONFIRM_TOKEN: "RESET",
   }),
 
   SORT_FIELDS: Object.freeze({
@@ -502,6 +532,8 @@ window.MKVForgeConstants = Object.freeze({
     SSE_CONNECT_DELAY: 150,
     SSE_HIDDEN_CLOSE_DELAY: 3000,
     REQUEST_TIMEOUT: 15000,
+    SCAN_LIVE_DASHBOARD_MS: 1500,
+    SCAN_LIVE_LIBRARY_MS: 2500,
   }),
 
   TOAST: Object.freeze({

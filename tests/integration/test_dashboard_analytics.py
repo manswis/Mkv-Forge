@@ -267,9 +267,9 @@ class TestDashboardUILandmarks:
         assert resp.status_code == AppConstants.HTTP_OK
         html = resp.text
 
-        # Honest actionable KPI wording
+        # Honest actionable KPI wording (profile-driven Needs Conversion replaces hardcoded AAC 5.1 Only)
         assert "Show library" in html
-        assert "Show AAC 5.1 only" in html
+        assert "Show incompatible" in html
         assert "Show extra metadata" in html
         # Misleading Quick Actions wording removed
         assert "Fix ${dashboard.stats.aac51_only}" not in html
@@ -282,8 +282,8 @@ class TestDashboardUILandmarks:
         assert "Dynamic Range" in html
         assert "Resolution" in html
         assert "/static/js/charts.js" in html
-        assert 'x-html="dashboardStoragePieSvg"' in html
-        assert 'x-html="dashboardAudioPieSvg"' in html
+        assert 'x-effect="syncStoragePieChart($el)"' in html
+        assert 'x-effect="syncAudioPieChart($el)"' in html
         assert 'onAudioPieClick($event)' in html
 
 
@@ -416,6 +416,139 @@ class TestHdrClassificationAndSvgRendering:
         assert ">70%</text>" in svg
         assert ">30%</text>" in svg
         assert "<circle " in out["emptySvg"]
+
+    def test_patch_pie_svg_reconciles_dom_in_place_without_remounting(self) -> None:
+        import subprocess
+        from pathlib import Path
+
+        project_root = Path(__file__).resolve().parents[2]
+        script = """
+        const fs = require('fs');
+        const vm = require('vm');
+
+        class FakeEl {
+          constructor(tag, ns) {
+            this.tagName = tag;
+            this.namespaceURI = ns;
+            this.attrs = {};
+            this.style = {};
+            this.children = [];
+            this.parentNode = null;
+            this.textContent = '';
+            this.ownerDocument = null;
+          }
+          setAttribute(k, v) { this.attrs[k] = String(v); }
+          getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; }
+          appendChild(child) {
+            if (child.parentNode) child.parentNode.removeChild(child);
+            child.parentNode = this;
+            this.children.push(child);
+            return child;
+          }
+          insertBefore(child, ref) {
+            if (child.parentNode) child.parentNode.removeChild(child);
+            const idx = this.children.indexOf(ref);
+            child.parentNode = this;
+            if (idx === -1) this.children.push(child);
+            else this.children.splice(idx, 0, child);
+            return child;
+          }
+          removeChild(child) {
+            const idx = this.children.indexOf(child);
+            if (idx !== -1) this.children.splice(idx, 1);
+            child.parentNode = null;
+            return child;
+          }
+        }
+
+        const fakeDoc = {
+          createElementNS(ns, tag) {
+            const el = new FakeEl(tag, ns);
+            el.ownerDocument = fakeDoc;
+            return el;
+          },
+        };
+        const host = new FakeEl('div', 'http://www.w3.org/1999/xhtml');
+        host.ownerDocument = fakeDoc;
+
+        const sandbox = { window: {}, document: fakeDoc };
+        sandbox.window = sandbox;
+        vm.runInNewContext(fs.readFileSync('app/static/js/charts.js', 'utf8'), sandbox);
+        const Charts = sandbox.MKVForgeCharts;
+
+        // Negative / edge cases fail safely
+        const nullOk = Charts.patchPieSvg(null, [], null, { idPrefix: 'ac' });
+        const emptyOk = Charts.patchPieSvg(host, [], null, { idPrefix: 'ac', ariaLabel: 'Audio' });
+        const svgEl = host.children[0];
+        const emptyRing = svgEl.children.find((c) => c.getAttribute('data-role') === 'empty-ring');
+        const emptyRingVisibleWhenEmpty = emptyRing.getAttribute('display') === '';
+
+        // First live scan batch (1 slice)
+        const s1 = Charts.buildPieSlices([{ key: 'EAC3', label: 'DD+', value: 10 }]);
+        Charts.patchPieSvg(host, s1, null, { idPrefix: 'ac', ariaLabel: 'Audio' });
+        const sameSvgAfterData = host.children[0] === svgEl;
+        const emptyRingHiddenWithData = emptyRing.getAttribute('display') === 'none';
+        const slicesEl = svgEl.children.find((c) => c.getAttribute('data-role') === 'slices');
+        const eac3Group1 = slicesEl.children[0];
+        const eac3Path1 = eac3Group1.children[0];
+        const dBefore = eac3Path1.getAttribute('d');
+
+        // Second live scan batch (EAC3 grows + AAC arrives + hover EAC3)
+        const s2 = Charts.buildPieSlices([
+          { key: 'EAC3', label: 'DD+', value: 15 },
+          { key: 'AAC', label: 'AAC', value: 5 },
+        ]);
+        Charts.patchPieSvg(host, s2, 'EAC3', { idPrefix: 'ac', ariaLabel: 'Audio' });
+        const sameSvgAfterUpdate = host.children[0] === svgEl;
+        const sameGroupReused = slicesEl.children[0] === eac3Group1;
+        const samePathReused = slicesEl.children[0].children[0] === eac3Path1;
+        const pathUpdatedInPlace = eac3Path1.getAttribute('d') !== dBefore;
+        const aacDimmed = slicesEl.children[1].getAttribute('opacity') === '0.55';
+        const eac3Shadowed = Boolean(eac3Path1.style.filter);
+
+        // Removing AAC cleans up only the removed slice without remounting EAC3
+        const s3 = Charts.buildPieSlices([{ key: 'EAC3', label: 'DD+', value: 20 }]);
+        Charts.patchPieSvg(host, s3, null, { idPrefix: 'ac', ariaLabel: 'Audio' });
+        const finalSliceCount = slicesEl.children.length;
+        const eac3StillSameNode = slicesEl.children[0] === eac3Group1;
+
+        console.log(JSON.stringify({
+          nullOk,
+          emptyOk,
+          emptyRingVisibleWhenEmpty,
+          sameSvgAfterData,
+          emptyRingHiddenWithData,
+          sameSvgAfterUpdate,
+          sameGroupReused,
+          samePathReused,
+          pathUpdatedInPlace,
+          aacDimmed,
+          eac3Shadowed,
+          finalSliceCount,
+          eac3StillSameNode,
+        }));
+        """
+        proc = subprocess.run(
+            ["node", "-e", script],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        res = json.loads(proc.stdout)
+        assert res["nullOk"] is False
+        assert res["emptyOk"] is True
+        assert res["emptyRingVisibleWhenEmpty"] is True
+        assert res["sameSvgAfterData"] is True
+        assert res["emptyRingHiddenWithData"] is True
+        assert res["sameSvgAfterUpdate"] is True
+        assert res["sameGroupReused"] is True
+        assert res["samePathReused"] is True
+        assert res["pathUpdatedInPlace"] is True
+        assert res["aacDimmed"] is True
+        assert res["eac3Shadowed"] is True
+        assert res["finalSliceCount"] == 1
+        assert res["eac3StillSameNode"] is True
 
     async def test_mkvtoolnix_v69_hdr_keys_and_force_backfill(
         self, api_app

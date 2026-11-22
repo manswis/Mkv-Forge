@@ -339,3 +339,99 @@ html:not(.dark) .select-dark {
     scrollbar-width: none;
   }
 }
+
+/* ========================================================================= */
+/* Phase 15: Apple-Style Onboarding Wizard Uniform Shell & Slide Transitions */
+/* Kept unlayered so Tailwind CLI always emits these rules in Docker builds. */
+/* ========================================================================= */
+:root {
+  --onboarding-shell-height: 36rem;
+  --onboarding-viewport-gutter: 1.5rem;
+  --onboarding-header-side: 4rem;
+  --onboarding-header-row-height: 2.125rem;
+  --onboarding-footer-pad-y: 0.75rem;
+  --onboarding-anim-duration: 0.26s;
+  --onboarding-anim-offset: 20px;
+}
+
+.onboarding-wizard-shell {
+  height: min(var(--onboarding-shell-height), calc(100vh - var(--onboarding-viewport-gutter)));
+  height: min(var(--onboarding-shell-height), calc(100dvh - var(--onboarding-viewport-gutter)));
+  min-height: min(var(--onboarding-shell-height), calc(100vh - var(--onboarding-viewport-gutter)));
+  min-height: min(var(--onboarding-shell-height), calc(100dvh - var(--onboarding-viewport-gutter)));
+  max-height: calc(100vh - var(--onboarding-viewport-gutter));
+  max-height: calc(100dvh - var(--onboarding-viewport-gutter));
+}
+
+.onboarding-header-row {
+  min-height: var(--onboarding-header-row-height);
+}
+
+.onboarding-header-slot {
+  width: var(--onboarding-header-side);
+}
+
+.onboarding-body {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.onboarding-step-center {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.onboarding-step-inner {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.onboarding-footer {
+  padding-top: var(--onboarding-footer-pad-y);
+  padding-bottom: calc(var(--onboarding-footer-pad-y) + env(safe-area-inset-bottom, 0px));
+}
+
+.onboarding-chevron-open {
+  transform: rotate(90deg);
+}
+
+@keyframes onboarding-slide-fwd {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--onboarding-anim-offset), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes onboarding-slide-back {
+  0% {
+    opacity: 0;
+    transform: translate3d(calc(var(--onboarding-anim-offset) * -1), 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.onboarding-step-fwd {
+  animation: onboarding-slide-fwd var(--onboarding-anim-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboarding-step-back {
+  animation: onboarding-slide-back var(--onboarding-anim-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-step-fwd,
+  .onboarding-step-back {
+    animation: none !important;
+  }
+}

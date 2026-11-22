@@ -27,6 +27,10 @@ from app.models.schemas import (
 from app.services.folder_service import parse_visible_extensions_set
 from app.services.folder_sync import reconcile_folder_snapshot
 from app.services.media_info_extractor import extract_media_file_info
+from app.services.playback_profile import (
+    PlaybackProfileSpec,
+    evaluate_file_needs_conversion,
+)
 from app.services.probe_parser import parse_mkvmerge_json
 from app.services.scanner import (
     LibraryScanner,
@@ -40,12 +44,24 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 logger = logging.getLogger(__name__)
 
 
-def _row_to_list_item(row: dict[str, Any]) -> MediaFileListItem:
+def _row_to_list_item(
+    row: dict[str, Any],
+    *,
+    playback_profile: PlaybackProfileSpec | None = None,
+) -> MediaFileListItem:
     """Convert a SQLite media_files row into a MediaFileListItem schema."""
     summary_dicts = decode_audio_summary_json(row.get("audio_summary_json"))
     audio_summary = [AudioTrackSummary(**entry) for entry in summary_dicts]
     container_title = str(row.get("container_title") or "")
     has_global_tags = bool(row.get("has_global_tags"))
+    scan_status = str(row.get("scan_status") or AppConstants.FILE_SCAN_STATUS_READY)
+    needs_conversion = (
+        evaluate_file_needs_conversion(
+            summary_dicts, playback_profile, scan_status=scan_status
+        )
+        if playback_profile is not None
+        else False
+    )
 
     return MediaFileListItem(
         id=int(row["id"]),
@@ -65,9 +81,8 @@ def _row_to_list_item(row: dict[str, Any]) -> MediaFileListItem:
         has_metadata=bool(container_title) or has_global_tags,
         has_aac_51=bool(row.get("has_aac_51")),
         has_ac3_eac3=bool(row.get("has_ac3_eac3")),
-        scan_status=str(
-            row.get("scan_status") or AppConstants.FILE_SCAN_STATUS_READY
-        ),  # type: ignore[arg-type]
+        needs_conversion=needs_conversion,
+        scan_status=scan_status,  # type: ignore[arg-type]
         scanned_at=str(row["scanned_at"]),
     )
 
@@ -142,6 +157,8 @@ def _load_library_queries(
     aac51: bool,
     has_metadata: bool,
     no_dolby: bool,
+    needs_conversion: bool,
+    playback_profile: PlaybackProfileSpec | None,
     sort: str,
     order: str,
     page: int,
@@ -164,6 +181,8 @@ def _load_library_queries(
         aac51=aac51,
         has_metadata=has_metadata,
         no_dolby=no_dolby,
+        needs_conversion=needs_conversion,
+        playback_profile=playback_profile,
         sort=sort,
         order=order,
         page=page,
@@ -176,6 +195,8 @@ def _load_library_queries(
         aac51=aac51,
         has_metadata=has_metadata,
         no_dolby=no_dolby,
+        needs_conversion=needs_conversion,
+        playback_profile=playback_profile,
     )
     audio_facets_raw = media_repo.list_audio_types(
         q=q,
@@ -184,11 +205,14 @@ def _load_library_queries(
         aac51=aac51,
         has_metadata=has_metadata,
         no_dolby=no_dolby,
+        needs_conversion=needs_conversion,
+        playback_profile=playback_profile,
     )
     workflow_counts = media_repo.get_workflow_facet_counts(
         q=q,
         folder=folder,
         audio_type=audio_type,
+        playback_profile=playback_profile,
     )
     folder_counts = media_repo.get_folder_file_counts()
     return rows, total, folders, audio_facets_raw, workflow_counts, folder_counts
@@ -205,6 +229,7 @@ async def list_files(
     aac51: bool = Query(default=False),
     has_metadata: bool = Query(default=False),
     no_dolby: bool = Query(default=False),
+    needs_conversion: bool = Query(default=False),
     sort: str = Query(default=AppConstants.DEFAULT_SORT_FIELD),
     order: str = Query(default=AppConstants.DEFAULT_SORT_ORDER),
     page: int = Query(default=AppConstants.DEFAULT_PAGE, ge=AppConstants.DEFAULT_PAGE),
@@ -285,6 +310,13 @@ async def list_files(
             for rel_path in reconcile.probe_candidates:
                 watcher.schedule_background_probe(rel_path)
 
+    user_settings_service = getattr(request.app.state, "user_settings_service", None)
+    playback_profile = (
+        await asyncio.to_thread(user_settings_service.get_playback_profile)
+        if user_settings_service is not None
+        else None
+    )
+
     t_db = time.perf_counter()
     (
         rows,
@@ -304,6 +336,8 @@ async def list_files(
         aac51=aac51,
         has_metadata=has_metadata,
         no_dolby=no_dolby,
+        needs_conversion=needs_conversion,
+        playback_profile=playback_profile,
         sort=sort,
         order=order,
         page=page,
@@ -331,7 +365,10 @@ async def list_files(
     total_pages = math.ceil(total / limit) if total > 0 else 0
 
     return MediaFileListResponse(
-        items=[_row_to_list_item(row) for row in rows],
+        items=[
+            _row_to_list_item(row, playback_profile=playback_profile)
+            for row in rows
+        ],
         total=total,
         page=page,
         limit=limit,
@@ -342,6 +379,7 @@ async def list_files(
             aac51_only=workflow_counts["aac51_only"],
             has_metadata=workflow_counts["has_metadata"],
             no_dolby=workflow_counts["no_dolby"],
+            needs_conversion=workflow_counts.get("needs_conversion", 0),
             audio_types=audio_facets,
         ),
         subfolders=subfolders,

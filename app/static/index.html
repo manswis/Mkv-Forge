@@ -42,19 +42,20 @@
       } catch (_e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p12.2" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p12.2"></script>
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p15.2" />
+  <script defer src="/static/js/constants.js?v=0.1.0-p15.3"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/api.js?v=0.1.0-p12.2"></script>
+  <script defer src="/static/js/api.js?v=0.1.0-p15.1"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/editor.js?v=0.1.0-p12.2"></script>
+  <script defer src="/static/js/editor.js?v=0.1.0-p15.1"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/charts.js?v=0.1.0-p12.2"></script>
+  <script defer src="/static/js/charts.js?v=0.1.0-p15.3"></script>
   <script defer src="/static/js/library_return.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p12.2"></script>
+  <script defer src="/static/js/playback_profile.js?v=0.1.0-p15.1"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p15.3"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 <body class="min-h-dvh bg-canvas text-zinc-100 font-sans antialiased selection:bg-accent/30 selection:text-zinc-100">
@@ -761,19 +762,36 @@
 
             <button
               type="button"
-              @click="openLibraryPreset({ noDolby: true, audioType: 'AAC 5.1' })"
+              @click="dashboard.stats.playback_profile_configured ? openLibraryPreset({ needsConversion: true }) : openSettings(C.SETTINGS_SECTIONS.PLAYBACK_PROFILE)"
               class="group flex min-h-[104px] flex-col justify-between rounded-xl border border-hairline bg-surface p-4 text-left transition hover:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/40"
             >
               <div class="flex items-center justify-between gap-2">
-                <span class="flex items-center gap-1.5">
-                  <span class="h-2 w-2 rounded-full bg-amber-400"></span>
-                  <p class="text-xs font-medium text-zinc-400">AAC 5.1 Only</p>
+                <span class="flex items-center gap-1.5 min-w-0">
+                  <span
+                    class="h-2 w-2 shrink-0 rounded-full"
+                    :class="dashboard.stats.playback_profile_configured ? (dashboard.stats.needs_conversion > 0 ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-indigo-400'"
+                  ></span>
+                  <p
+                    class="truncate text-xs font-medium text-zinc-400"
+                    x-text="dashboard.stats.playback_profile_configured ? 'Needs Conversion' : 'Sound System'"
+                  ></p>
                 </span>
                 <span class="text-xs text-zinc-500 transition group-hover:translate-x-0.5 group-hover:text-amber-300" aria-hidden="true">→</span>
               </div>
-              <div>
-                <p class="mt-2 font-mono text-2xl font-semibold tracking-tight text-amber-400 md:text-3xl" x-text="dashboard.stats.aac51_only"></p>
-                <p class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-amber-300 transition">Show AAC 5.1 only</p>
+              <div x-show="dashboard.stats.playback_profile_configured">
+                <p
+                  class="mt-2 font-mono text-2xl font-semibold tracking-tight md:text-3xl"
+                  :class="dashboard.stats.needs_conversion > 0 ? 'text-amber-400' : 'text-emerald-400'"
+                  x-text="dashboard.stats.needs_conversion"
+                ></p>
+                <p
+                  class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-amber-300 transition"
+                  x-text="`${dashboard.stats.playback_profile_label} • Show incompatible`"
+                ></p>
+              </div>
+              <div x-show="!dashboard.stats.playback_profile_configured">
+                <p class="mt-2 text-base font-semibold tracking-tight text-indigo-300 md:text-lg">Set Up</p>
+                <p class="mt-1 truncate text-[11px] text-zinc-500 group-hover:text-indigo-200 transition">Configure codecs &amp; channels</p>
               </div>
             </button>
 
@@ -844,7 +862,7 @@
                   @mouseleave="hoveredStorageKey = null"
                   @click="onStoragePieClick($event)"
                 >
-                  <div class="h-full w-full" x-html="dashboardStoragePieSvg"></div>
+                  <div class="h-full w-full" x-ref="storagePieHost" x-effect="syncStoragePieChart($el)"></div>
 
                   <!-- Dynamic Center Readout (Total or Active Slice) -->
                   <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
@@ -913,7 +931,7 @@
                   @mouseleave="hoveredAudioKey = null"
                   @click="onAudioPieClick($event)"
                 >
-                  <div class="h-full w-full" x-html="dashboardAudioPieSvg"></div>
+                  <div class="h-full w-full" x-ref="audioPieHost" x-effect="syncAudioPieChart($el)"></div>
 
                   <!-- Dynamic Center Readout (Total Tracks or Active Codec) -->
                   <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
@@ -3675,6 +3693,9 @@
                             <svg x-show="sec.id === C.SETTINGS_SECTIONS.ACCOUNT" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                               <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
                             </svg>
+                            <svg x-show="sec.id === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 16c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"></path>
+                            </svg>
                             <svg x-show="sec.id === C.SETTINGS_SECTIONS.AUDIO_TRACKS" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                               <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path>
                             </svg>
@@ -4513,11 +4534,160 @@
                 <!-- ========================================================= -->
                 <div
                   class="space-y-2.5"
-                  :class="(activeSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS || activeSettingsSection === C.SETTINGS_SECTIONS.OUTPUT_METADATA) ? 'md:block' : 'md:hidden'"
+                  :class="(activeSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE || activeSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS || activeSettingsSection === C.SETTINGS_SECTIONS.OUTPUT_METADATA) ? 'md:block' : 'md:hidden'"
                 >
                   <p class="px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Media &amp; Remuxing</p>
 
-                  <!-- Section 2: Audio & Track Defaults -->
+                  <!-- Section 2A: Sound System & Playback Profile (Global Household Setting) -->
+                  <div
+                    class="overflow-hidden rounded-xl border border-hairline bg-surface"
+                    :class="activeSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'md:block' : 'md:hidden'"
+                  >
+                    <button
+                      type="button"
+                      @click="toggleMobileSettingsSection(C.SETTINGS_SECTIONS.PLAYBACK_PROFILE)"
+                      :aria-expanded="mobileSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'true' : 'false'"
+                      class="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-zinc-800/40 md:hidden"
+                    >
+                      <div class="flex min-w-0 items-center gap-3">
+                        <span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-500/35 bg-violet-500/15 text-violet-300">
+                          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 16c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"></path>
+                          </svg>
+                        </span>
+                        <div class="min-w-0">
+                          <p class="text-xs font-semibold text-zinc-100">Sound System &amp; Profile</p>
+                          <p class="truncate text-[11px] text-zinc-400" x-text="PP.formatProfileSummary(settingsProfileDraft)"></p>
+                        </div>
+                      </div>
+                      <svg
+                        class="h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-150"
+                        :class="mobileSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'rotate-180 text-indigo-300' : ''"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                      </svg>
+                    </button>
+
+                    <div
+                      class="border-t border-hairline p-5 space-y-4 md:border-t-0"
+                      :class="[activeSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.PLAYBACK_PROFILE ? 'block' : 'hidden']"
+                    >
+                      <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <h2 class="text-sm font-semibold text-zinc-100">Sound System &amp; Playback Profile</h2>
+                          <p class="mt-0.5 text-xs text-zinc-500">Shared across your household library. Drives Dashboard compatibility stats, Library filters, and default conversion suggestions — with zero re-scanning.</p>
+                        </div>
+                        <button
+                          type="button"
+                          x-show="settingsProfileDraft.preset !== 'neutral'"
+                          @click="resetSettingsPlaybackProfile()"
+                          class="shrink-0 rounded-lg border border-hairline bg-canvas px-2.5 py-1.5 text-[11px] font-medium text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+                        >
+                          Clear Profile
+                        </button>
+                      </div>
+
+                      <!-- Hardware Presets Grid -->
+                      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <template x-for="preset in PP.PRESETS" :key="`set-pp-${preset.id}`">
+                          <button
+                            type="button"
+                            @click="selectSettingsPlaybackPreset(preset.id)"
+                            class="flex flex-col justify-between rounded-xl border p-3 text-left transition"
+                            :class="settingsProfileDraft.preset === preset.id ? 'border-accent bg-accent/10 ring-1 ring-accent/40' : 'border-hairline bg-canvas/50 hover:border-zinc-600'"
+                          >
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="text-xs font-semibold text-zinc-100" x-text="preset.title"></span>
+                              <span
+                                class="shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-medium"
+                                :class="settingsProfileDraft.preset === preset.id ? 'bg-accent/25 text-indigo-200' : 'bg-zinc-800 text-zinc-400'"
+                                x-text="preset.badge"
+                              ></span>
+                            </div>
+                            <p class="mt-1.5 text-[11px] leading-relaxed text-zinc-400" x-text="preset.description"></p>
+                          </button>
+                        </template>
+                      </div>
+
+                      <!-- Collapsible Customizer -->
+                      <div class="rounded-xl border border-hairline bg-canvas/40 overflow-hidden">
+                        <button
+                          type="button"
+                          @click="settingsProfileDraft.customOpen = !settingsProfileDraft.customOpen"
+                          :aria-expanded="settingsProfileDraft.customOpen ? 'true' : 'false'"
+                          class="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition hover:bg-zinc-800/40"
+                        >
+                          <span class="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+                            <svg
+                              class="h-3.5 w-3.5 text-zinc-400 transition-transform duration-150"
+                              :class="settingsProfileDraft.customOpen ? 'rotate-90 text-indigo-300' : ''"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"></path>
+                            </svg>
+                            <span>Customize Supported Codecs &amp; Channels</span>
+                          </span>
+                          <span class="truncate font-mono text-[11px] text-zinc-400" x-text="PP.formatProfileSummary(settingsProfileDraft)"></span>
+                        </button>
+
+                        <div x-show="settingsProfileDraft.customOpen" class="border-t border-hairline p-4 space-y-4">
+                          <div>
+                            <p class="text-[11px] font-medium text-zinc-400">Supported Native Codecs (checked = no conversion needed)</p>
+                            <div class="mt-2 flex flex-wrap gap-1.5">
+                              <template x-for="codec in PP.CODEC_OPTIONS" :key="`set-codec-${codec.key}`">
+                                <button
+                                  type="button"
+                                  @click="toggleSettingsPlaybackCodec(codec.key)"
+                                  class="min-h-[34px] rounded-lg border px-2.5 py-1 text-xs font-medium transition"
+                                  :class="(settingsProfileDraft.supportedCodecs || []).includes(codec.key) ? 'border-accent bg-accent/20 text-indigo-200' : 'border-hairline bg-surface text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'"
+                                  :title="codec.hint"
+                                  x-text="codec.label"
+                                ></button>
+                              </template>
+                            </div>
+                          </div>
+
+                          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <p class="text-[11px] font-medium text-zinc-400">Max Output Channels</p>
+                              <div class="mt-1.5 flex flex-wrap gap-1.5 rounded-lg border border-hairline bg-surface p-1">
+                                <template x-for="cap in PP.CHANNEL_CAP_OPTIONS" :key="`set-ch-${cap.value}`">
+                                  <button
+                                    type="button"
+                                    @click="setSettingsPlaybackMaxChannels(cap.value)"
+                                    class="flex-1 min-h-[34px] rounded-md px-2 font-mono text-xs font-medium transition"
+                                    :class="Number(settingsProfileDraft.maxChannels) === cap.value ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                                    x-text="PP.formatChannelCapLabel(cap.value)"
+                                  ></button>
+                                </template>
+                              </div>
+                            </div>
+                            <div>
+                              <p class="text-[11px] font-medium text-zinc-400">Preferred Conversion Target</p>
+                              <div class="mt-1.5 flex flex-wrap gap-1.5 rounded-lg border border-hairline bg-surface p-1">
+                                <template x-for="tgt in PP.PREFERRED_TARGET_OPTIONS" :key="`set-tgt-${tgt.codec}`">
+                                  <button
+                                    type="button"
+                                    @click="setSettingsPlaybackPreferredCodec(tgt.codec)"
+                                    class="flex-1 min-h-[34px] rounded-md px-2 font-mono text-xs font-medium transition"
+                                    :class="settingsProfileDraft.preferredCodec === tgt.codec ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                                    x-text="tgt.label"
+                                  ></button>
+                                </template>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Section 2B: Audio & Track Defaults -->
                   <div
                     class="overflow-hidden rounded-xl border border-hairline bg-surface"
                     :class="activeSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS ? 'md:block' : 'md:hidden'"
@@ -4931,6 +5101,27 @@
                           </svg>
                           <span>Prune Old Jobs</span>
                         </button>
+                      </div>
+
+                      <!-- Danger Zone: Factory Reset (App Data Only — Media Files 100% Untouched) -->
+                      <div class="rounded-xl border border-red-500/30 bg-red-500/5 p-4 space-y-3">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div class="min-w-0 space-y-1">
+                            <p class="text-xs font-semibold text-red-200">Danger Zone · Factory Reset</p>
+                            <p class="text-[11px] leading-relaxed text-zinc-400">
+                              Rebuilds a brand-new MKV Forge database from scratch if app data is corrupted or you want a fresh start.
+                              <span class="font-medium text-emerald-300">Your movies, TV shows, and folders are never touched.</span>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            @click="openFactoryResetModal()"
+                            :disabled="Boolean(maintenanceBusyAction) || isJobRunning || isScanRunning || (maintenanceStatus && maintenanceStatus.busy)"
+                            class="inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-lg border border-red-500/45 bg-red-500/15 px-3.5 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25 hover:text-red-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            Factory Reset…
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -7091,7 +7282,135 @@
     </div>
 
     <!-- =================================================================== -->
-    <!-- FIRST-RUN ONBOARDING MODAL (auth_mode === 'unconfigured')           -->
+    <!-- FACTORY RESET CONFIRMATION MODAL (role="alertdialog")               -->
+    <!-- =================================================================== -->
+    <div
+      x-cloak
+      x-show="factoryResetModalOpen"
+      @keydown.escape.window="closeFactoryResetModal()"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="factory-reset-title"
+      class="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+    >
+      <div
+        class="fixed inset-0"
+        @click="closeFactoryResetModal()"
+        aria-hidden="true"
+      ></div>
+      <div class="relative z-10 my-auto w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl border border-red-500/35 bg-surface p-5 sm:p-6 shadow-2xl space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 id="factory-reset-title" class="text-base font-semibold text-red-200">Reset MKV Forge App Data?</h2>
+            <p class="mt-0.5 text-xs text-zinc-400">This rebuilds a fresh database and returns you to first-time setup.</p>
+          </div>
+          <button
+            type="button"
+            @click="closeFactoryResetModal()"
+            :disabled="factoryResetBusy"
+            aria-label="Close factory reset dialog"
+            class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-hairline bg-canvas text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Plain-English Media Safety Guarantee -->
+        <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs leading-relaxed text-emerald-200">
+          <p class="font-semibold">✓ Your Media Files Are 100% Safe</p>
+          <p class="mt-0.5 text-[11px] text-emerald-200/90">No movies, TV shows, subtitles, or folders in your media library will be deleted or modified.</p>
+        </div>
+
+        <!-- Plain-English List of What Gets Erased -->
+        <div class="rounded-xl border border-red-500/25 bg-red-500/5 p-3 text-xs text-zinc-300 space-y-1.5">
+          <p class="font-semibold text-red-200">What will be erased:</p>
+          <ul class="space-y-1 text-[11px] text-zinc-300">
+            <li>• All local accounts, sign-in sessions, and API keys</li>
+            <li>• Your Sound System profile and all app settings</li>
+            <li>• Cached library scan index and job history (you'll re-scan cleanly)</li>
+            <li>• Temporary staged uploads inside MKV Forge's data folder</li>
+          </ul>
+        </div>
+
+        <div
+          x-show="factoryResetError"
+          class="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+          x-text="factoryResetError"
+        ></div>
+
+        <form @submit.prevent="submitFactoryReset()" class="space-y-4">
+          <!-- Local Auth Mode: Require Current Password -->
+          <div x-show="isLocalAuthEnabled">
+            <label for="factory-reset-password" class="mb-1.5 block text-xs font-medium text-zinc-300">
+              Enter your current password to confirm
+            </label>
+            <div class="relative">
+              <input
+                id="factory-reset-password"
+                :type="isPasswordVisible('factory_reset_pw') ? 'text' : 'password'"
+                autocomplete="current-password"
+                x-model="factoryResetPassword"
+                placeholder="Current password"
+                class="min-h-[42px] w-full rounded-lg border border-hairline bg-canvas pl-3 pr-10 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+              />
+              <button
+                type="button"
+                @click="togglePasswordVisible('factory_reset_pw')"
+                :aria-label="isPasswordVisible('factory_reset_pw') ? 'Hide password' : 'Show password'"
+                class="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/70 hover:text-zinc-100"
+              >
+                <svg x-show="!isPasswordVisible('factory_reset_pw')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg x-show="isPasswordVisible('factory_reset_pw')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Anonymous Mode: Require Typing RESET -->
+          <div x-show="!isLocalAuthEnabled">
+            <label for="factory-reset-confirm" class="mb-1.5 block text-xs font-medium text-zinc-300">
+              Type <span class="font-mono font-semibold text-red-300" x-text="C.MAINTENANCE.FACTORY_RESET_CONFIRM_TOKEN"></span> to confirm
+            </label>
+            <input
+              id="factory-reset-confirm"
+              type="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              x-model="factoryResetConfirmText"
+              placeholder="RESET"
+              class="min-h-[42px] w-full rounded-lg border border-hairline bg-canvas px-3 py-2 font-mono text-sm text-zinc-100 placeholder-zinc-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+          </div>
+
+          <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-hairline">
+            <button
+              type="button"
+              @click="closeFactoryResetModal()"
+              :disabled="factoryResetBusy"
+              class="min-h-[40px] rounded-lg border border-hairline bg-canvas px-4 py-2 text-xs font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="!canSubmitFactoryReset"
+              class="min-h-[40px] rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              x-text="factoryResetBusy ? 'Resetting…' : 'Reset MKV Forge'"
+            ></button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- 3-STEP APPLE-STYLE FIRST-RUN ONBOARDING WIZARD (Phase 15)           -->
+    <!-- Shown ONLY on fresh installs (auth_mode === 'unconfigured')         -->
     <!-- =================================================================== -->
     <div
       x-cloak
@@ -7099,122 +7418,384 @@
       role="dialog"
       aria-modal="true"
       aria-label="Welcome to MKV Forge"
-      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-sm"
     >
-      <div class="my-auto w-full max-w-md overflow-hidden rounded-2xl border border-zinc-700/80 bg-surface shadow-2xl">
-        <div class="border-b border-hairline px-5 py-5 text-center sm:px-6">
-          <img
-            src="/static/img/app-icon.svg?v=0.1.0-p12.2"
-            alt="MKV Forge"
-            class="mx-auto mb-3 h-12 w-12 object-contain drop-shadow-md"
-          />
-          <h2 class="text-base font-semibold text-zinc-100 sm:text-lg">Welcome to MKV Forge</h2>
-          <p class="mt-1 text-xs leading-relaxed text-zinc-400">Create a local account to protect your media library, or skip to continue anonymously.</p>
+      <div class="onboarding-wizard-shell flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-zinc-700/80 bg-surface shadow-2xl">
+        <!-- Fixed Top Progress Header (identical height on all 3 steps) -->
+        <div class="shrink-0 border-b border-hairline px-5 py-3 sm:px-6">
+          <div class="onboarding-header-row flex items-center justify-between gap-3">
+            <div class="onboarding-header-slot">
+              <button
+                type="button"
+                x-show="onboardingWizardStep > C.ONBOARDING.STEP_ACCESS"
+                @click="onboardingBack()"
+                :disabled="authBusy"
+                class="inline-flex min-h-[34px] items-center gap-1 rounded-lg px-2 text-xs font-medium text-zinc-400 transition hover:bg-zinc-800/70 hover:text-zinc-100 disabled:opacity-40"
+              >
+                <span aria-hidden="true">←</span>
+                <span>Back</span>
+              </button>
+            </div>
+            <!-- 3-Step Segmented Progress Indicator -->
+            <div class="flex items-center gap-1.5" aria-label="Setup progress">
+              <span
+                class="h-1.5 rounded-full transition-all duration-300"
+                :class="onboardingWizardStep === 1 ? 'w-7 bg-accent' : (onboardingWizardStep > 1 ? 'w-4 bg-accent/70' : 'w-4 bg-zinc-700')"
+              ></span>
+              <span
+                class="h-1.5 rounded-full transition-all duration-300"
+                :class="onboardingWizardStep === 2 ? 'w-7 bg-accent' : (onboardingWizardStep > 2 ? 'w-4 bg-accent/70' : 'w-4 bg-zinc-700')"
+              ></span>
+              <span
+                class="h-1.5 rounded-full transition-all duration-300"
+                :class="onboardingWizardStep === 3 ? 'w-7 bg-accent' : 'w-4 bg-zinc-700'"
+              ></span>
+            </div>
+            <div class="onboarding-header-slot text-right font-mono text-[11px] text-zinc-500" x-text="`${onboardingWizardStep} / ${C.ONBOARDING.TOTAL_STEPS}`"></div>
+          </div>
         </div>
 
-        <form @submit.prevent="completeOnboardingLocal()" autocomplete="on" class="p-5 space-y-4 sm:p-6">
+        <!-- Scrollable Uniform-Height Step Body -->
+        <div x-ref="onboardingBody" class="onboarding-body px-5 py-4 sm:px-6">
           <div
             x-show="authError"
-            class="rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+            class="mb-3 rounded-lg border border-red-500/35 bg-red-500/10 px-3 py-2 text-xs text-red-300"
             x-text="authError"
           ></div>
 
-          <div>
-            <label for="onboard-username" class="mb-1.5 block text-xs font-medium text-zinc-300">Username</label>
-            <input
-              id="onboard-username"
-              type="text"
-              name="username"
-              autocomplete="username"
-              autocapitalize="none"
-              autocorrect="off"
-              spellcheck="false"
-              required
-              x-model="onboardingForm.username"
-              placeholder="e.g. manoj"
-              class="min-h-[44px] w-full rounded-lg border border-hairline bg-canvas px-3.5 py-2.5 font-mono text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
+          <!-- ============================================================= -->
+          <!-- STEP 1: ACCESS & ACCOUNT CREATION                             -->
+          <!-- ============================================================= -->
+          <div
+            x-show="onboardingWizardStep === C.ONBOARDING.STEP_ACCESS"
+            :class="onboardingStepAnimClass"
+            class="onboarding-step-center"
+          >
+            <div class="onboarding-step-inner space-y-4">
+              <div class="text-center">
+                <img
+                  src="/static/img/app-icon.svg?v=0.1.0-p12.2"
+                  alt="MKV Forge"
+                  class="mx-auto mb-3 h-11 w-11 object-contain drop-shadow-md"
+                />
+                <h2 class="text-base font-semibold text-zinc-100 sm:text-lg">Welcome to MKV Forge</h2>
+                <p class="mt-1 text-xs leading-relaxed text-zinc-400">Create an admin account to protect your media library, or continue without sign-in.</p>
+              </div>
 
-          <div>
-            <label for="onboard-password" class="mb-1.5 block text-xs font-medium text-zinc-300">Password</label>
-            <div class="relative">
-              <input
-                id="onboard-password"
-                :type="isPasswordVisible('onboard_pw') ? 'text' : 'password'"
-                name="new-password"
-                autocomplete="new-password"
-                required
-                x-model="onboardingForm.password"
-                placeholder="At least 6 characters"
-                class="min-h-[44px] w-full rounded-lg border border-hairline bg-canvas pl-3.5 pr-11 py-2.5 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-              <button
-                type="button"
-                @click="togglePasswordVisible('onboard_pw')"
-                :aria-label="isPasswordVisible('onboard_pw') ? 'Hide password' : 'Show password'"
-                class="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/70 hover:text-zinc-100"
+              <form
+                @submit.prevent="onboardingNextFromAccess()"
+                autocomplete="on"
+                class="space-y-3"
               >
-                <svg x-show="!isPasswordVisible('onboard_pw')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                <svg x-show="isPasswordVisible('onboard_pw')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                  <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
-              </button>
+                <div>
+                  <label for="onboard-username" class="mb-1 block text-xs font-medium text-zinc-300">Username</label>
+                  <input
+                    id="onboard-username"
+                    type="text"
+                    name="username"
+                    autocomplete="username"
+                    autocapitalize="none"
+                    autocorrect="off"
+                    spellcheck="false"
+                    x-model="onboardingForm.username"
+                    placeholder="e.g. admin"
+                    class="min-h-[42px] w-full rounded-lg border border-hairline bg-canvas/50 px-3 py-2 font-mono text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+
+                <div>
+                  <label for="onboard-password" class="mb-1 block text-xs font-medium text-zinc-300">Password</label>
+                  <div class="relative">
+                    <input
+                      id="onboard-password"
+                      :type="isPasswordVisible('onboard_pw') ? 'text' : 'password'"
+                      name="new-password"
+                      autocomplete="new-password"
+                      x-model="onboardingForm.password"
+                      placeholder="At least 6 characters"
+                      class="min-h-[42px] w-full rounded-lg border border-hairline bg-canvas/50 pl-3 pr-10 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    <button
+                      type="button"
+                      @click="togglePasswordVisible('onboard_pw')"
+                      :aria-label="isPasswordVisible('onboard_pw') ? 'Hide password' : 'Show password'"
+                      class="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/70 hover:text-zinc-100"
+                    >
+                      <svg x-show="!isPasswordVisible('onboard_pw')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      <svg x-show="isPasswordVisible('onboard_pw')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label for="onboard-confirm-password" class="mb-1 block text-xs font-medium text-zinc-300">Re-enter Password</label>
+                  <div class="relative">
+                    <input
+                      id="onboard-confirm-password"
+                      :type="isPasswordVisible('onboard_confirm') ? 'text' : 'password'"
+                      autocomplete="new-password"
+                      x-model="onboardingForm.confirmPassword"
+                      placeholder="Re-enter password"
+                      class="min-h-[42px] w-full rounded-lg border border-hairline bg-canvas/50 pl-3 pr-10 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                    <button
+                      type="button"
+                      @click="togglePasswordVisible('onboard_confirm')"
+                      :aria-label="isPasswordVisible('onboard_confirm') ? 'Hide confirm password' : 'Show confirm password'"
+                      class="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/70 hover:text-zinc-100"
+                    >
+                      <svg x-show="!isPasswordVisible('onboard_confirm')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      <svg x-show="isPasswordVisible('onboard_confirm')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <button type="submit" class="hidden" aria-hidden="true"></button>
+              </form>
+
+              <p class="text-center text-[11px] leading-relaxed text-zinc-500">You can switch sign-in modes or manage accounts anytime in Settings.</p>
             </div>
           </div>
 
-          <div>
-            <label for="onboard-confirm-password" class="mb-1.5 block text-xs font-medium text-zinc-300">Re-enter Password</label>
-            <div class="relative">
-              <input
-                id="onboard-confirm-password"
-                :type="isPasswordVisible('onboard_confirm') ? 'text' : 'password'"
-                autocomplete="new-password"
-                required
-                x-model="onboardingForm.confirmPassword"
-                placeholder="Confirm password"
-                class="min-h-[44px] w-full rounded-lg border border-hairline bg-canvas pl-3.5 pr-11 py-2.5 text-base sm:text-sm text-zinc-100 placeholder-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
+          <!-- ============================================================= -->
+          <!-- STEP 2: SOUND SYSTEM / PLAYBACK PROFILE                       -->
+          <!-- ============================================================= -->
+          <div
+            x-show="onboardingWizardStep === C.ONBOARDING.STEP_SOUND_SYSTEM"
+            :class="onboardingStepAnimClass"
+            class="space-y-3"
+          >
+            <div class="text-center">
+              <h2 class="text-base font-semibold text-zinc-100 sm:text-lg">What plays your movies?</h2>
+              <p class="mt-1 text-xs leading-relaxed text-zinc-400">Pick your sound system so MKV Forge highlights incompatible files and tailors conversion defaults.</p>
+            </div>
+
+            <!-- Preset Cards -->
+            <div class="space-y-2">
+              <template x-for="preset in PP.PRESETS" :key="`ob-pp-${preset.id}`">
+                <button
+                  type="button"
+                  @click="onboardingSelectPreset(preset.id)"
+                  class="flex w-full items-start justify-between gap-3 rounded-xl border p-2.5 text-left transition"
+                  :class="onboardingProfileDraft.preset === preset.id ? 'border-accent bg-accent/10 ring-1 ring-accent/50' : 'border-hairline bg-canvas/50 hover:border-zinc-600'"
+                >
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="text-xs font-semibold text-zinc-100" x-text="preset.title"></span>
+                      <span
+                        class="rounded px-1.5 py-0.5 font-mono text-[9px] font-medium"
+                        :class="onboardingProfileDraft.preset === preset.id ? 'bg-accent/25 text-indigo-200' : 'bg-zinc-800 text-zinc-400'"
+                        x-text="preset.badge"
+                      ></span>
+                    </div>
+                    <p class="mt-0.5 text-[11px] leading-snug text-zinc-400" x-text="preset.description"></p>
+                  </div>
+                  <span
+                    class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]"
+                    :class="onboardingProfileDraft.preset === preset.id ? 'border-accent bg-accent text-white' : 'border-zinc-600'"
+                    aria-hidden="true"
+                  >
+                    <span x-show="onboardingProfileDraft.preset === preset.id">✓</span>
+                  </span>
+                </button>
+              </template>
+            </div>
+
+            <!-- Collapsible Advanced Customizer -->
+            <div class="rounded-xl border border-hairline bg-canvas/40 overflow-hidden">
               <button
                 type="button"
-                @click="togglePasswordVisible('onboard_confirm')"
-                :aria-label="isPasswordVisible('onboard_confirm') ? 'Hide confirm password' : 'Show confirm password'"
-                class="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-zinc-800/70 hover:text-zinc-100"
+                @click="onboardingProfileDraft.customOpen = !onboardingProfileDraft.customOpen"
+                :aria-expanded="onboardingProfileDraft.customOpen ? 'true' : 'false'"
+                class="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left transition hover:bg-zinc-800/40"
               >
-                <svg x-show="!isPasswordVisible('onboard_confirm')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                <svg x-show="isPasswordVisible('onboard_confirm')" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                  <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
+                <span class="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-zinc-200">
+                  <svg
+                    class="h-3.5 w-3.5 text-zinc-400 transition-transform duration-150"
+                    :class="onboardingProfileDraft.customOpen ? 'onboarding-chevron-open text-indigo-300' : ''"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"></path>
+                  </svg>
+                  <span>Customize codecs &amp; channels</span>
+                </span>
+                <span class="min-w-0 truncate text-right font-mono text-[11px] text-zinc-400" x-text="PP.formatProfileSummary(onboardingProfileDraft)"></span>
               </button>
+
+              <div x-show="onboardingProfileDraft.customOpen" class="border-t border-hairline p-3.5 space-y-3">
+                <div>
+                  <p class="text-[11px] font-medium text-zinc-400">Supported Native Codecs</p>
+                  <div class="mt-1.5 flex flex-wrap gap-1.5">
+                    <template x-for="codec in PP.CODEC_OPTIONS" :key="`ob-codec-${codec.key}`">
+                      <button
+                        type="button"
+                        @click="onboardingToggleCustomCodec(codec.key)"
+                        class="min-h-[34px] rounded-lg border px-2.5 py-1 text-[11px] font-medium transition"
+                        :class="(onboardingProfileDraft.supportedCodecs || []).includes(codec.key) ? 'border-accent bg-accent/20 text-indigo-200' : 'border-hairline bg-surface text-zinc-400 hover:border-zinc-600'"
+                        x-text="codec.label"
+                      ></button>
+                    </template>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  <div>
+                    <p class="text-[11px] font-medium text-zinc-400">Max Channels</p>
+                    <div class="mt-1 flex gap-1 rounded-lg border border-hairline bg-surface p-1">
+                      <template x-for="cap in PP.CHANNEL_CAP_OPTIONS" :key="`ob-ch-${cap.value}`">
+                        <button
+                          type="button"
+                          @click="onboardingSetMaxChannels(cap.value)"
+                          class="flex-1 min-h-[34px] rounded-md px-2 font-mono text-xs font-medium transition"
+                          :class="Number(onboardingProfileDraft.maxChannels) === cap.value ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                          x-text="PP.formatChannelCapLabel(cap.value)"
+                        ></button>
+                      </template>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="text-[11px] font-medium text-zinc-400">Preferred Target</p>
+                    <div class="mt-1 flex gap-1 rounded-lg border border-hairline bg-surface p-1">
+                      <template x-for="tgt in PP.PREFERRED_TARGET_OPTIONS" :key="`ob-tgt-${tgt.codec}`">
+                        <button
+                          type="button"
+                          @click="onboardingSetPreferredCodec(tgt.codec)"
+                          class="flex-1 min-h-[34px] rounded-md px-2 font-mono text-xs font-medium transition"
+                          :class="onboardingProfileDraft.preferredCodec === tgt.codec ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                          x-text="tgt.label"
+                        ></button>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <button
-            type="submit"
-            :disabled="authBusy"
-            class="min-h-[44px] w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
-            x-text="authBusy ? 'Creating…' : 'Create User'"
-          ></button>
+          <!-- ============================================================= -->
+          <!-- STEP 3: INITIALIZE & START SCAN                               -->
+          <!-- ============================================================= -->
+          <div
+            x-show="onboardingWizardStep === C.ONBOARDING.STEP_INITIALIZE"
+            :class="onboardingStepAnimClass"
+            class="onboarding-step-center"
+          >
+            <div class="onboarding-step-inner space-y-4">
+              <div class="text-center">
+                <div class="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-500/35 bg-emerald-500/15 text-emerald-300">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"></path>
+                  </svg>
+                </div>
+                <h2 class="text-base font-semibold text-zinc-100 sm:text-lg">Ready to Index Your Library</h2>
+                <p class="mt-1 text-xs leading-relaxed text-zinc-400">Everything is configured. Start a fast background scan so your Dashboard populates automatically.</p>
+              </div>
 
-          <div class="pt-0.5 text-center">
+              <!-- Configuration Summary Card -->
+              <div class="divide-y divide-hairline rounded-xl border border-hairline bg-canvas/50 px-4">
+                <div class="flex items-center justify-between gap-3 py-3 text-xs">
+                  <span class="text-zinc-400">Access Mode</span>
+                  <span
+                    class="truncate font-medium text-zinc-100"
+                    x-text="onboardingAuthChoice === C.ONBOARDING.AUTH_CHOICE_LOCAL ? `Local Account (${onboardingForm.username.trim()})` : 'No Sign-In (Private LAN)'"
+                  ></span>
+                </div>
+                <div class="flex items-center justify-between gap-3 py-3 text-xs">
+                  <span class="text-zinc-400">Sound System</span>
+                  <span class="truncate font-mono text-[11px] text-indigo-300" x-text="PP.formatProfileSummary(onboardingProfileDraft)"></span>
+                </div>
+                <div class="flex items-center justify-between gap-3 py-3 text-xs">
+                  <span class="text-zinc-400">Media Storage</span>
+                  <span class="flex items-center gap-1.5 min-w-0">
+                    <span
+                      class="h-2 w-2 shrink-0 rounded-full"
+                      :class="onboardingStorageWritable ? 'bg-emerald-400' : 'bg-amber-400'"
+                    ></span>
+                    <span
+                      class="truncate font-mono text-[11px] text-zinc-200"
+                      x-text="onboardingStoragePath || '/storage'"
+                    ></span>
+                  </span>
+                </div>
+              </div>
+
+              <!-- What Happens Next Note -->
+              <div class="rounded-xl border border-hairline bg-canvas/40 px-4 py-3 space-y-1.5 text-[11px] leading-relaxed text-zinc-400">
+                <p class="font-medium text-zinc-200">What happens next</p>
+                <p>• Reads MKV &amp; MP4 track metadata in the background without modifying your files.</p>
+                <p>• Flags titles that need audio conversion for your chosen Sound System profile.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fixed Bottom Action Footer (identical 2-slot height across all 3 steps) -->
+        <div class="onboarding-footer shrink-0 border-t border-hairline bg-surface px-5 sm:px-6">
+          <!-- Step 1 Actions -->
+          <div x-show="onboardingWizardStep === C.ONBOARDING.STEP_ACCESS" class="space-y-1.5">
             <button
               type="button"
-              @click="completeOnboardingAnonymous()"
+              @click="onboardingNextFromAccess()"
               :disabled="authBusy"
-              class="inline-flex min-h-[40px] items-center justify-center rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 transition hover:text-zinc-100 disabled:opacity-50"
+              class="min-h-[44px] w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
             >
-              Continue Anonymous
+              Create
+            </button>
+            <button
+              type="button"
+              @click="onboardingContinueAnonymous()"
+              :disabled="authBusy"
+              class="min-h-[38px] w-full rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:text-zinc-100 disabled:opacity-50"
+            >
+              Continue Without Sign-In
             </button>
           </div>
-        </form>
+
+          <!-- Step 2 Actions -->
+          <div x-show="onboardingWizardStep === C.ONBOARDING.STEP_SOUND_SYSTEM" class="space-y-1.5">
+            <button
+              type="button"
+              @click="onboardingNextFromSoundSystem()"
+              class="min-h-[44px] w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover"
+            >
+              Continue
+            </button>
+            <button
+              type="button"
+              @click="onboardingSkipSoundSystem()"
+              class="min-h-[38px] w-full rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:text-zinc-100"
+            >
+              Skip for now — configure later
+            </button>
+          </div>
+
+          <!-- Step 3 Actions -->
+          <div x-show="onboardingWizardStep === C.ONBOARDING.STEP_INITIALIZE" class="space-y-1.5">
+            <button
+              type="button"
+              @click="finishOnboarding()"
+              :disabled="authBusy"
+              class="min-h-[44px] w-full rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-hover disabled:opacity-50"
+              x-text="authBusy ? 'Initializing…' : 'Start Scanning Library'"
+            ></button>
+            <p class="flex min-h-[38px] items-center justify-center text-center text-[11px] text-zinc-500">
+              Scan runs quietly in the background while you browse.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
 

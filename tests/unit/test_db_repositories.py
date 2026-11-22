@@ -165,7 +165,12 @@ class TestMediaFileRepository:
         )
 
         counts = repo.get_dashboard_counts()
-        assert counts == {"total_files": 3, "aac51_only": 1, "has_metadata": 2}
+        assert counts == {
+            "total_files": 3,
+            "aac51_only": 1,
+            "has_metadata": 2,
+            "needs_conversion": 0,
+        }
         assert repo.list_folders() == ["/movies", "/shows"]
 
         # aac51_only vs aac51 vs no_dolby vs has_metadata
@@ -292,6 +297,7 @@ class TestMediaFileRepository:
             "aac51_only": 0,
             "has_metadata": 0,
             "no_dolby": 0,
+            "needs_conversion": 0,
         }
 
         # Filtering by audio_type is case-insensitive and works on multi-audio files

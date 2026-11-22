@@ -7,9 +7,32 @@
   const Ed = global.MKVForgeEditor;
   const FT = global.MKVForgeFolderTree;
   const TS = global.MKVForgeToastStack;
+  const PP = global.MKVForgePlaybackProfile || {
+    PRESETS: [],
+    CODEC_OPTIONS: [],
+    CHANNEL_CAP_OPTIONS: [],
+    PREFERRED_TARGET_OPTIONS: [],
+    getPresetById: () => null,
+    createProfileDraftFromSettings: () => ({
+      preset: "neutral",
+      supportedCodecs: [],
+      maxChannels: 6,
+      preferredCodec: "eac3",
+      customOpen: false,
+    }),
+    applyPresetToDraft: (d) => d,
+    toggleCodecInDraft: (d) => d,
+    formatChannelCapLabel: () => "5.1",
+    formatProfileSummary: () => "Not configured",
+    buildSettingsPatchFromDraft: () => ({
+      playback_profile_preset: "neutral",
+      playback_supported_codecs: [],
+    }),
+  };
   const Charts = global.MKVForgeCharts || {
     buildPieSlices: () => [],
     renderPieSvg: () => "",
+    patchPieSvg: () => false,
   };
   const Theme = global.MKVForgeTheme || {
     normalizeThemeMode: (m) => m || "dark",
@@ -117,6 +140,9 @@
     }
 
     const legacyFilter = params.get("filter") || "";
+    const needsConversion =
+      params.get("needs_conversion") === "1" ||
+      legacyFilter === C.FILTERS.NEEDS_CONVERSION;
     let noDolby =
       params.get("no_dolby") === "1" || legacyFilter === C.FILTERS.NO_DOLBY;
     const hasMetadata =
@@ -156,6 +182,7 @@
       route,
       editorFileId,
       view,
+      needsConversion,
       noDolby,
       hasMetadata,
       audioType,
@@ -177,6 +204,7 @@
       if (state.view && state.view !== C.LIBRARY_VIEWS.DIR) {
         qs.set("view", state.view);
       }
+      if (state.needsConversion) qs.set("needs_conversion", "1");
       if (state.noDolby) qs.set("no_dolby", "1");
       if (state.hasMetadata) qs.set("has_metadata", "1");
       if (state.audioType && state.audioType.trim()) {
@@ -278,6 +306,7 @@
       Fmt,
       Ed,
       FT,
+      PP,
       Theme,
       I18n,
 
@@ -328,7 +357,15 @@
       authError: null,
       authExpiredNotice: false,
       _authRecoveryPromise: null,
-      onboardingStep: "choice", // "choice" | "create"
+      onboardingStep: "choice", // Legacy compat
+      onboardingActive: false,
+      onboardingWizardStep: C.ONBOARDING.STEP_ACCESS,
+      onboardingDirection: C.ONBOARDING.DIR_FORWARD,
+      onboardingAuthChoice: C.ONBOARDING.AUTH_CHOICE_LOCAL,
+      onboardingStoragePath: null,
+      onboardingStorageWritable: true,
+      onboardingProfileDraft: PP.createProfileDraftFromSettings(C.DEFAULT_USER_SETTINGS),
+      settingsProfileDraft: PP.createProfileDraftFromSettings(C.DEFAULT_USER_SETTINGS),
       onboardingForm: { username: "", display_name: "", password: "", confirmPassword: "" },
       loginForm: { username: "", password: "" },
       upgradeAuthOpen: false,
@@ -356,6 +393,11 @@
       maintenanceLoading: false,
       maintenanceError: null,
       maintenanceBusyAction: null,
+      factoryResetModalOpen: false,
+      factoryResetBusy: false,
+      factoryResetError: null,
+      factoryResetPassword: "",
+      factoryResetConfirmText: "",
 
       // Dashboard state
       dashboardLoading: true,
@@ -367,6 +409,10 @@
           total_files: 0,
           aac51_only: 0,
           has_metadata: 0,
+          needs_conversion: 0,
+          playback_profile_configured: false,
+          playback_profile_preset: "neutral",
+          playback_profile_label: "Not Configured",
           last_scan_at: null,
           last_scan_status: null,
         },
@@ -414,10 +460,12 @@
         aac51_only: 0,
         has_metadata: 0,
         no_dolby: 0,
+        needs_conversion: 0,
         audio_types: [],
       },
       totalFiles: 0,
       totalPages: 0,
+      needsConversion: false,
       noDolby: false,
       hasMetadata: false,
       audioType: "",
@@ -481,6 +529,12 @@
         error_message: null,
       },
       _lastScanStatus: C.STATUSES.IDLE,
+      _scanLiveTimer: null,
+      _scanLiveLastRefreshAt: 0,
+      _scanLiveLastLibraryRefreshAt: 0,
+      _scanLiveLastProbedCount: 0,
+      _scanLiveInFlight: false,
+      _scanPendingFinalSync: false,
 
       // Job queue, Live Drawer & CLI log viewer state
       jobsDrawerOpen: false,
@@ -671,11 +725,50 @@
       },
 
       get isOnboardingRequired() {
-        return this.authReady && this.authNeedsSetup;
+        return Boolean(this.authReady && (this.authNeedsSetup || this.onboardingActive));
+      },
+
+      get onboardingStepAnimClass() {
+        return this.onboardingDirection === C.ONBOARDING.DIR_BACK
+          ? "onboarding-step-back"
+          : "onboarding-step-fwd";
+      },
+
+      get activePlaybackProfile() {
+        return {
+          preset: this.userSettings.playback_profile_preset || "neutral",
+          supportedCodecs: Array.isArray(this.userSettings.playback_supported_codecs)
+            ? this.userSettings.playback_supported_codecs
+            : [],
+          maxChannels: Number(this.userSettings.playback_max_channels || 6),
+          preferredCodec: this.userSettings.playback_preferred_codec || "eac3",
+        };
+      },
+
+      get isPlaybackProfileConfigured() {
+        const p = this.activePlaybackProfile;
+        return Boolean(
+          p.preset &&
+            p.preset !== "neutral" &&
+            (p.preset !== "custom" || p.supportedCodecs.length > 0)
+        );
       },
 
       get isLocalAuthEnabled() {
         return this.authMode === C.AUTH_MODES.LOCAL;
+      },
+
+      get canSubmitFactoryReset() {
+        if (this.factoryResetBusy) return false;
+        if (this.isLocalAuthEnabled) {
+          return Boolean(
+            this.factoryResetPassword && this.factoryResetPassword.length > 0
+          );
+        }
+        return (
+          String(this.factoryResetConfirmText || "").trim() ===
+          C.MAINTENANCE.FACTORY_RESET_CONFIRM_TOKEN
+        );
       },
 
       get currentUserDisplayName() {
@@ -691,6 +784,17 @@
         this.authAuthenticated = Boolean(status.authenticated);
         this.authNeedsSetup = Boolean(status.needs_setup);
         this.authUser = status.user || null;
+        if (status.storage_path !== undefined) {
+          this.onboardingStoragePath = status.storage_path || null;
+        }
+        if (status.storage_writable !== undefined) {
+          this.onboardingStorageWritable = Boolean(status.storage_writable);
+        }
+        if (this.authNeedsSetup && !this.onboardingActive) {
+          this.onboardingActive = true;
+          this.onboardingWizardStep = C.ONBOARDING.STEP_ACCESS;
+          this.onboardingDirection = C.ONBOARDING.DIR_FORWARD;
+        }
         this.authReady = true;
         if (this.authAuthenticated) {
           this.authExpiredNotice = false;
@@ -808,57 +912,184 @@
         }
       },
 
-      async completeOnboardingAnonymous() {
-        if (this.authBusy) return;
-        this.authBusy = true;
-        this.authError = null;
-        try {
-          const status = await Api.setupAuth({ mode: C.AUTH_MODES.ANONYMOUS });
-          this._applyAuthStatus(status);
-          this.onboardingStep = "choice";
-          this.showToast("Continuing without sign-in (Anonymous)", "info");
-        } catch (err) {
-          this.authError = err.message || "Failed to save setup choice";
-        } finally {
-          this.authBusy = false;
+      // Phase 15: 3-Step Apple-Style First-Run Onboarding Wizard
+      _resetOnboardingScroll() {
+        const body = this.$refs && this.$refs.onboardingBody;
+        if (body && typeof body.scrollTop === "number") {
+          body.scrollTop = C.SCROLL_RESTORE.MIN_OFFSET_PX;
         }
       },
 
-      async completeOnboardingLocal() {
-        if (this.authBusy) return;
-        const form = this.onboardingForm;
+      selectOnboardingAuthChoice(choice) {
+        this.onboardingAuthChoice =
+          choice === C.ONBOARDING.AUTH_CHOICE_ANONYMOUS
+            ? C.ONBOARDING.AUTH_CHOICE_ANONYMOUS
+            : C.ONBOARDING.AUTH_CHOICE_LOCAL;
         this.authError = null;
-        if (!form.username.trim() || !form.password) {
-          this.authError = "Username and password are required.";
+      },
+
+      onboardingNextFromAccess() {
+        this.authError = null;
+        this.onboardingAuthChoice = C.ONBOARDING.AUTH_CHOICE_LOCAL;
+        const form = this.onboardingForm;
+        const uname = String(form.username || "").trim();
+        if (uname.length < C.ONBOARDING.MIN_USERNAME_LEN) {
+          this.authError = `Username must be at least ${C.ONBOARDING.MIN_USERNAME_LEN} characters.`;
+          return;
+        }
+        if (!form.password || form.password.length < C.ONBOARDING.MIN_PASSWORD_LEN) {
+          this.authError = `Password must be at least ${C.ONBOARDING.MIN_PASSWORD_LEN} characters.`;
           return;
         }
         if (form.password !== form.confirmPassword) {
           this.authError = "Passwords do not match.";
           return;
         }
+        this.onboardingDirection = C.ONBOARDING.DIR_FORWARD;
+        this.onboardingWizardStep = C.ONBOARDING.STEP_SOUND_SYSTEM;
+        this._resetOnboardingScroll();
+      },
+
+      onboardingContinueAnonymous() {
+        this.authError = null;
+        this.onboardingAuthChoice = C.ONBOARDING.AUTH_CHOICE_ANONYMOUS;
+        this.onboardingDirection = C.ONBOARDING.DIR_FORWARD;
+        this.onboardingWizardStep = C.ONBOARDING.STEP_SOUND_SYSTEM;
+        this._resetOnboardingScroll();
+      },
+
+      onboardingBack() {
+        this.authError = null;
+        this.onboardingDirection = C.ONBOARDING.DIR_BACK;
+        if (this.onboardingWizardStep === C.ONBOARDING.STEP_INITIALIZE) {
+          this.onboardingWizardStep = C.ONBOARDING.STEP_SOUND_SYSTEM;
+        } else if (this.onboardingWizardStep === C.ONBOARDING.STEP_SOUND_SYSTEM) {
+          this.onboardingWizardStep = C.ONBOARDING.STEP_ACCESS;
+        }
+        this._resetOnboardingScroll();
+      },
+
+      onboardingSelectPreset(presetId) {
+        this.onboardingProfileDraft = PP.applyPresetToDraft(
+          this.onboardingProfileDraft,
+          presetId
+        );
+      },
+
+      onboardingToggleCustomCodec(codecKey) {
+        this.onboardingProfileDraft = PP.toggleCodecInDraft(
+          this.onboardingProfileDraft,
+          codecKey
+        );
+      },
+
+      onboardingSetMaxChannels(ch) {
+        this.onboardingProfileDraft = {
+          ...this.onboardingProfileDraft,
+          preset: "custom",
+          maxChannels: Number(ch),
+        };
+      },
+
+      onboardingSetPreferredCodec(codec) {
+        this.onboardingProfileDraft = {
+          ...this.onboardingProfileDraft,
+          preset: "custom",
+          preferredCodec: codec,
+        };
+      },
+
+      onboardingNextFromSoundSystem() {
+        this.authError = null;
+        this.onboardingDirection = C.ONBOARDING.DIR_FORWARD;
+        this.onboardingWizardStep = C.ONBOARDING.STEP_INITIALIZE;
+        this._resetOnboardingScroll();
+      },
+
+      onboardingSkipSoundSystem() {
+        this.onboardingProfileDraft = PP.applyPresetToDraft(
+          this.onboardingProfileDraft,
+          "neutral"
+        );
+        this.onboardingDirection = C.ONBOARDING.DIR_FORWARD;
+        this.onboardingWizardStep = C.ONBOARDING.STEP_INITIALIZE;
+        this._resetOnboardingScroll();
+      },
+
+      async finishOnboarding() {
+        if (this.authBusy) return;
         this.authBusy = true;
+        this.authError = null;
         try {
-          const status = await Api.setupAuth({
-            mode: C.AUTH_MODES.LOCAL,
-            username: form.username.trim(),
-            display_name: form.display_name.trim() || form.username.trim(),
-            password: form.password,
-          });
+          let setupPayload;
+          if (this.onboardingAuthChoice === C.ONBOARDING.AUTH_CHOICE_LOCAL) {
+            const form = this.onboardingForm;
+            setupPayload = {
+              mode: C.AUTH_MODES.LOCAL,
+              username: String(form.username || "").trim(),
+              display_name:
+                String(form.display_name || "").trim() ||
+                String(form.username || "").trim(),
+              password: form.password,
+            };
+          } else {
+            setupPayload = { mode: C.AUTH_MODES.ANONYMOUS };
+          }
+
+          const status = await Api.setupAuth(setupPayload);
           this._applyAuthStatus(status);
+
+          const profilePatch = PP.buildSettingsPatchFromDraft(
+            this.onboardingProfileDraft
+          );
+          try {
+            const updatedSettings = await Api.updateSettings(profilePatch);
+            this._applyUserSettings(updatedSettings);
+          } catch (_settingsErr) {
+            // Non-fatal: user can adjust Playback Profile in Settings anytime
+          }
+
           this.onboardingForm = {
             username: "",
             display_name: "",
             password: "",
             confirmPassword: "",
           };
-          this.onboardingStep = "choice";
-          this.showToast(`Signed in as ${this.currentUserDisplayName}`, "success");
+          this.onboardingActive = false;
+          this.authNeedsSetup = false;
+          this.onboardingWizardStep = C.ONBOARDING.STEP_ACCESS;
+
+          try {
+            await Api.triggerScan(false);
+          } catch (_scanErr) {
+            // Non-fatal: Dashboard remains accessible with manual scan retry
+          }
+
+          this.showToast(
+            this.isLocalAuthEnabled
+              ? `Welcome, ${this.currentUserDisplayName}!`
+              : "MKV Forge is ready.",
+            "success"
+          );
+          this.navigate(C.ROUTES.DASHBOARD);
           this._startInitialDataAndStreams(true);
         } catch (err) {
-          this.authError = err.message || "Failed to create account";
+          this.authError = err.message || "Failed to complete setup.";
+          this.onboardingDirection = C.ONBOARDING.DIR_BACK;
+          this.onboardingWizardStep = C.ONBOARDING.STEP_ACCESS;
         } finally {
           this.authBusy = false;
         }
+      },
+
+      async completeOnboardingAnonymous() {
+        this.onboardingAuthChoice = C.ONBOARDING.AUTH_CHOICE_ANONYMOUS;
+        return this.finishOnboarding();
+      },
+
+      async completeOnboardingLocal() {
+        this.onboardingAuthChoice = C.ONBOARDING.AUTH_CHOICE_LOCAL;
+        return this.finishOnboarding();
       },
 
       async submitLogin() {
@@ -1250,6 +1481,24 @@
           this.hoveredAudioKey,
           { idPrefix: "ac", ariaLabel: "Audio codec distribution chart" }
         );
+      },
+
+      syncStoragePieChart(el) {
+        const slices = this.dashboardStorageSegments;
+        const activeKey = this.hoveredStorageKey;
+        Charts.patchPieSvg(el, slices, activeKey, {
+          idPrefix: "st",
+          ariaLabel: "Storage breakdown chart",
+        });
+      },
+
+      syncAudioPieChart(el) {
+        const slices = this.dashboardAudioSegments;
+        const activeKey = this.hoveredAudioKey;
+        Charts.patchPieSvg(el, slices, activeKey, {
+          idPrefix: "ac",
+          ariaLabel: "Audio codec distribution chart",
+        });
       },
 
       _sliceKeyFromEvent(event) {
@@ -1670,6 +1919,7 @@
 
       get hasActiveFilters() {
         return Boolean(
+          this.needsConversion ||
           this.noDolby ||
           this.hasMetadata ||
           this.audioType ||
@@ -1684,13 +1934,18 @@
             key: C.FILTERS.ALL,
             label: "All",
             count: null,
-            active: !this.noDolby && !this.hasMetadata && !this.audioType && !this.audioCodec,
+            active:
+              !this.needsConversion &&
+              !this.noDolby &&
+              !this.hasMetadata &&
+              !this.audioType &&
+              !this.audioCodec,
           },
           {
-            key: C.FILTERS.NO_DOLBY,
-            label: "No Dolby",
-            count: this.facets.no_dolby || 0,
-            active: this.noDolby,
+            key: C.FILTERS.NEEDS_CONVERSION,
+            label: "Needs Conversion",
+            count: this.facets.needs_conversion || 0,
+            active: this.needsConversion,
           },
           {
             key: C.FILTERS.HAS_METADATA,
@@ -1732,7 +1987,10 @@
       },
 
       get editorRecommendedAudioOptions() {
-        return Ed.getRecommendedAddAudioOptions(this.editor).map((opt) => ({
+        return Ed.getRecommendedAddAudioOptions(
+          this.editor,
+          this.activePlaybackProfile
+        ).map((opt) => ({
           ...opt,
           defaultBitrate: this._resolveDefaultBitrateForDraft(
             opt.codec,
@@ -2004,6 +2262,7 @@
         return buildHash({
           route: C.ROUTES.LIBRARY,
           view: this.libraryView,
+          needsConversion: this.needsConversion,
           noDolby: this.noDolby,
           hasMetadata: this.hasMetadata,
           audioType: this.audioType,
@@ -2163,6 +2422,7 @@
           ) {
             this.libraryView = origin.view;
           }
+          this.needsConversion = Boolean(parsed.needsConversion);
           this.noDolby = parsed.noDolby;
           this.hasMetadata = parsed.hasMetadata;
           this.audioType = parsed.audioType;
@@ -2206,6 +2466,7 @@
           route: this.route,
           editorFileId: this.editorFileId,
           view: this.libraryView,
+          needsConversion: this.needsConversion,
           noDolby: this.noDolby,
           hasMetadata: this.hasMetadata,
           audioType: this.audioType,
@@ -2271,6 +2532,7 @@
         const nextHash = buildHash({
           route: targetRoute,
           view: this.libraryView,
+          needsConversion: this.needsConversion,
           noDolby: this.noDolby,
           hasMetadata: this.hasMetadata,
           audioType: this.audioType,
@@ -2303,18 +2565,24 @@
         this.scanMenuOpen = false;
         this.closeContextMenu();
         this._clearLibraryReturnOrigin();
+        const nextNeedsConversion = Boolean(preset.needsConversion);
         const nextNoDolby = Boolean(preset.noDolby);
         const nextHasMetadata = Boolean(preset.hasMetadata);
         const nextAudioType = preset.audioType || "";
         const nextAudioCodec = preset.audioCodec || "";
         // Dashboard presets search across ALL folders -> switch cleanly to All Files list view
         const presetView =
-          nextNoDolby || nextHasMetadata || nextAudioType || nextAudioCodec
+          nextNeedsConversion ||
+          nextNoDolby ||
+          nextHasMetadata ||
+          nextAudioType ||
+          nextAudioCodec
             ? C.LIBRARY_VIEWS.LIST
             : this.libraryView;
         const nextHash = buildHash({
           route: C.ROUTES.LIBRARY,
           view: presetView,
+          needsConversion: nextNeedsConversion,
           noDolby: nextNoDolby,
           hasMetadata: nextHasMetadata,
           audioType: nextAudioType,
@@ -2330,6 +2598,7 @@
         } else {
           this.route = C.ROUTES.LIBRARY;
           this.libraryView = presetView;
+          this.needsConversion = nextNeedsConversion;
           this.noDolby = nextNoDolby;
           this.hasMetadata = nextHasMetadata;
           this.audioType = nextAudioType;
@@ -2384,6 +2653,7 @@
         const nextHash = buildHash({
           route: C.ROUTES.LIBRARY,
           view: C.LIBRARY_VIEWS.DIR,
+          needsConversion: false,
           noDolby: false,
           hasMetadata: false,
           audioType: "",
@@ -2398,6 +2668,7 @@
           window.location.hash = nextHash;
         } else {
           this.route = C.ROUTES.LIBRARY;
+          this.needsConversion = false;
           this.noDolby = false;
           this.hasMetadata = false;
           this.audioType = "";
@@ -2478,6 +2749,7 @@
           clearTimeout(this._hiddenCloseTimer);
           this._hiddenCloseTimer = null;
         }
+        this._clearScanLiveTimer();
         if (this._eventStream) {
           this._eventStream.close();
           this._eventStream = null;
@@ -2530,32 +2802,166 @@
         }
       },
 
+      _clearScanLiveTimer() {
+        if (this._scanLiveTimer !== null) {
+          clearTimeout(this._scanLiveTimer);
+          this._scanLiveTimer = null;
+        }
+      },
+
+      _hasBlockingOverlayOpen() {
+        return Boolean(
+          this.contextMenu ||
+            this.folderBarMenuOpen ||
+            this.scanMenuOpen ||
+            this.infoModal ||
+            this.cancelJobModal ||
+            this.deleteModal ||
+            this.renameModal ||
+            this.newFolderModal ||
+            this.folderPickerOpen ||
+            this.importTrackModal ||
+            this.addAudioModalOpen ||
+            this.addAudioMenuOpen ||
+            this.jobsDrawerOpen ||
+            this.settingsModalOpen ||
+            this.factoryResetModalOpen ||
+            this.logoutConfirmOpen ||
+            this.upgradeAuthOpen ||
+            this.disableAuthOpen ||
+            this.createdApiKeyModal
+        );
+      },
+
+      _canAutoRefreshLibraryDuringScan() {
+        if (this.route !== C.ROUTES.LIBRARY) return false;
+        if (Number(this.page) !== C.PAGINATION.DEFAULT_PAGE) return false;
+        if (String(this.searchQuery || "").trim() !== "") return false;
+        if (String(this.appliedSearchQuery || "").trim() !== "") return false;
+        if (this.mobileSelectMode || this.selectedFileIds.length > 0) return false;
+        if (this._hasBlockingOverlayOpen()) return false;
+        if (this.libraryLoading) return false;
+        return true;
+      },
+
+      _scheduleLiveScanRefresh(probedCount) {
+        if (this._scanLiveInFlight) return;
+        const now = Date.now();
+        const isFirstPaint = this._scanLiveLastRefreshAt === 0;
+        const elapsed = now - this._scanLiveLastRefreshAt;
+        const intervalMs = C.TIMINGS_MS.SCAN_LIVE_DASHBOARD_MS;
+
+        if (isFirstPaint || elapsed >= intervalMs) {
+          this._clearScanLiveTimer();
+          this._runLiveScanRefresh(probedCount);
+          return;
+        }
+
+        if (this._scanLiveTimer === null) {
+          const waitMs = Math.max(0, intervalMs - elapsed);
+          this._scanLiveTimer = setTimeout(() => {
+            this._scanLiveTimer = null;
+            if (this._lastScanStatus !== C.STATUSES.RUNNING) return;
+            const latestProbed = Math.max(
+              0,
+              Number(this.scanProgress.scanned || 0) -
+                Number(this.scanProgress.skipped || 0)
+            );
+            if (latestProbed > this._scanLiveLastProbedCount) {
+              this._runLiveScanRefresh(latestProbed);
+            }
+          }, waitMs);
+        }
+      },
+
+      async _runLiveScanRefresh(probedCount) {
+        if (this._scanLiveInFlight) return;
+        this._scanLiveInFlight = true;
+        this._scanLiveLastRefreshAt = Date.now();
+        this._scanLiveLastProbedCount = probedCount;
+        try {
+          const tasks = [this.loadDashboard()];
+          const libNow = Date.now();
+          const libElapsed = libNow - this._scanLiveLastLibraryRefreshAt;
+          if (
+            this._canAutoRefreshLibraryDuringScan() &&
+            (this._scanLiveLastLibraryRefreshAt === 0 ||
+              libElapsed >= C.TIMINGS_MS.SCAN_LIVE_LIBRARY_MS)
+          ) {
+            this._scanLiveLastLibraryRefreshAt = libNow;
+            tasks.push(
+              this.loadLibrary({ preserveSelection: true, silent: true })
+            );
+          }
+          await Promise.all(tasks);
+        } finally {
+          this._scanLiveInFlight = false;
+          if (this._scanPendingFinalSync) {
+            this._scanPendingFinalSync = false;
+            this._executeFinalScanSync();
+          }
+        }
+      },
+
+      _flushFinalScanSync() {
+        this._clearScanLiveTimer();
+        if (this._scanLiveInFlight) {
+          this._scanPendingFinalSync = true;
+          return;
+        }
+        this._scanPendingFinalSync = false;
+        this._executeFinalScanSync();
+      },
+
+      _executeFinalScanSync() {
+        this.loadDashboard();
+        if (this.route === C.ROUTES.LIBRARY) {
+          this.loadLibrary({ preserveSelection: true });
+        }
+      },
+
       _handleScanEvent(payload) {
         const prev = this._lastScanStatus;
         this.scanProgress = { ...this.scanProgress, ...payload };
-        this._lastScanStatus = payload.status || C.STATUSES.IDLE;
+        const nextStatus = payload.status || C.STATUSES.IDLE;
+        this._lastScanStatus = nextStatus;
+
+        if (nextStatus === C.STATUSES.RUNNING) {
+          if (prev !== C.STATUSES.RUNNING) {
+            this._clearScanLiveTimer();
+            this._scanLiveLastRefreshAt = 0;
+            this._scanLiveLastLibraryRefreshAt = 0;
+            this._scanLiveLastProbedCount = 0;
+            this._scanPendingFinalSync = false;
+          }
+          const probedCount = Math.max(
+            0,
+            Number(payload.scanned || 0) - Number(payload.skipped || 0)
+          );
+          if (probedCount > 0 && probedCount > this._scanLiveLastProbedCount) {
+            this._scheduleLiveScanRefresh(probedCount);
+          }
+          return;
+        }
 
         if (
           prev === C.STATUSES.RUNNING &&
-          payload.status === C.STATUSES.COMPLETED
+          nextStatus === C.STATUSES.COMPLETED
         ) {
           this.showToast(
             `Scan complete: ${payload.total} files indexed (${payload.skipped} skipped).`,
             "success"
           );
-          this.loadDashboard();
-          if (this.route === C.ROUTES.LIBRARY) {
-            this.loadLibrary();
-          }
+          this._flushFinalScanSync();
         } else if (
           prev === C.STATUSES.RUNNING &&
-          payload.status === C.STATUSES.FAILED
+          nextStatus === C.STATUSES.FAILED
         ) {
           this.showToast(
             payload.error_message || "Library scan failed.",
             "error"
           );
-          this.loadDashboard();
+          this._flushFinalScanSync();
         }
       },
 
@@ -2717,6 +3123,14 @@
         if (!settings || typeof settings !== "object") return;
         const merged = { ...C.DEFAULT_USER_SETTINGS, ...settings };
         this.userSettings = merged;
+        const wasCustomOpen = Boolean(
+          this.settingsProfileDraft && this.settingsProfileDraft.customOpen
+        );
+        const nextDraft = PP.createProfileDraftFromSettings(merged);
+        if (wasCustomOpen && nextDraft.preset !== "neutral") {
+          nextDraft.customOpen = true;
+        }
+        this.settingsProfileDraft = nextDraft;
         Theme.applyTheme(merged.theme_mode, merged.accent_color);
         Theme.applyFontScale(merged.font_scale);
         if (
@@ -2725,6 +3139,55 @@
         ) {
           this.limit = Number(merged.page_limit);
         }
+      },
+
+      // Phase 15: Global Household Playback Profile Settings Actions
+      async _saveSettingsPlaybackDraft(nextDraft) {
+        this.settingsProfileDraft = nextDraft;
+        const patch = PP.buildSettingsPatchFromDraft(nextDraft);
+        const saved = await this.updateUserSettings(patch);
+        if (saved) {
+          this.loadDashboard();
+          if (this.route === C.ROUTES.LIBRARY) {
+            this.loadLibrary({ preserveSelection: true });
+          }
+        }
+        return saved;
+      },
+
+      selectSettingsPlaybackPreset(presetId) {
+        const nextDraft = PP.applyPresetToDraft(this.settingsProfileDraft, presetId);
+        return this._saveSettingsPlaybackDraft(nextDraft);
+      },
+
+      toggleSettingsPlaybackCodec(codecKey) {
+        const nextDraft = PP.toggleCodecInDraft(this.settingsProfileDraft, codecKey);
+        return this._saveSettingsPlaybackDraft(nextDraft);
+      },
+
+      setSettingsPlaybackMaxChannels(ch) {
+        const nextDraft = {
+          ...this.settingsProfileDraft,
+          preset: "custom",
+          maxChannels: Number(ch),
+          customOpen: true,
+        };
+        return this._saveSettingsPlaybackDraft(nextDraft);
+      },
+
+      setSettingsPlaybackPreferredCodec(codec) {
+        const nextDraft = {
+          ...this.settingsProfileDraft,
+          preset: "custom",
+          preferredCodec: codec,
+          customOpen: true,
+        };
+        return this._saveSettingsPlaybackDraft(nextDraft);
+      },
+
+      resetSettingsPlaybackProfile() {
+        const nextDraft = PP.applyPresetToDraft(this.settingsProfileDraft, "neutral");
+        return this._saveSettingsPlaybackDraft(nextDraft);
       },
 
       setThemeMode(mode) {
@@ -2832,6 +3295,165 @@
         }
       },
 
+      openFactoryResetModal() {
+        if (
+          this.isJobRunning ||
+          this.isScanRunning ||
+          (this.maintenanceStatus && this.maintenanceStatus.busy)
+        ) {
+          this.showToast(
+            "Wait for active jobs or scans to finish before resetting MKV Forge.",
+            "info"
+          );
+          return;
+        }
+        this.factoryResetError = null;
+        this.factoryResetPassword = "";
+        this.factoryResetConfirmText = "";
+        this.factoryResetModalOpen = true;
+      },
+
+      closeFactoryResetModal() {
+        if (this.factoryResetBusy) return;
+        this.factoryResetModalOpen = false;
+        this.factoryResetError = null;
+        this.factoryResetPassword = "";
+        this.factoryResetConfirmText = "";
+      },
+
+      _clearClientStorageAndStateForReset() {
+        try {
+          Object.values(C.STORAGE_KEYS).forEach((key) => {
+            window.localStorage.removeItem(key);
+            window.sessionStorage.removeItem(key);
+          });
+        } catch (_err) {
+          // Storage may be unavailable in restricted contexts
+        }
+        LR.clearOrigin();
+        this._libraryReturnState = null;
+        this._pendingLibraryScrollRestore = null;
+        this.userSettings = { ...C.DEFAULT_USER_SETTINGS };
+        this.settingsProfileDraft = PP.createProfileDraftFromSettings(
+          C.DEFAULT_USER_SETTINGS
+        );
+        this.onboardingProfileDraft = PP.createProfileDraftFromSettings(
+          C.DEFAULT_USER_SETTINGS
+        );
+        Theme.applyTheme(
+          C.DEFAULT_USER_SETTINGS.theme_mode,
+          C.DEFAULT_USER_SETTINGS.accent_color
+        );
+        Theme.applyFontScale(C.DEFAULT_USER_SETTINGS.font_scale);
+        this.libraryView = C.DEFAULT_USER_SETTINGS.default_library_view;
+        this.folderLayout = C.DEFAULT_USER_SETTINGS.default_folder_layout;
+        this.limit = C.DEFAULT_USER_SETTINGS.page_limit;
+        this.files = [];
+        this.folders = [];
+        this.subfolders = [];
+        this.otherFiles = [];
+        this.totalFiles = 0;
+        this.totalPages = 0;
+        this.needsConversion = false;
+        this.noDolby = false;
+        this.hasMetadata = false;
+        this.audioType = "";
+        this.audioCodec = "";
+        this.searchQuery = "";
+        this.appliedSearchQuery = "";
+        this.activeJob = null;
+        this.queuedJobs = [];
+        this.jobHistory = [];
+        this.jobLogs = [];
+        this.editorFile = null;
+        this.editor = null;
+        this.authUsers = [];
+        this.apiKeys = [];
+        this.maintenanceStatus = null;
+        this.dashboard = {
+          app_name: C.APP.NAME,
+          app_version: C.APP.VERSION,
+          stats: {
+            total_files: 0,
+            aac51_only: 0,
+            has_metadata: 0,
+            needs_conversion: 0,
+            playback_profile_configured: false,
+            playback_profile_preset: "neutral",
+            playback_profile_label: "Not Configured",
+            last_scan_at: null,
+            last_scan_status: null,
+          },
+          analytics: {
+            storage: {
+              disk_total_bytes: 0,
+              disk_used_bytes: 0,
+              disk_free_bytes: 0,
+              mkv_bytes: 0,
+              mkv_count: 0,
+              mp4_bytes: 0,
+              mp4_count: 0,
+              media_bytes: 0,
+              other_used_bytes: 0,
+            },
+            total_audio_tracks: 0,
+            audio_codecs: [],
+            resolutions: [],
+            dynamic_ranges: [],
+          },
+          scan_running: false,
+          recent_activity: [],
+        };
+      },
+
+      async submitFactoryReset() {
+        if (!this.canSubmitFactoryReset) return;
+        this.factoryResetBusy = true;
+        this.factoryResetError = null;
+        try {
+          const payload = this.isLocalAuthEnabled
+            ? { password: this.factoryResetPassword }
+            : { confirm_text: String(this.factoryResetConfirmText || "").trim() };
+          await Api.factoryReset(payload);
+
+          this._disconnectStreams();
+          this.factoryResetModalOpen = false;
+          this.factoryResetPassword = "";
+          this.factoryResetConfirmText = "";
+          this.settingsModalOpen = false;
+          this.jobsDrawerOpen = false;
+          this._clearClientStorageAndStateForReset();
+
+          this.onboardingAuthChoice = C.ONBOARDING.AUTH_CHOICE_LOCAL;
+          this.onboardingForm = {
+            username: "",
+            display_name: "",
+            password: "",
+            confirmPassword: "",
+          };
+          this.onboardingWizardStep = C.ONBOARDING.STEP_ACCESS;
+          this.onboardingDirection = C.ONBOARDING.DIR_FORWARD;
+          this.onboardingActive = true;
+          this.authNeedsSetup = true;
+          this.authMode = C.AUTH_MODES.UNCONFIGURED;
+          this.authUser = null;
+          this.route = C.ROUTES.DASHBOARD;
+          if (window.location.hash !== "#/") {
+            window.history.replaceState(null, "", "#/");
+          }
+          await this.bootstrapSessionAndData();
+          this.showToast(
+            "MKV Forge was reset. Your media files were untouched.",
+            "info"
+          );
+        } catch (err) {
+          this.factoryResetError =
+            err.message || "Factory reset failed. Please try again.";
+        } finally {
+          this.factoryResetBusy = false;
+        }
+      },
+
       async runMaintenance(action) {
         if (!action || this.maintenanceBusyAction) return;
         this.maintenanceBusyAction = action;
@@ -2889,7 +3511,11 @@
         }
       },
 
-      async loadLibrary({ clearStale = false, preserveSelection = false } = {}) {
+      async loadLibrary({
+        clearStale = false,
+        preserveSelection = false,
+        silent = false,
+      } = {}) {
         const reqSeq = ++this._libraryRequestSeq;
         if (this._libraryAbortController) {
           this._libraryAbortController.abort();
@@ -2903,7 +3529,9 @@
         const isSearching = Boolean(queryText);
         const includeFolderScope = this.isDirView && !isSearching;
 
-        this.libraryLoading = true;
+        if (!silent) {
+          this.libraryLoading = true;
+        }
         this.libraryError = null;
         if (!preserveSelection) {
           this.selectedFileIds = [];
@@ -2928,6 +3556,7 @@
               audio_codec: this.audioCodec,
               has_metadata: this.hasMetadata,
               no_dolby: this.noDolby,
+              needs_conversion: this.needsConversion,
               sort: this.sortField,
               order: this.sortOrder,
               page: this.page,
@@ -4637,11 +5266,23 @@
       // Library filter, search, sort & pagination actions
       toggleWorkflowChip(filterKey) {
         if (filterKey === C.FILTERS.ALL) {
-          if (!this.noDolby && !this.hasMetadata && !this.audioType && !this.audioCodec) return;
+          if (
+            !this.needsConversion &&
+            !this.noDolby &&
+            !this.hasMetadata &&
+            !this.audioType &&
+            !this.audioCodec
+          ) {
+            return;
+          }
+          this.needsConversion = false;
           this.noDolby = false;
           this.hasMetadata = false;
           this.audioType = "";
           this.audioCodec = "";
+        } else if (filterKey === C.FILTERS.NEEDS_CONVERSION) {
+          this.needsConversion = !this.needsConversion;
+          this.noDolby = false;
         } else if (filterKey === C.FILTERS.NO_DOLBY) {
           this.noDolby = !this.noDolby;
         } else if (filterKey === C.FILTERS.HAS_METADATA) {

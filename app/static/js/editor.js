@@ -298,7 +298,7 @@
     return options;
   }
 
-  function getRecommendedAddAudioOptions(editorState) {
+  function getRecommendedAddAudioOptions(editorState, playbackProfile = null) {
     if (!editorState) return [];
     const audioTracks = editorState.tracks.filter((t) => t.type === "audio");
     if (audioTracks.length === 0) return [];
@@ -343,7 +343,7 @@
       );
     } else if (canonical === EDITOR.CODEC_EAC3) {
       specs.push(
-        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Optical" },
+        { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Legacy" },
         { codec: EDITOR.CODEC_AAC, targetChannels: srcChannels > 2 ? 2 : null, badge: srcChannels > 2 ? "Stereo" : "Universal" }
       );
     } else if (canonical === EDITOR.CODEC_AC3) {
@@ -357,6 +357,35 @@
         { codec: EDITOR.CODEC_AC3, targetChannels: null, badge: "Legacy" },
         { codec: EDITOR.CODEC_OPUS, targetChannels: null, badge: "Modern" }
       );
+    }
+
+    // If household Playback Profile is configured, promote its preferred target codec & channel ceiling
+    if (
+      playbackProfile &&
+      playbackProfile.preset &&
+      playbackProfile.preset !== "neutral" &&
+      ["eac3", "ac3", "aac"].includes(playbackProfile.preferredCodec)
+    ) {
+      const prefCodec = playbackProfile.preferredCodec;
+      const prefMaxCh = Number(playbackProfile.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+      const prefTargetCh = srcChannels > prefMaxCh ? prefMaxCh : null;
+      const check = isConversionCombinationBlocked(primaryTrack, prefCodec, prefTargetCh);
+      if (!check.blocked) {
+        const existingIdx = specs.findIndex(
+          (s) => s.codec === prefCodec && (s.targetChannels ?? null) === prefTargetCh
+        );
+        if (existingIdx >= 0) {
+          const [matched] = specs.splice(existingIdx, 1);
+          specs.unshift({ ...matched, badge: "Your System" });
+        } else {
+          specs.unshift({
+            codec: prefCodec,
+            targetChannels: prefTargetCh,
+            badge: "Your System",
+          });
+          if (specs.length > 3) specs.pop();
+        }
+      }
     }
 
     return specs.map((spec) => {

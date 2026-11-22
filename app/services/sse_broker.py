@@ -161,6 +161,12 @@ class JobSSEBroker:
             except asyncio.QueueFull:
                 pass
 
+    def reset(self) -> None:
+        """Clear in-memory job snapshot and log ring buffer, disconnecting stale subscribers."""
+        self._log_buffer.clear()
+        self._latest = JobProgressEvent(status=AppConstants.JOB_STATUS_IDLE)
+        self.close()
+
     async def subscribe(self) -> AsyncIterator[JobProgressEvent]:
         """Yield current snapshot (with rolling logs), then live progress events."""
         queue: asyncio.Queue[JobProgressEvent | None] = asyncio.Queue(

@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import logging
 import os
+import shutil
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 from app.config import AppConstants, Settings
 from app.db.connection import DatabaseManager
@@ -20,6 +23,7 @@ from app.db.repositories import (
     utc_now_iso,
 )
 from app.models.schemas import (
+    FactoryResetResponse,
     MaintenanceActionResponse,
     MaintenanceRunAllResponse,
     MaintenanceStatusResponse,
@@ -100,8 +104,12 @@ class MaintenanceService:
         """Return a human-readable busy reason if a scan or job is active, else None."""
         if self._scanner.is_running:
             return "A library scan is currently running."
-        if self._job_repo.get_active() is not None:
-            return "A processing job is currently running."
+        try:
+            if self._job_repo.get_active() is not None:
+                return "A processing job is currently running."
+        except sqlite3.DatabaseError:
+            # Allow recovery paths (such as Factory Reset) to inspect corrupted DB safely
+            return None
         return None
 
     def _ensure_not_busy(self) -> None:
@@ -546,6 +554,136 @@ class MaintenanceService:
             except asyncio.CancelledError:
                 pass
         self._scheduler_task = None
+
+    def _rebuild_database_and_clear_uploads(self) -> tuple[int, int]:
+        """Physically delete SQLite DB (+WAL/SHM), clear uploads contents, and reinitialize schema.
+
+        Never touches `settings.storage_dir` media files. Keeps `settings.uploads_dir`
+        directory intact so subsequent uploads succeed without FileNotFoundError.
+        """
+        gc.collect()
+        removed_db_files = 0
+        db_path = self._db.db_path
+        db_candidates = (
+            db_path,
+            Path(f"{db_path}-wal"),
+            Path(f"{db_path}-shm"),
+            Path(f"{db_path}-journal"),
+        )
+        for candidate in db_candidates:
+            try:
+                if candidate.is_file() or candidate.is_symlink():
+                    candidate.unlink()
+                    removed_db_files += 1
+            except OSError as exc:
+                logger.warning("Could not unlink %s during factory reset: %s", candidate, exc)
+
+        removed_uploads = 0
+        uploads_dir = self._settings.uploads_dir
+        if uploads_dir.is_dir():
+            try:
+                with os.scandir(uploads_dir) as entries:
+                    for entry in entries:
+                        entry_path = Path(entry.path)
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                shutil.rmtree(entry_path)
+                            else:
+                                entry_path.unlink()
+                            removed_uploads += 1
+                        except OSError as exc:
+                            logger.warning(
+                                "Could not remove staged upload %s during factory reset: %s",
+                                entry_path,
+                                exc,
+                            )
+            except OSError as exc:
+                logger.warning("Could not scan uploads dir %s: %s", uploads_dir, exc)
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create a brand-new, clean WAL SQLite schema
+        self._db.initialize()
+        return removed_db_files, removed_uploads
+
+    async def factory_reset(
+        self,
+        *,
+        job_worker: Any | None = None,
+        library_watcher: Any | None = None,
+        job_broker: Any | None = None,
+    ) -> FactoryResetResponse:
+        """Pause background loops, physically rebuild SQLite, reset SSE buffers, and resume loops."""
+        if self._op_lock.locked():
+            raise MaintenanceBusyError("Another maintenance operation is already in progress.")
+
+        started = time.perf_counter()
+        async with self._op_lock:
+            if self._scanner.is_running:
+                raise MaintenanceBusyError(
+                    "Cannot factory reset while a library scan is running."
+                )
+            if job_worker is not None and getattr(job_worker, "active_job_id", None) is not None:
+                raise MaintenanceBusyError(
+                    "Cannot factory reset while a conversion job is running."
+                )
+            self._ensure_not_busy()
+
+            was_scheduler_running = (
+                self._scheduler_task is not None and not self._scheduler_task.done()
+            )
+            was_watcher_running = bool(
+                library_watcher is not None and getattr(library_watcher, "is_active", False)
+            )
+            was_worker_running = bool(
+                job_worker is not None and getattr(job_worker, "is_running", False)
+            )
+
+            try:
+                # 1. Pause all background loops so no SQLite connections touch the unlinked inode
+                await self.shutdown_scheduler()
+                if library_watcher is not None:
+                    await library_watcher.shutdown()
+                if job_worker is not None:
+                    await job_worker.shutdown()
+
+                # Final guard against race right before physical DB unlink
+                if self._scanner.is_running:
+                    raise MaintenanceBusyError(
+                        "Cannot factory reset while a library scan is running."
+                    )
+
+                # 2. Physically delete DB (+ WAL/SHM), clear uploads contents, rebuild fresh DB
+                removed_db_files, removed_uploads = await asyncio.to_thread(
+                    self._rebuild_database_and_clear_uploads
+                )
+
+                # 3. Reset in-memory SSE brokers & log ring buffers (stay open for new subscribers)
+                if job_broker is not None and hasattr(job_broker, "reset"):
+                    job_broker.reset()
+                self._library_broker.reset()
+            finally:
+                # 4. Always resume background loops against the newly initialized DB
+                if was_worker_running and job_worker is not None:
+                    job_worker.start()
+                if was_watcher_running and library_watcher is not None:
+                    library_watcher.start()
+                if was_scheduler_running:
+                    self.start_scheduler()
+
+        duration_ms = round((time.perf_counter() - started) * 1000.0, 1)
+        logger.warning(
+            "Factory reset completed: removed_db_files=%d removed_uploads=%d ms=%.1f",
+            removed_db_files,
+            removed_uploads,
+            duration_ms,
+        )
+        return FactoryResetResponse(
+            status="reset",
+            removed_db_files=removed_db_files,
+            removed_uploads=removed_uploads,
+            duration_ms=duration_ms,
+            message="MKV Forge app data reset. Your media files were not touched.",
+        )
 
     async def _scheduler_loop(self) -> None:
         """Wait for poll intervals and trigger idle-only scheduled cleanup when due."""

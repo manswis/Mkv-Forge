@@ -145,6 +145,11 @@ class LibraryEventBroker:
             except asyncio.QueueFull:
                 pass
 
+    def reset(self) -> None:
+        """Flush/drop queued events, disconnect active subscribers, and stay open for new clients."""
+        self.close()
+        self._closed = False
+
     async def subscribe(self) -> AsyncIterator[LibraryChangedEvent]:
         """Yield coalesced `LibraryChangedEvent` objects until closed."""
         self._loop = asyncio.get_running_loop()

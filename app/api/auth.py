@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
@@ -75,10 +76,23 @@ def _require_local_user(request: Request) -> AuthUserSummary:
 
 @router.get("/status", response_model=AuthStatusResponse)
 async def get_auth_status(request: Request) -> AuthStatusResponse:
-    """Return current auth_mode, onboarding requirement, and resolved user."""
+    """Return current auth_mode, onboarding requirement, storage mount status, and resolved user."""
     auth_service: AuthService = request.app.state.auth_service
     cookie_token = request.cookies.get(AppConstants.AUTH_SESSION_COOKIE_NAME)
-    return await asyncio.to_thread(auth_service.get_status, cookie_token)
+    status = await asyncio.to_thread(auth_service.get_status, cookie_token)
+    storage_dir = getattr(request.app.state.settings, "storage_dir", None)
+    storage_path = str(storage_dir) if storage_dir is not None else None
+    storage_writable = bool(
+        storage_dir is not None
+        and storage_dir.is_dir()
+        and os.access(storage_dir, os.W_OK)
+    )
+    return status.model_copy(
+        update={
+            "storage_path": storage_path,
+            "storage_writable": storage_writable,
+        }
+    )
 
 
 @router.post("/setup", response_model=AuthStatusResponse)

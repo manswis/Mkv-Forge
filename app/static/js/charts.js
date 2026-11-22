@@ -6,6 +6,7 @@
   "use strict";
 
   const CHART_CONFIG = Object.freeze({
+    SVG_NS: "http://www.w3.org/2000/svg",
     VIEWBOX_SIZE: 200,
     CENTER: 100,
     INNER_RADIUS: 46,
@@ -22,6 +23,17 @@
     PERCENT_MULTIPLIER: 100,
     PERCENT_ROUND_FACTOR: 10,
     RAD_PER_DEG: Math.PI / 180,
+    ACTIVE_OPACITY: "1",
+    INACTIVE_OPACITY: "0.55",
+    DEFAULT_COLOR_START: "#3B82F6",
+    DEFAULT_COLOR_END: "#2563EB",
+    LABEL_FONT_FAMILY: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    LABEL_FONT_SIZE: "10.5",
+    LABEL_FONT_WEIGHT: "700",
+    LABEL_FILL: "#FFFFFF",
+    LABEL_TEXT_SHADOW: "0 1px 2px rgba(0,0,0,0.6)",
+    ACTIVE_DROP_SHADOW: "drop-shadow(0 4px 10px rgba(0, 0, 0, 0.38))",
+    SLICE_TRANSITION: "opacity 150ms ease",
   });
 
   function polarToCartesian(cx, cy, radius, angleDeg) {
@@ -243,11 +255,237 @@
     </svg>`;
   }
 
+  function _createSvgEl(doc, tag) {
+    return doc.createElementNS(CHART_CONFIG.SVG_NS, tag);
+  }
+
+  function _findDirectChildByRole(parent, role) {
+    const children = parent.children || parent.childNodes || [];
+    for (let i = 0; i < children.length; i += 1) {
+      const child = children[i];
+      if (child && typeof child.getAttribute === "function" && child.getAttribute("data-role") === role) {
+        return child;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Reconcile an interactive donut chart's SVG DOM in-place without tearing down
+   * or re-mounting existing <svg>, <linearGradient>, <g>, <path>, or <text> nodes.
+   * Returns true if patched successfully, false when container/document is unavailable.
+   */
+  function patchPieSvg(container, slices, activeKey, options) {
+    if (!container || typeof container.appendChild !== "function") return false;
+    const doc = container.ownerDocument || (typeof document !== "undefined" ? document : null);
+    if (!doc || typeof doc.createElementNS !== "function") return false;
+
+    const opts = options || {};
+    const prefix = String(opts.idPrefix || "pie");
+    const ariaLabel = String(opts.ariaLabel || "Distribution chart");
+    const vb = CHART_CONFIG.VIEWBOX_SIZE;
+    const center = CHART_CONFIG.CENTER;
+    const list = Array.isArray(slices) ? slices : [];
+
+    // 1. Reuse or create root <svg> once (never clear innerHTML on updates)
+    let svg = null;
+    const hostChildren = container.children || container.childNodes || [];
+    for (let i = 0; i < hostChildren.length; i += 1) {
+      const node = hostChildren[i];
+      if (
+        node &&
+        typeof node.getAttribute === "function" &&
+        node.getAttribute("data-chart-prefix") === prefix
+      ) {
+        svg = node;
+        break;
+      }
+    }
+    if (!svg) {
+      svg = _createSvgEl(doc, "svg");
+      svg.setAttribute("data-chart-prefix", prefix);
+      svg.setAttribute("viewBox", `0 0 ${vb} ${vb}`);
+      svg.setAttribute("class", "h-full w-full overflow-visible");
+      svg.setAttribute("role", "img");
+      container.appendChild(svg);
+    }
+    svg.setAttribute("aria-label", ariaLabel);
+
+    // 2. Ensure persistent <defs>, <circle data-role="empty-ring">, and <g data-role="slices">
+    let defsEl = _findDirectChildByRole(svg, "defs");
+    if (!defsEl) {
+      defsEl = _createSvgEl(doc, "defs");
+      defsEl.setAttribute("data-role", "defs");
+      svg.appendChild(defsEl);
+    }
+
+    let emptyRing = _findDirectChildByRole(svg, "empty-ring");
+    if (!emptyRing) {
+      const emptyRadius = (CHART_CONFIG.INNER_RADIUS + CHART_CONFIG.OUTER_RADIUS) / 2;
+      const emptyStroke = CHART_CONFIG.OUTER_RADIUS - CHART_CONFIG.INNER_RADIUS;
+      emptyRing = _createSvgEl(doc, "circle");
+      emptyRing.setAttribute("data-role", "empty-ring");
+      emptyRing.setAttribute("cx", String(center));
+      emptyRing.setAttribute("cy", String(center));
+      emptyRing.setAttribute("r", formatCoord(emptyRadius));
+      emptyRing.setAttribute("fill", "none");
+      emptyRing.setAttribute("stroke", "currentColor");
+      emptyRing.setAttribute("stroke-width", formatCoord(emptyStroke));
+      emptyRing.setAttribute("class", "text-zinc-800/50");
+      svg.appendChild(emptyRing);
+    }
+
+    let slicesEl = _findDirectChildByRole(svg, "slices");
+    if (!slicesEl) {
+      slicesEl = _createSvgEl(doc, "g");
+      slicesEl.setAttribute("data-role", "slices");
+      svg.appendChild(slicesEl);
+    }
+
+    // 3. Reconcile gradients in-place
+    const existingGrads = new Map();
+    const defChildren = Array.from(defsEl.children || defsEl.childNodes || []);
+    for (const node of defChildren) {
+      if (node && typeof node.getAttribute === "function") {
+        const gKey = node.getAttribute("data-grad-key");
+        if (gKey) existingGrads.set(gKey, node);
+      }
+    }
+
+    const activeKeys = new Set();
+    for (const seg of list) {
+      const key = String(seg.key);
+      activeKeys.add(key);
+      const cStart = String(seg.colorStart || seg.color || CHART_CONFIG.DEFAULT_COLOR_START);
+      const cEnd = String(seg.colorEnd || seg.color || CHART_CONFIG.DEFAULT_COLOR_END);
+      let grad = existingGrads.get(key);
+      if (!grad) {
+        grad = _createSvgEl(doc, "linearGradient");
+        grad.setAttribute("data-grad-key", key);
+        grad.setAttribute("id", `${prefix}-grad-${key}`);
+        grad.setAttribute("x1", "0%");
+        grad.setAttribute("y1", "0%");
+        grad.setAttribute("x2", "100%");
+        grad.setAttribute("y2", "100%");
+        const stop0 = _createSvgEl(doc, "stop");
+        stop0.setAttribute("offset", "0%");
+        const stop1 = _createSvgEl(doc, "stop");
+        stop1.setAttribute("offset", "100%");
+        grad.appendChild(stop0);
+        grad.appendChild(stop1);
+        defsEl.appendChild(grad);
+      }
+      const stops = grad.children || grad.childNodes || [];
+      if (stops[0]) stops[0].setAttribute("stop-color", cStart);
+      if (stops[1]) stops[1].setAttribute("stop-color", cEnd);
+    }
+    for (const [oldKey, gradNode] of existingGrads.entries()) {
+      if (!activeKeys.has(oldKey) && gradNode.parentNode === defsEl) {
+        defsEl.removeChild(gradNode);
+      }
+    }
+
+    // 4. Toggle empty ring visibility without unmounting
+    emptyRing.setAttribute("display", list.length === 0 ? "" : "none");
+
+    // 5. Reconcile slice <g>, <path>, and <text> nodes in-place
+    const existingGroups = new Map();
+    const sliceChildren = Array.from(slicesEl.children || slicesEl.childNodes || []);
+    for (const node of sliceChildren) {
+      if (node && typeof node.getAttribute === "function") {
+        const sKey = node.getAttribute("data-slice-key");
+        if (sKey) existingGroups.set(sKey, node);
+      }
+    }
+
+    const hasActive = Boolean(activeKey);
+    for (let idx = 0; idx < list.length; idx += 1) {
+      const seg = list[idx];
+      const key = String(seg.key);
+      const isActive = hasActive && seg.key === activeKey;
+      const opacity = hasActive && !isActive
+        ? CHART_CONFIG.INACTIVE_OPACITY
+        : CHART_CONFIG.ACTIVE_OPACITY;
+      const pathD = isActive ? seg.activePath : seg.path;
+
+      let group = existingGroups.get(key);
+      let pathEl = null;
+      let textEl = null;
+
+      if (!group) {
+        group = _createSvgEl(doc, "g");
+        group.setAttribute("data-slice-key", key);
+        if (group.style) {
+          group.style.cursor = "pointer";
+          group.style.transition = CHART_CONFIG.SLICE_TRANSITION;
+        }
+        pathEl = _createSvgEl(doc, "path");
+        pathEl.setAttribute("data-role", "slice-path");
+        textEl = _createSvgEl(doc, "text");
+        textEl.setAttribute("data-role", "slice-label");
+        textEl.setAttribute("text-anchor", "middle");
+        textEl.setAttribute("dominant-baseline", "central");
+        textEl.setAttribute("fill", CHART_CONFIG.LABEL_FILL);
+        textEl.setAttribute("font-family", CHART_CONFIG.LABEL_FONT_FAMILY);
+        textEl.setAttribute("font-size", CHART_CONFIG.LABEL_FONT_SIZE);
+        textEl.setAttribute("font-weight", CHART_CONFIG.LABEL_FONT_WEIGHT);
+        if (textEl.style) {
+          textEl.style.pointerEvents = "none";
+          textEl.style.userSelect = "none";
+          textEl.style.textShadow = CHART_CONFIG.LABEL_TEXT_SHADOW;
+        }
+        group.appendChild(pathEl);
+        group.appendChild(textEl);
+        slicesEl.appendChild(group);
+      } else {
+        pathEl = _findDirectChildByRole(group, "slice-path");
+        textEl = _findDirectChildByRole(group, "slice-label");
+      }
+
+      group.setAttribute("opacity", opacity);
+
+      if (pathEl) {
+        pathEl.setAttribute("d", pathD);
+        pathEl.setAttribute("fill", `url(#${prefix}-grad-${key})`);
+        if (pathEl.style) {
+          pathEl.style.filter = isActive ? CHART_CONFIG.ACTIVE_DROP_SHADOW : "";
+        }
+      }
+
+      if (textEl) {
+        if (seg.showLabel) {
+          textEl.setAttribute("display", "");
+          textEl.setAttribute("x", String(isActive ? seg.activeLabelX : seg.labelX));
+          textEl.setAttribute("y", String(isActive ? seg.activeLabelY : seg.labelY));
+          textEl.textContent = String(seg.percentLabel);
+        } else {
+          textEl.setAttribute("display", "none");
+          textEl.textContent = "";
+        }
+      }
+
+      // Only reorder if index order actually changed (avoids detach/re-attach flicker)
+      const currentAtIdx = (slicesEl.children || slicesEl.childNodes || [])[idx];
+      if (currentAtIdx && currentAtIdx !== group) {
+        slicesEl.insertBefore(group, currentAtIdx);
+      }
+    }
+
+    for (const [oldKey, groupNode] of existingGroups.entries()) {
+      if (!activeKeys.has(oldKey) && groupNode.parentNode === slicesEl) {
+        slicesEl.removeChild(groupNode);
+      }
+    }
+
+    return true;
+  }
+
   global.MKVForgeCharts = Object.freeze({
     CHART_CONFIG,
     polarToCartesian,
     buildAnnularSectorPath,
     buildPieSlices,
     renderPieSvg,
+    patchPieSvg,
   });
 })(window);

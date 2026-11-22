@@ -110,6 +110,7 @@
     if (params.aac51) qs.set("aac51", "true");
     if (params.has_metadata) qs.set("has_metadata", "true");
     if (params.no_dolby) qs.set("no_dolby", "true");
+    if (params.needs_conversion) qs.set("needs_conversion", "true");
     if (params.sort) qs.set("sort", params.sort);
     if (params.order) qs.set("order", params.order);
     if (params.page) qs.set("page", String(params.page));
@@ -342,6 +343,12 @@
     runMaintenanceAction: (action) =>
       requestJson(`${API.MAINTENANCE}/${encodeURIComponent(action)}`, {
         method: "POST",
+      }),
+    factoryReset: (payload) =>
+      requestJson(API.MAINTENANCE_FACTORY_RESET, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
       }),
     getAuthStatus: () => requestJson(`${API.AUTH}/status`),
     setupAuth: (payload) =>

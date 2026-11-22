@@ -415,8 +415,10 @@ class TestPhase13AuthOnboardingAndRouteProtection:
     ) -> None:
         html = (await api_client.get("/")).text
         assert 'aria-label="Welcome to MKV Forge"' in html
-        assert "Create User" in html
-        assert "Continue Anonymous" in html
+        assert "onboarding-wizard-shell" in html
+        assert "onboardingNextFromAccess()" in html
+        assert "onboardingContinueAnonymous()" in html
+        assert "Continue Without Sign-In" in html
         assert 'id="onboard-username"' in html
         assert 'id="onboard-password"' in html
         assert 'id="onboard-confirm-password"' in html

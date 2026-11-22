@@ -12,6 +12,12 @@ from app.config import AppConstants
 from app.db.repositories import AppStateRepository, AuthRepository
 from app.models.schemas import UserSettings, UserSettingsUpdate
 from app.services.folder_service import normalize_visible_extensions_csv
+from app.services.playback_profile import (
+    PLAYBACK_PRESETS,
+    PlaybackProfileSpec,
+    resolve_playback_profile,
+    sanitize_supported_codecs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +97,31 @@ class UserSettingsService:
             )
             return UserSettings.model_validate(system_dict)
 
+    def get_playback_profile(self) -> PlaybackProfileSpec:
+        """Return the resolved global household PlaybackProfileSpec."""
+        system_dict = self._load_system_dict()
+        return resolve_playback_profile(
+            preset=system_dict.get("playback_profile_preset"),
+            supported_codecs=system_dict.get("playback_supported_codecs"),
+            max_channels=system_dict.get("playback_max_channels"),
+            preferred_target_codec=system_dict.get("playback_preferred_codec"),
+        )
+
+    def _normalize_playback_updates(self, updates: dict[str, Any]) -> None:
+        """Expand named playback presets or sanitize custom codec lists in place."""
+        if "playback_supported_codecs" in updates:
+            updates["playback_supported_codecs"] = sanitize_supported_codecs(
+                updates["playback_supported_codecs"]
+            )
+        preset = updates.get("playback_profile_preset")
+        if preset == AppConstants.PLAYBACK_PRESET_NEUTRAL:
+            updates["playback_supported_codecs"] = []
+        elif isinstance(preset, str) and preset in PLAYBACK_PRESETS:
+            defn = PLAYBACK_PRESETS[preset]
+            updates["playback_supported_codecs"] = list(defn.supported_codecs)
+            updates["playback_max_channels"] = defn.max_channels
+            updates["playback_preferred_codec"] = defn.preferred_target_codec
+
     def update(
         self,
         patch: UserSettingsUpdate,
@@ -103,6 +134,7 @@ class UserSettingsService:
             updates["visible_media_extensions"] = normalize_visible_extensions_csv(
                 str(updates["visible_media_extensions"])
             )
+        self._normalize_playback_updates(updates)
         system_dict = self._load_system_dict()
 
         if user_id is None or self._auth_repo is None:
