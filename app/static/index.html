@@ -42,7 +42,7 @@
       } catch (_e) {}
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.3" />
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p17.4" />
   <script defer src="/static/js/constants.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
@@ -2307,7 +2307,7 @@
         <!-- =============================================================== -->
         <!-- SCREEN 3: FILE EDITOR (#/files/{id})                            -->
         <!-- =============================================================== -->
-        <section x-cloak x-show="route === C.ROUTES.EDITOR" class="space-y-4">
+        <section x-cloak x-show="route === C.ROUTES.EDITOR" class="space-y-5">
           <!-- Editor Top Bar -->
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
@@ -2315,41 +2315,41 @@
                 type="button"
                 @click="backToParentFolder()"
                 :title="editorBackLabel"
-                class="inline-flex max-w-full items-center gap-1.5 text-xs font-medium text-zinc-400 transition hover:text-zinc-100"
+                class="inline-flex max-w-full items-center gap-1.5 text-xs font-medium text-ink-secondary transition hover:text-ink-primary"
               >
                 <span class="shrink-0" aria-hidden="true">←</span>
                 <span class="truncate" x-text="editorBackLabel"></span>
               </button>
               <h1
-                class="mt-1.5 break-words font-mono text-base font-semibold tracking-tight text-zinc-100 md:text-lg"
+                class="ui-page-title mt-1.5 break-words font-mono text-base md:text-lg"
                 x-text="editorFile ? editorFile.filename : 'Loading file…'"
               ></h1>
-              <div x-show="editorFile" class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
+              <div x-show="editorFile" class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-secondary">
                 <nav
                   aria-label="File folder breadcrumbs"
                   class="inline-flex min-w-0 flex-wrap items-center gap-0.5 font-mono text-xs"
                 >
                   <template x-for="(crumb, idx) in editorFolderBreadcrumbs" :key="`ed-crumb-${crumb.path}`">
                     <span class="inline-flex min-w-0 items-center gap-0.5">
-                      <span x-show="idx > 0" class="px-0.5 text-zinc-600 select-none" aria-hidden="true">›</span>
+                      <span x-show="idx > 0" class="px-0.5 text-ink-muted select-none" aria-hidden="true">›</span>
                       <button
                         type="button"
                         @click="openFolderInLibrary(crumb.path)"
                         :title="`Open ${crumb.path}`"
-                        class="rounded px-1.5 py-0.5 text-left [overflow-wrap:anywhere] transition hover:bg-zinc-800 hover:text-indigo-200"
-                        :class="idx === editorFolderBreadcrumbs.length - 1 ? 'font-medium text-zinc-200' : 'text-zinc-400'"
+                        class="rounded-ui-sm px-1.5 py-0.5 text-left [overflow-wrap:anywhere] transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary"
+                        :class="idx === editorFolderBreadcrumbs.length - 1 ? 'font-medium text-ink-primary' : 'text-ink-secondary'"
                         x-text="crumb.name"
                       ></button>
                     </span>
                   </template>
                 </nav>
-                <span class="text-zinc-600" aria-hidden="true">•</span>
-                <span class="font-mono" x-text="editorFile ? Fmt.formatBytes(editorFile.size_bytes) : ''"></span>
-                <span x-show="editorFile && editorFile.duration_us > 0" class="text-zinc-600" aria-hidden="true">•</span>
-                <span x-show="editorFile && editorFile.duration_us > 0" class="font-mono" x-text="editorFile ? Fmt.formatDurationUs(editorFile.duration_us) : ''"></span>
+                <span class="text-ink-muted" aria-hidden="true">•</span>
+                <span class="ui-num font-mono" x-text="editorFile ? Fmt.formatBytes(editorFile.size_bytes) : ''"></span>
+                <span x-show="editorFile && editorFile.duration_us > 0" class="text-ink-muted" aria-hidden="true">•</span>
+                <span x-show="editorFile && editorFile.duration_us > 0" class="ui-num font-mono" x-text="editorFile ? Fmt.formatDurationUs(editorFile.duration_us) : ''"></span>
                 <span
                   x-show="editorFile && editorFile.resolution"
-                  class="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-300"
+                  class="ui-tag font-mono"
                   x-text="editorFile ? editorFile.resolution : ''"
                 ></span>
               </div>
@@ -2360,7 +2360,7 @@
               x-show="editorFile"
               @click="rescanEditorFile()"
               :disabled="editorRescanning || isEditorFileBusy"
-              class="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-lg border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:border-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              class="ui-btn ui-btn-secondary shrink-0"
             >
               <svg
                 class="h-3.5 w-3.5"
@@ -2380,23 +2380,23 @@
 
           <!-- Loading / Error states -->
           <div x-show="editorLoading" class="space-y-3">
-            <div class="h-32 animate-pulse rounded-xl border border-hairline bg-surface"></div>
-            <div class="h-28 animate-pulse rounded-xl border border-hairline bg-surface"></div>
-            <div class="h-44 animate-pulse rounded-xl border border-hairline bg-surface"></div>
+            <div class="h-32 animate-pulse rounded-ui-md border border-subtle bg-surface"></div>
+            <div class="h-28 animate-pulse rounded-ui-md border border-subtle bg-surface"></div>
+            <div class="h-44 animate-pulse rounded-ui-md border border-subtle bg-surface"></div>
           </div>
 
           <template x-if="editorError">
-            <div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300" x-text="editorError"></div>
+            <div class="rounded-ui-md border border-[var(--color-status-err-border)] bg-[var(--color-status-err-bg)] p-4 text-sm text-[var(--color-status-err)]" x-text="editorError"></div>
           </template>
 
           <!-- Non-Blocking External Disk Change Banner (never wipes unsaved edits) -->
           <div
             x-cloak
             x-show="editorExternalChange"
-            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-ui-md border border-[var(--color-status-warn-border)] bg-[var(--color-status-warn-bg)] px-4 py-3 text-xs text-[var(--color-status-warn)]"
           >
             <span
-              class="min-w-0 flex-1"
+              class="min-w-0 flex-1 font-medium"
               x-text="editorExternalChange && editorExternalChange.action === 'deleted' ? `${editorExternalChange.filename} was removed from disk externally.` : `${editorExternalChange ? editorExternalChange.filename : 'This file'} was modified on disk externally. Your unsaved edits are still intact.`"
             ></span>
             <div class="flex shrink-0 items-center gap-2">
@@ -2404,7 +2404,7 @@
                 type="button"
                 x-show="editorExternalChange && editorExternalChange.action !== 'deleted'"
                 @click="reloadEditorAfterExternalChange()"
-                class="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 font-medium text-amber-100 hover:bg-amber-500/25"
+                class="ui-btn ui-btn-sm ui-btn-secondary"
               >
                 Reload File
               </button>
@@ -2412,14 +2412,14 @@
                 type="button"
                 x-show="editorExternalChange && editorExternalChange.action === 'deleted'"
                 @click="backToLibrary()"
-                class="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 font-medium text-amber-100 hover:bg-amber-500/25"
+                class="ui-btn ui-btn-sm ui-btn-secondary"
               >
                 Back to Library
               </button>
               <button
                 type="button"
                 @click="editorExternalChange = null"
-                class="rounded-lg border border-hairline bg-canvas px-2.5 py-1.5 text-zinc-400 hover:text-zinc-200"
+                class="ui-btn ui-btn-sm ui-btn-ghost"
               >
                 Dismiss
               </button>
@@ -2430,13 +2430,13 @@
           <div
             x-cloak
             x-show="editorConflictMessage"
-            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-ui-md border border-[var(--color-status-warn-border)] bg-[var(--color-status-warn-bg)] px-4 py-3 text-xs text-[var(--color-status-warn)]"
           >
-            <span class="min-w-0 flex-1" x-text="editorConflictMessage"></span>
+            <span class="min-w-0 flex-1 font-medium" x-text="editorConflictMessage"></span>
             <button
               type="button"
               @click="openJobsDrawer()"
-              class="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 font-medium text-amber-200 hover:bg-amber-500/25"
+              class="ui-btn ui-btn-sm ui-btn-secondary shrink-0"
             >
               Open Jobs Drawer →
             </button>
@@ -2448,8 +2448,8 @@
             x-show="isEditorFileBusy && editorActiveJob"
             role="status"
             aria-live="polite"
-            class="rounded-xl border p-4 space-y-3"
-            :class="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'border-accent/45 bg-accent/10' : 'border-amber-500/40 bg-amber-500/10'"
+            class="ui-panel border-l-2 p-4 space-y-3"
+            :class="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'border-l-[var(--color-accent)]' : 'border-l-[var(--color-status-warn)]'"
           >
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex min-w-0 flex-1 items-center gap-2.5">
@@ -2465,7 +2465,7 @@
                 </svg>
                 <svg
                   x-show="editorActiveJob && editorActiveJob.state === C.STATUSES.QUEUED"
-                  class="h-4 w-4 shrink-0 text-amber-300"
+                  class="h-4 w-4 shrink-0 text-[var(--color-status-warn)]"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                   aria-hidden="true"
@@ -2474,19 +2474,15 @@
                 </svg>
                 <div class="min-w-0 flex-1">
                   <p
-                    class="truncate text-xs font-semibold"
-                    :class="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'text-indigo-100' : 'text-amber-100'"
+                    class="truncate text-xs font-semibold text-ink-primary"
                     x-text="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? `Processing: ${editorActiveJob.stageLabel}` : `Queued for processing (#${editorActiveJob ? editorActiveJob.queuePos : 1} in queue)`"
                   ></p>
-                  <p
-                    class="mt-0.5 text-[11px]"
-                    :class="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'text-indigo-200/80' : 'text-amber-200/80'"
-                  >
+                  <p class="mt-0.5 text-xs text-ink-secondary">
                     <span
                       x-text="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'Controls are locked while this file is being processed.' : 'Controls are locked. Remove this file from the job queue to modify.'"
                     ></span>
                     <template x-if="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING && (editorActiveJob.speed || editorActiveJob.eta)">
-                      <span class="ml-1.5 font-mono text-indigo-100" x-text="[editorActiveJob.speed, editorActiveJob.eta ? `ETA ${editorActiveJob.eta}` : ''].filter(Boolean).join(' • ')"></span>
+                      <span class="ui-num ml-1.5 font-mono text-ink-primary" x-text="[editorActiveJob.speed, editorActiveJob.eta ? `ETA ${editorActiveJob.eta}` : ''].filter(Boolean).join(' • ')"></span>
                     </template>
                   </p>
                 </div>
@@ -2495,13 +2491,13 @@
               <div class="flex shrink-0 items-center gap-2">
                 <span
                   x-show="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING"
-                  class="font-mono text-xs font-semibold text-indigo-100"
+                  class="ui-num font-mono text-xs font-semibold text-accent"
                   x-text="editorActiveJob ? `${editorActiveJob.percent}%` : '0%'"
                 ></span>
                 <button
                   type="button"
                   @click="openJobsDrawer()"
-                  class="rounded-lg border border-hairline bg-canvas/80 px-2.5 py-1.5 text-[11px] font-medium text-zinc-200 transition hover:border-zinc-500 hover:text-white"
+                  class="ui-btn ui-btn-sm ui-btn-secondary"
                   x-text="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'Logs' : 'View Queue'"
                 ></button>
                 <button
@@ -2509,7 +2505,7 @@
                   x-show="editorActiveJob && editorActiveJob.jobId"
                   @click="cancelJobById(editorActiveJob.jobId)"
                   :disabled="editorActiveJob && isCancellingJob(editorActiveJob.jobId)"
-                  class="rounded-lg border border-red-500/40 bg-red-500/15 px-2.5 py-1.5 text-[11px] font-medium text-red-200 transition hover:bg-red-500/25 disabled:opacity-40"
+                  class="ui-btn ui-btn-sm ui-btn-danger"
                   x-text="editorActiveJob && isCancellingJob(editorActiveJob.jobId) ? (editorActiveJob.state === C.STATUSES.RUNNING ? 'Cancelling…' : 'Removing…') : (editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? 'Cancel' : 'Remove from Queue')"
                 ></button>
               </div>
@@ -2517,7 +2513,7 @@
 
             <div
               x-show="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING"
-              class="h-1.5 w-full overflow-hidden rounded-full bg-canvas/80"
+              class="h-1.5 w-full overflow-hidden rounded-full bg-inset"
             >
               <div
                 class="h-full rounded-full bg-accent transition-all duration-300"
@@ -2526,41 +2522,43 @@
             </div>
           </div>
 
-          <!-- Editor Body (Clean 2 Cards: Metadata Cleanup + Tracks with + Add Audio) -->
+          <!-- Editor Body (Inspector Sections: Metadata Cleanup, Tracks, Attachments, Output, Advanced) -->
           <template x-if="!editorLoading && editor && editorFile">
-            <fieldset :disabled="isEditorFileBusy" class="min-w-0 space-y-4 disabled:opacity-60">
+            <fieldset :disabled="isEditorFileBusy" class="min-w-0 space-y-5 disabled:opacity-60">
               <!-- ======================================================= -->
-              <!-- CARD 1: Metadata Cleanup Card (Title, Tags & Chapters)  -->
+              <!-- SECTION 1: Metadata Cleanup Inspector                   -->
               <!-- ======================================================= -->
-              <div class="rounded-xl border border-hairline bg-surface p-5 space-y-4">
-                <h2 class="text-sm font-semibold text-zinc-100">Metadata Cleanup</h2>
-
-                <div>
-                  <label class="block text-xs font-medium text-zinc-400">Container Title</label>
-                  <div class="relative mt-1.5">
-                    <input
-                      type="text"
-                      x-model="editor.containerTitle"
-                      placeholder="Leave empty to clear title"
-                      class="h-10 w-full rounded-lg border border-hairline bg-canvas pl-3.5 pr-20 text-sm text-zinc-100 placeholder-zinc-600 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                    />
-                    <button
-                      type="button"
-                      x-show="editor.containerTitle.length > 0"
-                      @click="clearContainerTitle()"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-hairline bg-surface px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:border-zinc-500 hover:text-white"
-                    >
-                      × Clear
-                    </button>
-                  </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between px-0.5">
+                  <h2 class="ui-section-title">Metadata Cleanup</h2>
                 </div>
 
-                <!-- Simple Track-Style Checkboxes for Tags (default unchecked = remove) & Chapters (default checked = keep) -->
-                <div class="space-y-2">
+                <div class="ui-list-group">
+                  <!-- Container Title Row -->
+                  <div class="px-4 py-3.5 space-y-1.5">
+                    <label class="block text-xs font-medium text-ink-secondary">Container Title</label>
+                    <div class="relative">
+                      <input
+                        type="text"
+                        x-model="editor.containerTitle"
+                        placeholder="Leave empty to clear title"
+                        class="ui-input h-10 pr-20 text-sm"
+                      />
+                      <button
+                        type="button"
+                        x-show="editor.containerTitle.length > 0"
+                        @click="clearContainerTitle()"
+                        class="ui-btn ui-btn-sm ui-btn-secondary absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[28px] px-2.5"
+                      >
+                        × Clear
+                      </button>
+                    </div>
+                  </div>
+
                   <!-- Global Tags Checkbox Row -->
                   <label
                     x-show="editorFile.has_global_tags || (editorFile.global_tags_count && editorFile.global_tags_count > 0) || (editor.tagEntries && editor.tagEntries.length > 0)"
-                    class="flex cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-canvas/60 px-3.5 py-3 transition"
+                    class="ui-row flex cursor-pointer items-start gap-3 px-4 py-3"
                     :class="editor.stripGlobalTags ? 'opacity-60' : ''"
                   >
                     <input
@@ -2568,21 +2566,21 @@
                       :checked="!editor.stripGlobalTags"
                       @change="editor.stripGlobalTags = !$event.target.checked"
                       aria-label="Keep Global Tags"
-                      class="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-600 bg-surface text-accent focus:ring-accent"
+                      class="mt-0.5 h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent"
                     />
                     <div class="min-w-0 flex-1 space-y-1.5">
-                      <div class="flex flex-wrap items-center gap-1.5">
-                        <span class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200">Global Tags</span>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="ui-tag font-mono">Global Tags</span>
                         <span
-                          class="font-mono text-[11px] text-zinc-400"
+                          class="ui-num font-mono text-xs text-ink-secondary"
                           x-text="`${editorFile.global_tags_count || (editor.tagEntries ? editor.tagEntries.length : 1)} ${(editorFile.global_tags_count || (editor.tagEntries ? editor.tagEntries.length : 1)) === 1 ? 'entry' : 'entries'}`"
                         ></span>
                       </div>
                       <div x-show="editor.tagEntries && editor.tagEntries.length > 0" class="flex flex-wrap items-center gap-1.5">
                         <template x-for="(tag, ti) in editor.tagEntries" :key="`ed-tag-${ti}`">
-                          <span class="inline-flex items-center gap-1 rounded-md border border-hairline bg-surface px-2 py-0.5 font-mono text-[11px] text-zinc-300">
-                            <span class="font-semibold text-amber-300" x-text="`${tag.key}:`"></span>
-                            <span class="break-all" x-text="tag.value"></span>
+                          <span class="ui-tag font-mono">
+                            <span class="font-semibold text-[var(--color-status-warn)]" x-text="`${tag.key}:`"></span>
+                            <span class="break-all text-ink-primary" x-text="tag.value"></span>
                           </span>
                         </template>
                       </div>
@@ -2592,7 +2590,7 @@
                   <!-- Track Tags Checkbox Row -->
                   <label
                     x-show="editorFile.has_track_tags || (editorFile.track_tags_count && editorFile.track_tags_count > 0)"
-                    class="flex cursor-pointer items-center gap-3 rounded-xl border border-hairline bg-canvas/60 px-3.5 py-3 transition"
+                    class="ui-row flex cursor-pointer items-center gap-3 px-4 py-3"
                     :class="editor.stripTrackTags ? 'opacity-60' : ''"
                   >
                     <input
@@ -2600,12 +2598,12 @@
                       :checked="!editor.stripTrackTags"
                       @change="editor.stripTrackTags = !$event.target.checked"
                       aria-label="Keep Track Tags"
-                      class="h-4 w-4 shrink-0 rounded border-zinc-600 bg-surface text-accent focus:ring-accent"
+                      class="h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent"
                     />
-                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                      <span class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200">Track Tags</span>
+                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                      <span class="ui-tag font-mono">Track Tags</span>
                       <span
-                        class="font-mono text-[11px] text-zinc-400"
+                        class="ui-num font-mono text-xs text-ink-secondary"
                         x-text="`${editorFile.track_tags_count || 1} ${(editorFile.track_tags_count || 1) === 1 ? 'entry' : 'entries'}`"
                       ></span>
                     </div>
@@ -2614,7 +2612,7 @@
                   <!-- Chapters Checkbox Row (default checked = kept) -->
                   <label
                     x-show="editorFile.chapters_count > 0"
-                    class="flex cursor-pointer items-center gap-3 rounded-xl border border-hairline bg-canvas/60 px-3.5 py-3 transition"
+                    class="ui-row flex cursor-pointer items-center gap-3 px-4 py-3"
                     :class="editor.stripChapters ? 'opacity-60' : ''"
                   >
                     <input
@@ -2622,12 +2620,12 @@
                       :checked="!editor.stripChapters"
                       @change="editor.stripChapters = !$event.target.checked"
                       aria-label="Keep Chapters"
-                      class="h-4 w-4 shrink-0 rounded border-zinc-600 bg-surface text-accent focus:ring-accent"
+                      class="h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent"
                     />
-                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                      <span class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200">Chapters</span>
+                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                      <span class="ui-tag font-mono">Chapters</span>
                       <span
-                        class="font-mono text-[11px] text-zinc-400"
+                        class="ui-num font-mono text-xs text-ink-secondary"
                         x-text="`${editorFile.chapters_count} ${editorFile.chapters_count === 1 ? 'chapter' : 'chapters'}`"
                       ></span>
                     </div>
@@ -2636,16 +2634,16 @@
               </div>
 
               <!-- ======================================================= -->
-              <!-- CARD 2: Tracks Card (+ Add Audio dropdown & live [NEW]) -->
+              <!-- SECTION 2: Tracks Inspector (+ Add / Convert & [NEW])   -->
               <!-- ======================================================= -->
-              <div class="rounded-xl border border-hairline bg-surface p-5 space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div class="flex items-center gap-2">
-                    <h2 class="text-sm font-semibold text-zinc-100">Tracks</h2>
-                    <span class="font-mono text-[11px] text-zinc-500" x-text="`${editorKeptTrackCount} kept`"></span>
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-2 px-0.5">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="ui-section-title">Tracks</h2>
+                    <span class="ui-num font-mono text-xs text-ink-muted" x-text="`${editorKeptTrackCount} kept`"></span>
                     <span
                       x-show="editorFile.has_ac3_eac3 && !editor.audioFix.enabled"
-                      class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400"
+                      class="ui-status ui-status-ok"
                     >
                       Dolby Ready
                     </span>
@@ -2658,118 +2656,118 @@
                       @click="sanitizeAllTracksMetadata()"
                       :disabled="isEditorFileBusy || allTracksSanitized"
                       aria-label="Sanitize all track metadata"
-                      class="whitespace-nowrap py-1 text-xs font-medium text-accent/90 transition hover:text-accent hover:underline focus:outline-none disabled:cursor-default disabled:text-zinc-500 disabled:no-underline"
+                      class="whitespace-nowrap py-1 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
                     >
                       Sanitize all
                     </button>
 
                     <!-- Unified Track Actions Menu (Convert Audio + Import External Audio/Subtitles) -->
                     <div class="relative">
-                    <button
-                      type="button"
-                      @click="if (!isEditorFileBusy) addAudioMenuOpen = !addAudioMenuOpen"
-                      :disabled="isEditorFileBusy"
-                      :aria-expanded="addAudioMenuOpen ? 'true' : 'false'"
-                      aria-label="Add or convert tracks"
-                      class="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-accent/40 bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
-                      </svg>
-                      <span>Add / Convert</span>
-                      <svg class="h-3.5 w-3.5 opacity-80" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M7 10l5 5 5-5z"></path>
-                      </svg>
-                    </button>
+                      <button
+                        type="button"
+                        @click="if (!isEditorFileBusy) addAudioMenuOpen = !addAudioMenuOpen"
+                        :disabled="isEditorFileBusy"
+                        :aria-expanded="addAudioMenuOpen ? 'true' : 'false'"
+                        aria-label="Add or convert tracks"
+                        class="ui-btn ui-btn-sm ui-btn-primary"
+                      >
+                        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"></path>
+                        </svg>
+                        <span>Add / Convert</span>
+                        <svg class="h-3.5 w-3.5 opacity-80" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M7 10l5 5 5-5z"></path>
+                        </svg>
+                      </button>
 
-                    <div
-                      x-cloak
-                      x-show="addAudioMenuOpen"
-                      x-transition.opacity.duration.100ms
-                      @click.outside="addAudioMenuOpen = false"
-                      role="menu"
-                      aria-label="Track actions"
-                      class="absolute right-0 top-10 z-40 w-64 rounded-xl border border-hairline bg-surface p-1.5 shadow-2xl space-y-1"
-                    >
-                      <!-- Section 1: Convert Existing Audio (Source-Aware Top Recommendations + Custom) -->
-                      <template x-if="editorRecommendedAudioOptions.length > 0">
-                        <div>
-                          <p class="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                            Convert Audio To
-                          </p>
-                          <template x-for="opt in editorRecommendedAudioOptions" :key="opt.key">
+                      <div
+                        x-cloak
+                        x-show="addAudioMenuOpen"
+                        x-transition.opacity.duration.100ms
+                        @click.outside="addAudioMenuOpen = false"
+                        role="menu"
+                        aria-label="Track actions"
+                        class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-68 max-w-[calc(100vw-2rem)]"
+                      >
+                        <!-- Section 1: Convert Existing Audio (Source-Aware Top Recommendations + Custom) -->
+                        <template x-if="editorRecommendedAudioOptions.length > 0">
+                          <div>
+                            <p class="px-3 py-1 text-xs font-medium text-ink-muted">
+                              Convert Audio To
+                            </p>
+                            <template x-for="opt in editorRecommendedAudioOptions" :key="opt.key">
+                              <button
+                                type="button"
+                                role="menuitem"
+                                @click="openAddAudioChoice(opt)"
+                                class="ui-menu-item"
+                              >
+                                <div class="min-w-0">
+                                  <div class="flex items-center gap-1.5">
+                                    <p class="font-mono text-xs font-semibold text-ink-primary" x-text="opt.label"></p>
+                                    <span
+                                      x-show="opt.badge"
+                                      class="ui-tag text-xs text-accent"
+                                      x-text="opt.badge"
+                                    ></span>
+                                  </div>
+                                  <p class="truncate text-xs font-normal text-ink-muted" x-text="opt.subtitle"></p>
+                                </div>
+                                <span
+                                  class="ui-num shrink-0 font-mono text-xs text-ink-secondary"
+                                  x-text="opt.isLossless ? 'Lossless' : opt.defaultBitrate"
+                                ></span>
+                              </button>
+                            </template>
                             <button
                               type="button"
                               role="menuitem"
-                              @click="openAddAudioChoice(opt)"
-                              class="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-zinc-800/80"
+                              @click="openCustomAddAudio()"
+                              class="ui-menu-item text-accent"
                             >
-                              <div class="min-w-0">
-                                <div class="flex items-center gap-1.5">
-                                  <p class="font-mono text-xs font-semibold text-zinc-100" x-text="opt.label"></p>
-                                  <span
-                                    x-show="opt.badge"
-                                    class="rounded bg-accent/15 px-1.5 py-0.5 text-[9px] font-medium text-indigo-300"
-                                    x-text="opt.badge"
-                                  ></span>
-                                </div>
-                                <p class="truncate text-[11px] text-zinc-400" x-text="opt.subtitle"></p>
-                              </div>
-                              <span
-                                class="shrink-0 font-mono text-[10px] text-zinc-500"
-                                x-text="opt.isLossless ? 'Lossless' : opt.defaultBitrate"
-                              ></span>
+                              <span>Custom conversion…</span>
+                              <span class="font-mono text-xs font-normal text-ink-muted">Codec · Ch · Rate</span>
                             </button>
-                          </template>
+                            <div class="ui-menu-divider"></div>
+                          </div>
+                        </template>
+
+                        <!-- Section 2: Import External Track -->
+                        <div>
+                          <p class="px-3 py-1 text-xs font-medium text-ink-muted">
+                            Import External File
+                          </p>
                           <button
                             type="button"
                             role="menuitem"
-                            @click="openCustomAddAudio()"
-                            class="mt-0.5 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] font-medium text-indigo-300/90 transition hover:bg-zinc-800/80 hover:text-indigo-200"
+                            @click="openImportTrackModal(C.EXTERNAL_TRACKS.KIND_SUBTITLES)"
+                            class="ui-menu-item justify-start"
                           >
-                            <span>Custom conversion…</span>
-                            <span class="font-mono text-[10px] text-zinc-500">Codec · Ch · Rate</span>
+                            <svg class="h-4 w-4 shrink-0 text-[var(--color-status-info)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"></path>
+                            </svg>
+                            <div class="min-w-0">
+                              <p class="text-xs font-semibold text-ink-primary">Import Subtitle…</p>
+                              <p class="truncate text-xs font-normal text-ink-muted">.srt, .ass, .ssa, .vtt, .sup</p>
+                            </div>
                           </button>
-                          <div class="my-1 border-t border-hairline"></div>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            @click="openImportTrackModal(C.EXTERNAL_TRACKS.KIND_AUDIO)"
+                            class="ui-menu-item justify-start"
+                          >
+                            <svg class="h-4 w-4 shrink-0 text-[var(--color-status-ok)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path>
+                            </svg>
+                            <div class="min-w-0">
+                              <p class="text-xs font-semibold text-ink-primary">Import Audio…</p>
+                              <p class="truncate text-xs font-normal text-ink-muted">.ac3, .eac3, .aac, .dts, .flac, .mka…</p>
+                            </div>
+                          </button>
                         </div>
-                      </template>
-
-                      <!-- Section 2: Import External Track -->
-                      <div>
-                        <p class="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                          Import External File
-                        </p>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          @click="openImportTrackModal(C.EXTERNAL_TRACKS.KIND_SUBTITLES)"
-                          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-zinc-800/80"
-                        >
-                          <svg class="h-4 w-4 shrink-0 text-sky-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"></path>
-                          </svg>
-                          <div class="min-w-0">
-                            <p class="text-xs font-semibold text-zinc-100">Import Subtitle…</p>
-                            <p class="truncate text-[11px] text-zinc-400">.srt, .ass, .ssa, .vtt, .sup</p>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          @click="openImportTrackModal(C.EXTERNAL_TRACKS.KIND_AUDIO)"
-                          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-zinc-800/80"
-                        >
-                          <svg class="h-4 w-4 shrink-0 text-emerald-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path>
-                          </svg>
-                          <div class="min-w-0">
-                            <p class="text-xs font-semibold text-zinc-100">Import Audio…</p>
-                            <p class="truncate text-[11px] text-zinc-400">.ac3, .eac3, .aac, .dts, .flac, .mka…</p>
-                          </div>
-                        </button>
                       </div>
                     </div>
-                  </div>
                   </div>
                 </div>
 
@@ -2777,36 +2775,37 @@
                 <div
                   x-cloak
                   x-show="editorAllVideoUnchecked"
-                  class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200 space-y-2"
+                  class="rounded-ui-md border border-[var(--color-status-warn-border)] bg-[var(--color-status-warn-bg)] p-3.5 text-xs text-[var(--color-status-warn)] space-y-2"
                 >
-                  <p class="font-semibold text-amber-300">Warning: No video track selected</p>
-                  <p class="text-amber-200/80">All video tracks are unchecked. The output file will contain audio/subtitles only.</p>
-                  <label class="inline-flex items-center gap-2 pt-0.5 text-xs font-medium text-amber-100 cursor-pointer">
+                  <p class="font-semibold">Warning: No video track selected</p>
+                  <p class="text-ink-secondary">All video tracks are unchecked — output will contain audio/subtitles only.</p>
+                  <label class="inline-flex items-center gap-2 pt-0.5 text-xs font-medium text-ink-primary cursor-pointer">
                     <input
                       type="checkbox"
                       x-model="editor.confirmNoVideo"
-                      class="h-4 w-4 rounded border-amber-400/50 bg-canvas text-amber-500 focus:ring-amber-500"
+                      class="h-4 w-4 rounded border-default bg-inset text-accent focus:ring-accent"
                     />
                     <span>I intentionally want an audio-only output</span>
                   </label>
                 </div>
 
-                <div class="space-y-2">
+                <!-- Hairline-Divided Track Inspector Rows -->
+                <div class="ui-list-group">
                   <template x-for="row in editorDisplayTracks" :key="row.key">
-                    <div>
-                      <!-- Highlighted Inline [NEW] Audio Track Row -->
+                    <div class="min-w-0">
+                      <!-- Virtual [NEW] Audio Track Row (2px Left Accent Indicator + Quiet Tag) -->
                       <template x-if="row.isVirtual">
-                        <div class="rounded-xl border border-accent/60 bg-accent/10 px-3.5 py-3 space-y-2">
+                        <div class="border-l-2 border-l-[var(--color-accent)] bg-accent/[0.04] px-4 py-3.5 space-y-2">
                           <div class="flex flex-wrap items-center justify-between gap-2">
                             <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                              <span class="rounded bg-accent px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">NEW</span>
+                              <span class="rounded-ui-sm bg-accent px-1.5 py-0.5 font-mono text-xs font-semibold text-[var(--color-accent-fg)]">NEW</span>
                               <span
-                                class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200"
+                                class="ui-tag ui-num font-mono"
                                 x-text="`${row.codecBadge} • ${row.bitrate} • ${row.language} • muxed`"
                               ></span>
                               <span
                                 x-show="row.setAsDefault"
-                                class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
+                                class="ui-status ui-status-ok"
                               >
                                 Audio Index 0 • Default
                               </span>
@@ -2815,7 +2814,7 @@
                               <button
                                 type="button"
                                 @click="editAddedAudio()"
-                                class="rounded-md border border-accent/40 bg-surface/80 px-2 py-1 text-[11px] font-medium text-indigo-200 hover:bg-surface"
+                                class="ui-btn ui-btn-sm ui-btn-secondary min-h-[28px] px-2.5"
                               >
                                 Edit
                               </button>
@@ -2823,14 +2822,14 @@
                                 type="button"
                                 @click="removeAddedAudio()"
                                 aria-label="Remove added audio track"
-                                class="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-300 hover:bg-red-500/20"
+                                class="ui-btn ui-btn-sm ui-btn-danger min-h-[28px] px-2.5"
                               >
                                 × Remove
                               </button>
                             </div>
                           </div>
 
-                          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-indigo-200/75">
+                          <div class="ui-num flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-ink-secondary">
                             <span x-text="row.sourceSummary"></span>
                             <span x-show="row.syncDelayMs !== 0" x-text="`• sync ${row.syncDelayMs > 0 ? '+' : ''}${row.syncDelayMs}ms`"></span>
                           </div>
@@ -2843,14 +2842,14 @@
                                 x-model="editor.audioFix.trackTitle"
                                 @input="editor.audioFix.titleManuallyEdited = true"
                                 placeholder="Track name (optional)"
-                                class="w-full rounded-lg border border-hairline bg-surface pl-2.5 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                                class="ui-input min-h-[34px] py-1.5 pl-2.5 pr-16 text-xs"
                               />
                               <button
                                 type="button"
                                 x-show="editor.audioFix.trackTitle && editor.audioFix.trackTitle.length > 0"
                                 @click="editor.audioFix.trackTitle = ''; editor.audioFix.titleManuallyEdited = true"
                                 aria-label="Clear added audio track metadata"
-                                class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-hairline bg-canvas px-2 py-0.5 text-[10px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+                                class="ui-btn ui-btn-sm ui-btn-secondary absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[24px] px-2 text-xs"
                               >
                                 × Clear
                               </button>
@@ -2861,7 +2860,7 @@
                                 @click="sanitizeAddedAudioMetadata()"
                                 :disabled="editor.audioFix.trackTitle === defaultAddedAudioTitle()"
                                 aria-label="Sanitize added audio track metadata"
-                                class="py-0.5 text-[11px] font-medium text-accent/90 transition hover:text-accent hover:underline focus:outline-none disabled:cursor-default disabled:text-zinc-500 disabled:no-underline"
+                                class="py-0.5 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
                               >
                                 Sanitize metadata
                               </button>
@@ -2870,32 +2869,32 @@
                         </div>
                       </template>
 
-                      <!-- Imported External Audio/Subtitle Track Row [IMPORT] -->
+                      <!-- Imported External Audio/Subtitle Track Row [IMPORT] (2px Left Accent Indicator + Quiet Tag) -->
                       <template x-if="!row.isVirtual && row.isExternal">
-                        <div class="rounded-xl border border-sky-500/45 bg-sky-500/10 px-3.5 py-3">
+                        <div class="border-l-2 border-l-[var(--color-accent)] bg-accent/[0.04] px-4 py-3.5">
                           <div class="flex items-start gap-3">
                             <div class="min-w-0 flex-1 space-y-1.5">
                               <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                                  <span class="rounded bg-sky-500/25 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-sky-200 border border-sky-500/35">IMPORT</span>
+                                  <span class="ui-status ui-status-info font-mono">IMPORT</span>
                                   <span
-                                    class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200"
+                                    class="ui-tag font-mono"
                                     x-text="row.ext.kind === C.EXTERNAL_TRACKS.KIND_AUDIO ? 'Audio' : 'Subtitle'"
                                   ></span>
                                   <span
-                                    class="truncate text-xs font-semibold text-sky-100"
+                                    class="min-w-0 truncate text-xs font-semibold text-ink-primary"
                                     :title="row.ext.trackName || row.ext.originalFilename"
                                     x-text="row.ext.trackName || row.ext.originalFilename"
                                   ></span>
                                   <span
                                     x-show="row.effectiveDefault"
-                                    class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300"
+                                    class="ui-status ui-status-ok"
                                   >
                                     Default
                                   </span>
                                   <span
                                     x-show="row.ext.forcedTrack"
-                                    class="rounded-full bg-zinc-500/20 px-2 py-0.5 text-[10px] font-medium text-zinc-200"
+                                    class="ui-tag"
                                   >
                                     Forced
                                   </span>
@@ -2904,7 +2903,7 @@
                                   <button
                                     type="button"
                                     @click="openImportTrackModal(row.ext.kind, row.ext)"
-                                    class="rounded-md border border-sky-500/35 bg-surface/80 px-2 py-1 text-[11px] font-medium text-sky-200 hover:bg-surface"
+                                    class="ui-btn ui-btn-sm ui-btn-secondary min-h-[28px] px-2.5"
                                   >
                                     Edit
                                   </button>
@@ -2912,19 +2911,19 @@
                                     type="button"
                                     @click="removeImportedTrack(row.ext.id)"
                                     aria-label="Remove imported track"
-                                    class="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-300 hover:bg-red-500/20"
+                                    class="ui-btn ui-btn-sm ui-btn-danger min-h-[28px] px-2.5"
                                   >
                                     × Remove
                                   </button>
                                 </div>
                               </div>
-                              <div class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-sky-100/80">
+                              <div class="ui-num flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-ink-secondary">
                                 <span
-                                  class="rounded bg-canvas/70 px-1.5 py-0.5 text-[10px] text-zinc-300"
+                                  class="ui-tag"
                                   x-text="row.ext.source === C.EXTERNAL_TRACKS.SOURCE_UPLOAD ? 'Uploaded' : 'Storage'"
                                 ></span>
-                                <span class="truncate" :title="row.ext.path || row.ext.originalFilename" x-text="row.ext.originalFilename"></span>
-                                <span class="text-sky-300/50">•</span>
+                                <span class="min-w-0 truncate" :title="row.ext.path || row.ext.originalFilename" x-text="row.ext.originalFilename"></span>
+                                <span class="text-ink-muted">•</span>
                                 <span x-text="row.ext.language"></span>
                                 <span x-show="row.ext.syncDelayMs !== 0" x-text="`• sync ${row.ext.syncDelayMs > 0 ? '+' : ''}${row.ext.syncDelayMs}ms`"></span>
                               </div>
@@ -2937,7 +2936,7 @@
                                 @click="moveEditorTrackItem(row.orderKey, -1)"
                                 :disabled="!row.canMoveUp"
                                 aria-label="Move imported track up"
-                                class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface text-xs text-zinc-300 transition hover:border-zinc-500 disabled:opacity-30"
+                                class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-secondary transition hover:border-default hover:text-ink-primary disabled:opacity-30"
                               >
                                 ↑
                               </button>
@@ -2946,7 +2945,7 @@
                                 @click="moveEditorTrackItem(row.orderKey, 1)"
                                 :disabled="!row.canMoveDown"
                                 aria-label="Move imported track down"
-                                class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface text-xs text-zinc-300 transition hover:border-zinc-500 disabled:opacity-30"
+                                class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-secondary transition hover:border-default hover:text-ink-primary disabled:opacity-30"
                               >
                                 ↓
                               </button>
@@ -2958,7 +2957,7 @@
                       <!-- Real Source Track Row -->
                       <template x-if="!row.isVirtual && !row.isExternal">
                         <div
-                          class="rounded-xl border border-hairline bg-canvas/60 px-3.5 py-3 transition"
+                          class="ui-row px-4 py-3.5"
                           :class="(!row.track.enabled || row.isDroppedByAudioFix) ? 'opacity-50' : ''"
                         >
                           <div class="flex items-start gap-3">
@@ -2967,41 +2966,41 @@
                               :checked="row.track.enabled && !row.isDroppedByAudioFix"
                               :disabled="row.isDroppedByAudioFix"
                               @change="toggleTrackEnabled(row.track)"
-                              class="mt-1 h-4 w-4 shrink-0 rounded border-zinc-600 bg-surface text-accent focus:ring-accent"
+                              class="mt-1 h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent"
                             />
 
                             <div class="min-w-0 flex-1 space-y-2">
                               <div class="flex flex-wrap items-center gap-1.5">
                                 <span
-                                  class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200"
+                                  class="ui-tag font-mono text-ink-primary"
                                   x-text="Ed.formatTrackBadge(row.track)"
                                 ></span>
                                 <span
                                   x-show="(row.track.type === 'video' || row.track.type === 'audio') && row.track.size_bytes > 0"
-                                  class="font-mono text-[11px] text-zinc-400"
+                                  class="ui-num font-mono text-xs text-ink-secondary"
                                   x-text="Fmt.formatBytes(row.track.size_bytes)"
                                 ></span>
                                 <span
                                   x-show="row.isDroppedByAudioFix"
-                                  class="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300"
+                                  class="ui-status ui-status-err"
                                 >
                                   Dropped by Audio Fix
                                 </span>
                                 <span
                                   x-show="!row.isDroppedByAudioFix && row.isDemotedByNewDolby"
-                                  class="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300"
+                                  class="ui-status ui-status-warn"
                                 >
                                   Demoted (non-default)
                                 </span>
                                 <span
                                   x-show="!row.isDroppedByAudioFix && !row.isDemotedByNewDolby && row.track.default_track"
-                                  class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400"
+                                  class="ui-status ui-status-ok"
                                 >
                                   Default
                                 </span>
                                 <span
                                   x-show="row.track.forced_track"
-                                  class="rounded-full bg-zinc-500/20 px-2 py-0.5 text-[10px] font-medium text-zinc-300"
+                                  class="ui-tag"
                                 >
                                   Forced
                                 </span>
@@ -3013,14 +3012,14 @@
                                   x-model="row.track.track_name"
                                   :disabled="!row.track.enabled || row.isDroppedByAudioFix"
                                   placeholder="Track name (optional)"
-                                  class="w-full rounded-lg border border-hairline bg-surface pl-2.5 pr-16 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60"
+                                  class="ui-input min-h-[34px] py-1.5 pl-2.5 pr-16 text-xs disabled:opacity-60"
                                 />
                                 <button
                                   type="button"
                                   x-show="row.track.enabled && !row.isDroppedByAudioFix && row.track.track_name && row.track.track_name.length > 0"
                                   @click="row.track.track_name = ''"
                                   :aria-label="`Clear track ${row.track.id} name`"
-                                  class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md border border-hairline bg-canvas px-2 py-0.5 text-[10px] font-medium text-zinc-300 transition hover:border-zinc-500 hover:text-white"
+                                  class="ui-btn ui-btn-sm ui-btn-secondary absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[24px] px-2 text-xs"
                                 >
                                   × Clear
                                 </button>
@@ -3034,21 +3033,21 @@
                                   @click="sanitizeTrackMetadata(row.track)"
                                   :disabled="row.track.track_name === Ed.formatTrackBadge(row.track)"
                                   :aria-label="`Sanitize track ${row.track.id} metadata`"
-                                  class="py-0.5 text-[11px] font-medium text-accent/90 transition hover:text-accent hover:underline focus:outline-none disabled:cursor-default disabled:text-zinc-500 disabled:no-underline"
+                                  class="py-0.5 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline"
                                 >
                                   Sanitize metadata
                                 </button>
                               </div>
                             </div>
 
-                            <!-- Mobile-friendly Up/Down Reorder Buttons -->
+                            <!-- Up/Down Reorder Buttons -->
                             <div class="flex shrink-0 flex-col gap-1">
                               <button
                                 type="button"
                                 @click="moveEditorTrackItem(row.orderKey, -1)"
                                 :disabled="!row.canMoveUp"
                                 aria-label="Move track up"
-                                class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface text-xs text-zinc-300 transition hover:border-zinc-500 disabled:opacity-30"
+                                class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-secondary transition hover:border-default hover:text-ink-primary disabled:opacity-30"
                               >
                                 ↑
                               </button>
@@ -3057,7 +3056,7 @@
                                 @click="moveEditorTrackItem(row.orderKey, 1)"
                                 :disabled="!row.canMoveDown"
                                 aria-label="Move track down"
-                                class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-hairline bg-surface text-xs text-zinc-300 transition hover:border-zinc-500 disabled:opacity-30"
+                                class="inline-flex h-7 w-7 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-xs text-ink-secondary transition hover:border-default hover:text-ink-primary disabled:opacity-30"
                               >
                                 ↓
                               </button>
@@ -3071,24 +3070,24 @@
               </div>
 
               <!-- ======================================================= -->
-              <!-- CARD 2b: Attachments Card (Separate block below Tracks) -->
+              <!-- SECTION 2b: Attachments Inspector                       -->
               <!-- ======================================================= -->
               <div
                 x-show="editor.attachments && editor.attachments.length > 0"
-                class="rounded-xl border border-hairline bg-surface p-5 space-y-3"
+                class="space-y-2"
               >
-                <div class="flex items-center gap-2">
-                  <h2 class="text-sm font-semibold text-zinc-100">Attachments</h2>
+                <div class="flex items-center gap-2 px-0.5">
+                  <h2 class="ui-section-title">Attachments</h2>
                   <span
-                    class="font-mono text-[11px] text-zinc-500"
+                    class="ui-num font-mono text-xs text-ink-muted"
                     x-text="`${(editor.attachments || []).filter((a) => a.enabled).length} of ${(editor.attachments || []).length} kept`"
                   ></span>
                 </div>
 
-                <div class="space-y-2">
+                <div class="ui-list-group">
                   <template x-for="att in editor.attachments" :key="`ed-att-${att.id}`">
                     <label
-                      class="flex cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-canvas/60 px-3.5 py-3 transition"
+                      class="ui-row flex cursor-pointer items-start gap-3 px-4 py-3"
                       :class="!att.enabled ? 'opacity-50' : ''"
                     >
                       <input
@@ -3096,18 +3095,18 @@
                         :checked="att.enabled"
                         @change="Ed.toggleAttachmentEnabled(editor, att.id)"
                         :aria-label="`Keep attachment ${att.file_name}`"
-                        class="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-600 bg-surface text-accent focus:ring-accent"
+                        class="mt-0.5 h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent"
                       />
                       <div class="min-w-0 flex-1 space-y-1">
                         <div class="flex flex-wrap items-center gap-1.5">
-                          <span class="rounded-md bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-200" x-text="`Attachment #${att.id}`"></span>
-                          <span class="break-all font-mono text-xs font-semibold text-zinc-100" x-text="att.file_name"></span>
-                          <span class="rounded bg-violet-500/15 px-1.5 py-0.5 font-mono text-[10px] text-violet-300" x-text="att.content_type"></span>
-                          <span class="font-mono text-[11px] text-zinc-400" x-text="Fmt.formatBytes(att.size_bytes)"></span>
+                          <span class="ui-tag ui-num font-mono" x-text="`#${att.id}`"></span>
+                          <span class="break-all font-mono text-xs font-semibold text-ink-primary" x-text="att.file_name"></span>
+                          <span class="ui-tag font-mono" x-text="att.content_type"></span>
+                          <span class="ui-num font-mono text-xs text-ink-secondary" x-text="Fmt.formatBytes(att.size_bytes)"></span>
                         </div>
                         <p
                           x-show="att.description || att.uid"
-                          class="truncate font-mono text-[10px] text-zinc-500"
+                          class="truncate font-mono text-xs text-ink-muted"
                           x-text="[att.description, att.uid ? `UID ${att.uid}` : ''].filter(Boolean).join(' • ')"
                         ></p>
                       </div>
@@ -3117,205 +3116,208 @@
               </div>
 
               <!-- ======================================================= -->
-              <!-- CARD 3: Output Behavior (Keep Both / Replace / Save As) -->
+              <!-- SECTION 3: Output Behavior Inspector                    -->
               <!-- ======================================================= -->
-              <div class="rounded-xl border border-hairline bg-surface p-5 space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <h2 class="text-sm font-semibold text-zinc-100">Output Behavior</h2>
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-2 px-0.5">
+                  <h2 class="ui-section-title">Output Behavior</h2>
                   <span
                     x-show="editor.outputMode !== C.EDITOR.OUTPUT_REPLACE"
-                    class="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                    class="ui-status ui-status-ok"
                   >
                     Original Untouched
                   </span>
                 </div>
 
-                <!-- 3-Way Segmented Control (Single-line on mobile & desktop) -->
-                <div class="grid grid-cols-3 gap-1 rounded-lg border border-hairline bg-canvas p-1 sm:gap-1.5">
-                  <button
-                    type="button"
-                    @click="editor.outputMode = C.EDITOR.OUTPUT_KEEP_BOTH"
-                    class="min-h-[38px] whitespace-nowrap rounded-md px-1.5 py-1.5 text-[11px] font-medium transition sm:px-2.5 sm:text-xs"
-                    :class="editor.outputMode === C.EDITOR.OUTPUT_KEEP_BOTH ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
-                  >
-                    Keep Both
-                  </button>
-                  <button
-                    type="button"
-                    @click="editor.outputMode = C.EDITOR.OUTPUT_REPLACE"
-                    class="min-h-[38px] whitespace-nowrap rounded-md px-1.5 py-1.5 text-[11px] font-medium transition sm:px-2.5 sm:text-xs"
-                    :class="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
-                  >
-                    Replace<span class="hidden sm:inline"> Original</span>
-                  </button>
-                  <button
-                    type="button"
-                    @click="editor.outputMode = C.EDITOR.OUTPUT_SAVE_AS"
-                    class="min-h-[38px] whitespace-nowrap rounded-md px-1.5 py-1.5 text-[11px] font-medium transition sm:px-2.5 sm:text-xs"
-                    :class="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'bg-accent text-white' : 'text-zinc-400 hover:text-zinc-200'"
-                  >
-                    Save As…
-                  </button>
-                </div>
-
-                <!-- Save As Destination Controls -->
-                <div
-                  x-cloak
-                  x-show="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS"
-                  class="space-y-3"
-                >
-                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                      <label class="block text-xs font-medium text-zinc-400">Destination Folder</label>
+                <div class="ui-list-group">
+                  <!-- 3-Way Segmented Control Row -->
+                  <div class="px-4 py-3.5">
+                    <div class="ui-segmented grid w-full grid-cols-3" role="group" aria-label="Output mode">
                       <button
                         type="button"
-                        @click="openFolderPicker()"
-                        aria-label="Choose Save As destination folder"
-                        class="mt-1.5 flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas px-3 text-left text-xs text-zinc-100 transition hover:border-zinc-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                        @click="editor.outputMode = C.EDITOR.OUTPUT_KEEP_BOTH"
+                        :aria-pressed="editor.outputMode === C.EDITOR.OUTPUT_KEEP_BOTH ? 'true' : 'false'"
+                        class="ui-segmented-item min-h-[36px] whitespace-nowrap px-2"
+                        :class="editor.outputMode === C.EDITOR.OUTPUT_KEEP_BOTH ? 'ui-segmented-item-active' : ''"
                       >
-                        <span class="flex min-w-0 items-center gap-2">
-                          <svg class="h-4 w-4 shrink-0 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path>
-                          </svg>
-                          <span
-                            class="truncate font-mono text-zinc-100"
-                            :title="editor.saveAs.folder"
-                            x-text="editor.saveAs.folder === '/' ? '/ (Storage Root)' : editor.saveAs.folder"
-                          ></span>
-                        </span>
-                        <span class="shrink-0 rounded-md border border-hairline bg-surface px-2 py-0.5 text-[11px] font-medium text-zinc-300">
-                          Browse…
-                        </span>
+                        Keep Both
+                      </button>
+                      <button
+                        type="button"
+                        @click="editor.outputMode = C.EDITOR.OUTPUT_REPLACE"
+                        :aria-pressed="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'true' : 'false'"
+                        class="ui-segmented-item min-h-[36px] whitespace-nowrap px-2"
+                        :class="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'ui-segmented-item-active' : ''"
+                      >
+                        Replace<span class="hidden sm:inline"> Original</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="editor.outputMode = C.EDITOR.OUTPUT_SAVE_AS"
+                        :aria-pressed="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'true' : 'false'"
+                        class="ui-segmented-item min-h-[36px] whitespace-nowrap px-2"
+                        :class="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'ui-segmented-item-active' : ''"
+                      >
+                        Save As…
                       </button>
                     </div>
+                  </div>
 
-                    <div>
-                      <label class="block text-xs font-medium text-zinc-400">Output Filename (.mkv)</label>
-                      <input
-                        type="text"
-                        x-model="editor.saveAs.filename"
-                        placeholder="Movie.mkv"
-                        aria-label="Save As output filename"
-                        class="mt-1.5 h-10 w-full rounded-lg border border-hairline bg-canvas px-3 font-mono text-xs text-zinc-100 placeholder-zinc-600 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                      />
+                  <!-- Save As Destination Controls Row -->
+                  <div
+                    x-cloak
+                    x-show="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS"
+                    class="px-4 py-3.5 space-y-3"
+                  >
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label class="block text-xs font-medium text-ink-secondary">Destination Folder</label>
+                        <button
+                          type="button"
+                          @click="openFolderPicker()"
+                          aria-label="Choose Save As destination folder"
+                          class="ui-input mt-1.5 flex h-10 items-center justify-between gap-2 text-left text-xs transition hover:border-strong"
+                        >
+                          <span class="flex min-w-0 items-center gap-2">
+                            <svg class="h-4 w-4 shrink-0 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path>
+                            </svg>
+                            <span
+                              class="min-w-0 truncate font-mono text-ink-primary"
+                              :title="editor.saveAs.folder"
+                              x-text="editor.saveAs.folder === '/' ? '/ (Storage Root)' : editor.saveAs.folder"
+                            ></span>
+                          </span>
+                          <span class="ui-tag shrink-0">Browse…</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <label class="block text-xs font-medium text-ink-secondary">Output Filename (.mkv)</label>
+                        <input
+                          type="text"
+                          x-model="editor.saveAs.filename"
+                          placeholder="Movie.mkv"
+                          aria-label="Save As output filename"
+                          class="ui-input mt-1.5 h-10 font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Save As: Delete Original After Success Toggle (default disabled) -->
+                    <div class="flex items-center justify-between gap-3 border-t border-subtle pt-3">
+                      <div class="min-w-0">
+                        <p class="text-xs font-medium text-ink-primary">Delete original file</p>
+                        <p class="mt-0.5 text-xs text-ink-muted">Removes original source only after Save As succeeds.</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-label="Delete original file after Save As"
+                        :aria-checked="editor.saveAs.deleteOriginal ? 'true' : 'false'"
+                        @click="editor.saveAs.deleteOriginal = !editor.saveAs.deleteOriginal"
+                        class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition"
+                        :class="editor.saveAs.deleteOriginal ? 'bg-[var(--color-status-err)]' : 'bg-zinc-700'"
+                      >
+                        <span
+                          class="inline-block h-4 w-4 transform rounded-full bg-white transition"
+                          :class="editor.saveAs.deleteOriginal ? 'translate-x-6' : 'translate-x-1'"
+                        ></span>
+                      </button>
                     </div>
                   </div>
 
-                  <!-- Save As: Delete Original After Success Toggle (default disabled) -->
-                  <div class="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas/60 px-3.5 py-2.5">
-                    <div class="min-w-0">
-                      <p class="text-xs font-medium text-zinc-200">Delete original file</p>
-                      <p class="mt-0.5 text-[11px] text-zinc-500">Removes the original source file only after Save As succeeds.</p>
+                  <!-- Structured Output Preview Row -->
+                  <div
+                    x-cloak
+                    x-show="!(editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editorOutputPreview.isSaveAsInvalid)"
+                    class="px-4 py-3.5 space-y-2.5 text-xs"
+                  >
+                    <div class="space-y-1.5">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span
+                          class="text-xs font-semibold"
+                          :class="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'text-[var(--color-status-warn)]' : (editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'text-accent' : 'text-[var(--color-status-ok)]')"
+                          x-text="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? (editorIsMp4 ? 'New MKV Output' : 'Replaces In Place') : (editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'Save As Destination' : 'New Copy (Auto-Numbered)')"
+                        ></span>
+                        <span
+                          class="ui-tag font-mono"
+                          x-text="editorOutputPreview.targetFolder"
+                        ></span>
+                      </div>
+                      <p
+                        class="rounded-ui-sm border border-subtle bg-inset px-3 py-2 font-mono text-xs font-medium leading-snug text-ink-primary [overflow-wrap:anywhere]"
+                        x-text="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? editorOutputPreview.targetDisplayPath : editorOutputPreview.targetFilename"
+                      ></p>
                     </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-label="Delete original file after Save As"
-                      :aria-checked="editor.saveAs.deleteOriginal ? 'true' : 'false'"
-                      @click="editor.saveAs.deleteOriginal = !editor.saveAs.deleteOriginal"
-                      class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition"
-                      :class="editor.saveAs.deleteOriginal ? 'bg-red-500' : 'bg-zinc-700'"
-                    >
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-t border-subtle pt-2.5">
+                      <span class="text-xs text-ink-secondary">Original file</span>
                       <span
-                        class="inline-block h-4 w-4 transform rounded-full bg-white transition"
-                        :class="editor.saveAs.deleteOriginal ? 'translate-x-6' : 'translate-x-1'"
+                        class="ui-status"
+                        :class="(editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editor.saveAs.deleteOriginal) ? 'ui-status-err' : (editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'ui-status-warn' : 'ui-status-ok')"
+                        x-text="(editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editor.saveAs.deleteOriginal) ? 'Deleted after Save As succeeds' : (editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? (editorIsMp4 ? 'MP4 removed after MKV verified' : 'Atomically replaced on success') : 'Kept completely untouched')"
                       ></span>
-                    </button>
+                    </div>
                   </div>
+
+                  <!-- Save As Validation Error -->
+                  <div
+                    x-cloak
+                    x-show="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editorOutputPreview.isSaveAsInvalid"
+                    class="bg-[var(--color-status-err-bg)] px-4 py-3 text-xs font-medium text-[var(--color-status-err)]"
+                    x-text="editorOutputPreview.validationError"
+                  ></div>
                 </div>
-
-                <!-- Structured Output Preview Summary (High-contrast in Light & Dark mode) -->
-                <div
-                  x-cloak
-                  x-show="!(editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editorOutputPreview.isSaveAsInvalid)"
-                  class="rounded-xl border border-hairline bg-canvas/80 p-3.5 space-y-2.5 text-xs"
-                >
-                  <!-- Row 1: Target Output -->
-                  <div class="space-y-1">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                      <span
-                        class="text-[10px] font-semibold uppercase tracking-wider"
-                        :class="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'text-amber-400' : (editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'text-accent' : 'text-emerald-400')"
-                        x-text="editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? (editorIsMp4 ? 'New MKV Output' : 'Replaces In Place') : (editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? 'Save As Destination' : 'New Copy (Auto-Numbered)')"
-                      ></span>
-                      <span
-                        class="rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 border border-hairline"
-                        x-text="editorOutputPreview.targetFolder"
-                      ></span>
-                    </div>
-                    <p
-                      class="rounded-lg border border-hairline bg-surface px-2.5 py-2 font-mono text-[11px] font-medium leading-snug text-zinc-100 [overflow-wrap:anywhere]"
-                      x-text="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS ? editorOutputPreview.targetDisplayPath : editorOutputPreview.targetFilename"
-                    ></p>
-                  </div>
-
-                  <!-- Row 2: Original File Outcome -->
-                  <div class="flex flex-wrap items-center justify-between gap-2 border-t border-hairline/70 pt-2">
-                    <span class="text-[11px] text-zinc-400">Original file</span>
-                    <span
-                      class="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
-                      :class="(editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editor.saveAs.deleteOriginal) ? 'bg-red-500/15 text-red-300' : (editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300')"
-                      x-text="(editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editor.saveAs.deleteOriginal) ? 'Deleted after Save As succeeds' : (editor.outputMode === C.EDITOR.OUTPUT_REPLACE ? (editorIsMp4 ? 'MP4 removed after MKV verified' : 'Atomically replaced on success') : 'Kept completely untouched')"
-                    ></span>
-                  </div>
-                </div>
-
-                <!-- Save As Validation Error -->
-                <div
-                  x-cloak
-                  x-show="editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && editorOutputPreview.isSaveAsInvalid"
-                  class="rounded-lg border border-red-500/35 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200"
-                  x-text="editorOutputPreview.validationError"
-                ></div>
               </div>
 
               <!-- ======================================================= -->
-              <!-- COLLAPSED BY DEFAULT: Advanced Settings Accordion       -->
+              <!-- COLLAPSED BY DEFAULT: Advanced Settings Inspector       -->
               <!-- ======================================================= -->
-              <div class="overflow-hidden rounded-xl border border-hairline bg-surface">
+              <div class="ui-list-group">
                 <button
                   type="button"
                   @click="editor.advancedOpen = !editor.advancedOpen"
-                  class="flex min-h-[48px] w-full items-center justify-between gap-3 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-300 transition hover:bg-zinc-900/50"
+                  class="ui-row flex min-h-[44px] w-full items-center justify-between gap-3 px-4 py-3 text-left"
                 >
-                  <span x-text="editor.advancedOpen ? '▾ Advanced Settings' : '▸ Advanced Settings'"></span>
-                  <span class="text-[11px] font-normal normal-case text-zinc-500">
+                  <span class="text-xs font-semibold text-ink-primary" x-text="editor.advancedOpen ? '▾ Advanced Settings' : '▸ Advanced Settings'"></span>
+                  <span class="text-xs text-ink-muted">
                     Deep stripping &amp; per-track language/flags
                   </span>
                 </button>
 
-                <div x-cloak x-show="editor.advancedOpen" x-transition class="space-y-5 border-t border-hairline p-5">
+                <div x-cloak x-show="editor.advancedOpen" x-transition class="divide-y divide-[var(--color-border-subtle)]">
                   <!-- Advanced: Deep Container Stripping -->
-                  <div class="space-y-2">
-                    <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Deep Metadata &amp; Container Stripping</h3>
-                    <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
-                      <label class="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas/50 px-3 py-2.5 text-xs text-zinc-200 cursor-pointer">
+                  <div class="px-4 py-3.5 space-y-2.5">
+                    <h3 class="text-xs font-medium text-ink-secondary">Deep Container Stripping</h3>
+                    <div class="ui-list-group">
+                      <label class="ui-row flex cursor-pointer items-center justify-between gap-3 px-3.5 py-2.5 text-xs text-ink-primary">
                         <span>Strip Track Tags</span>
-                        <input type="checkbox" x-model="editor.stripTrackTags" class="h-4 w-4 rounded border-zinc-600 bg-surface text-accent" />
+                        <input type="checkbox" x-model="editor.stripTrackTags" class="h-4 w-4 rounded border-default bg-inset text-accent" />
                       </label>
-                      <label class="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas/50 px-3 py-2.5 text-xs text-zinc-200 cursor-pointer">
+                      <label class="ui-row flex cursor-pointer items-center justify-between gap-3 px-3.5 py-2.5 text-xs text-ink-primary">
                         <span x-text="editorFile.attachments_count > 0 ? `Strip Attachments (${editorFile.attachments_count})` : 'Strip Attachments'"></span>
-                        <input type="checkbox" x-model="editor.stripAttachments" class="h-4 w-4 rounded border-zinc-600 bg-surface text-accent" />
+                        <input type="checkbox" x-model="editor.stripAttachments" class="h-4 w-4 rounded border-default bg-inset text-accent" />
                       </label>
-                      <label class="flex items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas/50 px-3 py-2.5 text-xs text-zinc-200 cursor-pointer">
+                      <label class="ui-row flex cursor-pointer items-center justify-between gap-3 px-3.5 py-2.5 text-xs text-ink-primary">
                         <span x-text="editorFile.chapters_count > 0 ? `Strip Chapters (${editorFile.chapters_count})` : 'Strip Chapters'"></span>
-                        <input type="checkbox" x-model="editor.stripChapters" class="h-4 w-4 rounded border-zinc-600 bg-surface text-accent" />
+                        <input type="checkbox" x-model="editor.stripChapters" class="h-4 w-4 rounded border-default bg-inset text-accent" />
                       </label>
                     </div>
                   </div>
 
                   <!-- Advanced: Per-Track Language & Flags -->
-                  <div class="space-y-2 border-t border-hairline pt-4">
-                    <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">Per-Track Fine-Tuning</h3>
-                    <div class="space-y-2">
+                  <div class="px-4 py-3.5 space-y-2.5">
+                    <h3 class="text-xs font-medium text-ink-secondary">Per-Track Fine-Tuning</h3>
+                    <div class="ui-list-group">
                       <template x-for="track in editor.tracks" :key="`adv-${track.id}`">
-                        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hairline bg-canvas/50 px-3 py-2.5">
-                          <span class="font-mono text-xs text-zinc-300" x-text="`#${track.id} • ${Ed.formatTrackBadge(track)}`"></span>
+                        <div class="ui-row flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
+                          <span class="ui-num font-mono text-xs text-ink-primary" x-text="`#${track.id} • ${Ed.formatTrackBadge(track)}`"></span>
                           <div class="flex flex-wrap items-center gap-2">
                             <select
                               x-model="track.language"
                               aria-label="Track language"
-                              class="select-dark h-8 rounded-md border border-hairline bg-surface pl-2.5 font-mono text-xs text-zinc-200 focus:border-accent focus:outline-none"
+                              class="ui-select select-dark h-8 min-h-[32px] w-auto py-1 pl-2.5 font-mono text-xs"
                             >
                               <template x-for="lang in C.EDITOR.LANGUAGE_OPTIONS" :key="`${track.id}-${lang.code}`">
                                 <option :value="lang.code" :selected="lang.code === track.language" x-text="lang.code"></option>
@@ -3325,8 +3327,8 @@
                             <button
                               type="button"
                               @click="track.default_track = !track.default_track"
-                              class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition"
-                              :class="track.default_track ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300' : 'border-hairline bg-surface text-zinc-500'"
+                              class="ui-status cursor-pointer transition"
+                              :class="track.default_track ? 'ui-status-ok' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'"
                             >
                               Default
                             </button>
@@ -3334,8 +3336,8 @@
                             <button
                               type="button"
                               @click="track.forced_track = !track.forced_track"
-                              class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition"
-                              :class="track.forced_track ? 'border-amber-500/40 bg-amber-500/15 text-amber-300' : 'border-hairline bg-surface text-zinc-500'"
+                              class="ui-status cursor-pointer transition"
+                              :class="track.forced_track ? 'ui-status-warn' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'"
                             >
                               Forced
                             </button>
@@ -5422,7 +5424,7 @@
     <div
       x-cloak
       x-show="route === C.ROUTES.EDITOR && editor && editorFile"
-      class="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface/95 backdrop-blur pb-safe md:left-[220px]"
+      class="fixed inset-x-0 bottom-0 z-30 border-t border-default bg-elevated/95 shadow-elevated backdrop-blur-md pb-safe md:left-[220px]"
     >
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
         <div class="min-w-0 flex-1">
@@ -5439,30 +5441,30 @@
               <path class="opacity-90" fill="currentColor" d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3z"></path>
             </svg>
             <p
-              class="truncate text-xs font-medium text-indigo-200"
+              class="ui-num truncate text-xs font-medium text-ink-primary"
               x-text="editorActiveJob && editorActiveJob.state === C.STATUSES.RUNNING ? `Processing ${editorActiveJob.percent}% — ${editorActiveJob.stageLabel}` : `Queued (#${editorActiveJob ? editorActiveJob.queuePos : 1} in queue) — controls locked`"
             ></p>
           </div>
 
           <div x-show="!isEditorFileBusy">
-            <p class="truncate text-xs font-medium text-zinc-200" :title="editorPendingSummary" x-text="editorPendingSummary"></p>
+            <p class="truncate text-xs font-medium text-ink-primary" :title="editorPendingSummary" x-text="editorPendingSummary"></p>
             <p
               x-show="editorIsMp4 && editor && editor.outputMode === C.EDITOR.OUTPUT_REPLACE"
-              class="mt-0.5 truncate text-[11px] text-amber-300"
+              class="mt-0.5 truncate text-xs text-[var(--color-status-warn)]"
             >
-              Writes <strong class="font-mono font-semibold text-amber-200" x-text="editorOutputPreview.targetFilename"></strong> • removes <strong class="font-mono font-semibold text-zinc-100" x-text="editorOutputPreview.originalFilename"></strong> only after verify
+              Writes <strong class="font-mono font-semibold" x-text="editorOutputPreview.targetFilename"></strong> • removes <strong class="font-mono font-semibold text-ink-primary" x-text="editorOutputPreview.originalFilename"></strong> only after verify
             </p>
             <p
               x-show="editor && editor.outputMode === C.EDITOR.OUTPUT_SAVE_AS && !editorOutputPreview.isSaveAsInvalid"
-              class="mt-0.5 truncate text-[11px] text-indigo-300"
+              class="mt-0.5 truncate text-xs text-accent"
             >
-              Saves to <strong class="font-mono font-semibold text-indigo-200" x-text="editorOutputPreview.targetDisplayPath"></strong> • original untouched
+              Saves to <strong class="font-mono font-semibold" x-text="editorOutputPreview.targetDisplayPath"></strong> • original untouched
             </p>
             <p
               x-show="editor && editor.outputMode === C.EDITOR.OUTPUT_KEEP_BOTH"
-              class="mt-0.5 truncate text-[11px] text-emerald-300"
+              class="mt-0.5 truncate text-xs text-[var(--color-status-ok)]"
             >
-              Creates <strong class="font-mono font-semibold text-emerald-200" x-text="editorOutputPreview.targetFilename"></strong> • original untouched
+              Creates <strong class="font-mono font-semibold" x-text="editorOutputPreview.targetFilename"></strong> • original untouched
             </p>
           </div>
         </div>
@@ -5472,7 +5474,7 @@
           x-show="isEditorFileBusy"
           type="button"
           @click="openJobsDrawer()"
-          class="min-h-[42px] shrink-0 rounded-xl border border-accent/45 bg-accent/15 px-4 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-accent/25 hover:text-white"
+          class="ui-btn ui-btn-secondary shrink-0"
         >
           Open Jobs Drawer →
         </button>
@@ -5482,7 +5484,7 @@
           type="button"
           @click="submitEditorJob()"
           :disabled="!editorCanSubmit"
-          class="min-h-[42px] shrink-0 rounded-xl bg-accent px-5 py-2 text-xs font-semibold text-white transition hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
+          class="ui-btn ui-btn-primary shrink-0 px-5"
           x-text="editorSubmitting ? 'Queuing…' : 'Process File'"
         ></button>
       </div>

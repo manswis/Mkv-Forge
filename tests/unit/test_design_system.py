@@ -285,3 +285,37 @@ class TestDesignSystemTokensAndPrimitives:
 
         # Regression guard: Other Files list renders only once (no duplicate outside scroll viewport)
         assert lib_block.count('x-for="of in otherFiles"') == 1
+
+    def test_phase4_editor_inspector_virtual_rows_and_sticky_bar(self) -> None:
+        html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")
+
+        ed_start = html.index("<!-- SCREEN 3: FILE EDITOR")
+        ed_end = html.index("<!-- SCREEN 4: JOBS PAGE", ed_start)
+        ed_block = html[ed_start:ed_end]
+
+        bar_start = html.index("<!-- Sticky Bottom Action Bar")
+        bar_end = html.index("<!-- + Add Audio: Base Audio Selector", bar_start)
+        bar_block = html[bar_start:bar_end]
+
+        phase4_html = ed_block + "\n" + bar_block
+
+        # Guardrail 4: Zero stray text-[10px] or text-[9px] inside Phase 4 ranges
+        assert "text-[10px]" not in phase4_html
+        assert "text-[9px]" not in phase4_html
+
+        # Guardrail 1: Inspector layout uses crisp section titles + .ui-list-group + .ui-segmented
+        assert ed_block.count('class="ui-list-group"') >= 5
+        assert "ui-segmented grid w-full grid-cols-3" in ed_block
+        assert "ui-section-title" in ed_block
+
+        # Guardrail 2: Virtual [NEW] & [IMPORT] rows use 2px left accent bar + tabular numerics
+        assert ed_block.count("border-l-2 border-l-[var(--color-accent)]") >= 2
+        assert "ui-num" in ed_block
+        assert "ui-menu-panel bg-elevated border border-default shadow-elevated" in ed_block
+
+        # Guardrail 3: Sticky bar elevated + .ui-btn-primary Process File CTA & zero hardcoded text-white on bg-accent
+        assert "border-t border-default bg-elevated/95 shadow-elevated" in bar_block
+        assert "ui-btn ui-btn-primary" in bar_block
+        for line in phase4_html.splitlines():
+            if "bg-accent " in line or "bg-accent'" in line or 'bg-accent"' in line:
+                assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"

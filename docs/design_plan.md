@@ -184,17 +184,16 @@ Target regions in `app/static/index.html`:
 - Collapsed Advanced Settings (`L3326–3406`)
 - Sticky Bottom Action Bar (`L5473–5544`)
 
-- [ ] **4.1 Editor Header & Inspector Sections (`L2361–2691`, `L3127–3406`)**
-  - [ ] Replace nested bordered boxes with crisp section headings + `.ui-list-group` hairline-divided rows for Metadata Cleanup, Attachments, Output Behavior (`.ui-segmented`), and Collapsed Advanced Settings.
-  - [ ] Trim redundant explanatory paragraphs into sharp 1-line helper text (`12px`, `--color-text-secondary`).
-- [ ] **4.2 Tracks List & Live `[NEW]` Virtual Preview (`L2692–3126`)**
-  - [ ] Align each track row cleanly: include checkbox · track type icon/tag · editable title · codec/channels/language/size (`tabular-nums`) · compact `Default`/`Forced` toggles · `↑`/`↓` reorder controls.
-  - [ ] Style the live `[NEW]` converted-audio preview and `[IMPORT]` external track rows with a crisp `2px` left accent indicator + quiet tag instead of heavy tinted full-box outlines.
-  - [ ] Preserve all `test_index_html_structure.py` landmarks (video/audio track sizes, `+ Add / Convert` dropdown, `editorRecommendedAudioOptions`).
-- [ ] **4.3 Sticky Bottom Action Bar (`L5473–5544`)**
-  - [ ] Elevate cleanly above content with subtle top hairline, 1-line pending-changes summary, and a single unmistakable primary **Process File** button.
-- [ ] **4.4 Phase 4 Verification**
-  - [ ] Compile CSS + run `pytest -q tests/unit` + verify mobile & desktop editor with multi-audio/subtitle tracks and long track names.
+- [x] **4.1 Editor Header & Inspector Sections (`L2361–2691`, `L3127–3406`)**
+  - [x] Replace nested bordered boxes with crisp `.ui-section-title` headings + `.ui-list-group` hairline-divided rows for Metadata Cleanup, Attachments, Output Behavior (`.ui-segmented`), and Collapsed Advanced Settings.
+  - [x] Tighten helper copy and align metadata inputs/selects onto `.ui-input` / `.ui-select` with zero `text-[10px]`.
+- [x] **4.2 Tracks List & Live `[NEW]` / `[IMPORT]` Virtual Rows (`L2692–3126`)**
+  - [x] Align track metadata onto monochrome `.ui-tag` + `.ui-num` (`tabular-nums`) and signal-only `.ui-status-*` badges while preserving video/audio track size and `+ Add / Convert` landmarks.
+  - [x] Style `[NEW]` and `[IMPORT]` rows with a crisp `2px` left accent bar (`border-l-2 border-l-[var(--color-accent)]`) + quiet tag instead of heavy full-box outlines.
+- [x] **4.3 Sticky Bottom Action Bar (`L5473–5544`)**
+  - [x] Elevate cleanly with `border-t border-default bg-elevated/95 shadow-elevated`, 1-line pending summary, and `.ui-btn .ui-btn-primary` (`--color-accent-fg`) **Process File** CTA.
+- [x] **4.4 Phase 4 Verification**
+  - [x] Recompile CSS via `./scripts/build_css.sh`, add Phase 4 hygiene test in `tests/unit/test_design_system.py`, and pass `pytest -q tests/unit`.
 
 ---
 
