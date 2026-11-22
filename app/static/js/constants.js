@@ -3,7 +3,7 @@
 window.MKVForgeConstants = Object.freeze({
   APP: Object.freeze({
     NAME: "MKV Forge",
-    VERSION: "1.0.3",
+    VERSION: "1.0.4",
     AUTHOR: "Manoj Biswas",
     GITHUB_URL: "https://github.com/manswis/Mkv-Forge",
     RELEASES_URL: "https://github.com/manswis/Mkv-Forge/releases",
