@@ -3442,6 +3442,27 @@
         this.openFolderInLibrary(targetFolder);
       },
 
+      openFileFolder(file) {
+        if (!file) return;
+        if (
+          file.id &&
+          this._suppressClickFileId === file.id &&
+          Date.now() <= this._suppressClickUntilMs
+        ) {
+          this._suppressClickFileId = null;
+          this._suppressClickUntilMs = 0;
+          return;
+        }
+        if (this.mobileSelectMode) {
+          if (file.id && !this.isFileLocked(file)) {
+            this.toggleFileSelection(file.id);
+          }
+          return;
+        }
+        const targetFolder = Fmt.resolveFileFolder(file);
+        this.openFolderInLibrary(targetFolder);
+      },
+
       openFolderInLibrary(folderPath) {
         this.scanMenuOpen = false;
         this.closeContextMenu();

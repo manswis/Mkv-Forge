@@ -43,11 +43,11 @@
       } catch (_e) { }
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.16" />
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.17" />
   <script defer src="/static/js/constants.js?v=0.1.0-p18.14"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/formatters.js?v=0.1.0-p18.17"></script>
+  <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
   <script defer src="/static/js/api.js?v=0.1.0-p18.1"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p15.1"></script>
@@ -59,7 +59,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.12"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.19"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.20"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -1719,12 +1719,23 @@
                         :checked="isFileSelected(file.id)" :disabled="isFileLocked(file)"
                         @change="toggleFileSelection(file.id)" :aria-label="`Select ${file.filename}`"
                         class="mt-0.5 h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent disabled:opacity-35 disabled:cursor-not-allowed" />
-                      <button type="button" @click="onFileTileClick(file)" class="min-w-0 flex-1 text-left">
-                        <p class="min-w-0 truncate font-mono text-[13px] font-medium leading-snug text-ink-primary"
-                          :title="file.filename" x-text="file.filename"></p>
-                        <p x-show="!showSubfolders" class="mt-0.5 min-w-0 truncate font-mono text-xs text-ink-muted"
-                          :title="file.folder" x-text="file.folder"></p>
-                      </button>
+                      <div class="min-w-0 flex-1">
+                        <button type="button" @click="onFileTileClick(file)" class="block w-full min-w-0 text-left">
+                          <p class="min-w-0 truncate font-mono text-[13px] font-medium leading-snug text-ink-primary"
+                            :title="file.filename" x-text="file.filename"></p>
+                        </button>
+                        <button x-show="!showSubfolders" type="button" @click.stop="openFileFolder(file)"
+                          :title="`Open folder ${Fmt.resolveFileFolder(file)}`"
+                          :aria-label="`Open folder ${Fmt.resolveFileFolder(file)}`"
+                          class="mt-0.5 inline-flex max-w-full min-w-0 items-center gap-1 rounded-ui-sm py-0.5 font-mono text-xs text-ink-muted transition hover:text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                          <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path
+                              d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z">
+                            </path>
+                          </svg>
+                          <span class="min-w-0 truncate" x-text="Fmt.resolveFileFolder(file)"></span>
+                        </button>
+                      </div>
                       <div class="flex shrink-0 items-center gap-1.5">
                         <span class="ui-num whitespace-nowrap font-mono text-xs text-ink-secondary"
                           x-text="Fmt.formatBytes(file.size_bytes)"></span>
@@ -1849,8 +1860,18 @@
                               :title="file.filename" x-text="file.filename"></p>
                           </button>
                           <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-                            <span x-show="!showSubfolders" class="ui-tag max-w-[220px] truncate font-mono"
-                              :title="file.folder" x-text="file.folder"></span>
+                            <button x-show="!showSubfolders" type="button" @click.stop="openFileFolder(file)"
+                              :title="`Open folder ${Fmt.resolveFileFolder(file)}`"
+                              :aria-label="`Open folder ${Fmt.resolveFileFolder(file)}`"
+                              class="ui-tag inline-flex max-w-full sm:max-w-xs min-w-0 items-center gap-1 font-mono transition hover:border-accent/50 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 cursor-pointer">
+                              <svg class="h-3 w-3 shrink-0 opacity-80" viewBox="0 0 24 24" fill="currentColor"
+                                aria-hidden="true">
+                                <path
+                                  d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z">
+                                </path>
+                              </svg>
+                              <span class="min-w-0 truncate" x-text="Fmt.resolveFileFolder(file)"></span>
+                            </button>
                             <span x-cloak x-show="isFileScanning(file)"
                               class="ui-status ui-status-info font-mono animate-pulse">
                               Scanning…

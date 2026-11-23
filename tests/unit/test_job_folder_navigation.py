@@ -290,3 +290,241 @@ class TestJobFolderFormattingAndNavigation:
         assert len(out["toastsAfterFullDelete"]) == 1
         assert "/DeletedRoot/Sub" in out["toastsAfterFullDelete"][0]["msg"]
         assert "opened /." in out["toastsAfterFullDelete"][0]["msg"]
+
+    def test_list_view_file_folder_navigation_and_edge_cases(self) -> None:
+        html = (JS_DIR.parent / "index.html").read_text(encoding="utf-8")
+        # Both mobile list view and desktop list view wire clickable openFileFolder(file)
+        assert html.count('@click.stop="openFileFolder(file)"') == 2
+        assert html.count("Fmt.resolveFileFolder(file)") >= 4
+
+        script = f"""
+        const fs = require("fs");
+        const vm = require("vm");
+
+        const entries = [{{ state: null, hash: "#/library?view=list" }}];
+        let idx = 0;
+        const toasts = [];
+        const existingDirs = new Set(["/", "/shows", "/shows/Gram Chikitsalay 2025", "/movies"]);
+
+        const ctx = {{
+          console,
+          setTimeout,
+          clearTimeout,
+          queueMicrotask,
+          URLSearchParams,
+          Intl,
+          Date,
+          Math,
+          JSON,
+          Promise,
+          innerWidth: 390,
+          innerHeight: 844,
+          document: {{
+            documentElement: {{ classList: {{ add() {{}}, remove() {{}} }}, setAttribute() {{}} }},
+            querySelector: () => null,
+            addEventListener: () => {{}},
+            readyState: "complete",
+            hidden: false,
+          }},
+          localStorage: {{
+            _m: new Map(),
+            getItem(k) {{ return this._m.has(k) ? this._m.get(k) : null; }},
+            setItem(k, v) {{ this._m.set(k, String(v)); }},
+            removeItem(k) {{ this._m.delete(k); }},
+          }},
+          sessionStorage: {{
+            _m: new Map(),
+            getItem(k) {{ return this._m.has(k) ? this._m.get(k) : null; }},
+            setItem(k, v) {{ this._m.set(k, String(v)); }},
+            removeItem(k) {{ this._m.delete(k); }},
+          }},
+          location: {{
+            get hash() {{ return entries[idx].hash; }},
+            set hash(v) {{
+              entries.splice(idx + 1);
+              entries.push({{ state: null, hash: v }});
+              idx = entries.length - 1;
+            }},
+          }},
+          history: {{
+            get state() {{ return entries[idx].state; }},
+            pushState(state, _t, url) {{
+              entries.splice(idx + 1);
+              entries.push({{ state, hash: url || entries[idx].hash }});
+              idx = entries.length - 1;
+            }},
+            replaceState(state, _t, url) {{
+              entries[idx] = {{ state, hash: url || entries[idx].hash }};
+            }},
+            go(delta) {{
+              idx = Math.max(0, Math.min(entries.length - 1, idx + delta));
+            }},
+          }},
+          addEventListener() {{}},
+          matchMedia: () => ({{ matches: false, addEventListener() {{}} }}),
+          scrollTo() {{}},
+        }};
+        ctx.window = ctx;
+        ctx.globalThis = ctx;
+        vm.createContext(ctx);
+
+        for (const f of [
+          "constants.js",
+          "formatters.js",
+          "folder_tree.js",
+          "toast_stack.js",
+          "editor.js",
+          "nav_history.js",
+          "api.js",
+          "app.js",
+        ]) {{
+          vm.runInContext(fs.readFileSync({json.dumps(str(JS_DIR))} + "/" + f, "utf8"), ctx, {{ filename: f }});
+        }}
+
+        const Fmt = ctx.MKVForgeFormatters;
+        const resolvedCases = {{
+          normal: Fmt.resolveFileFolder({{ folder: "/shows/Gram Chikitsalay 2025", filepath: "shows/Gram Chikitsalay 2025/S02E03.mkv" }}),
+          trailingSlash: Fmt.resolveFileFolder({{ folder: "movies/", filepath: "movies/Film.mkv" }}),
+          rootExplicit: Fmt.resolveFileFolder({{ folder: "/", filepath: "Root.mkv" }}),
+          rootDotFallback: Fmt.resolveFileFolder({{ folder: ".", filepath: "Root.mkv" }}),
+          emptyFolderUsesFilepath: Fmt.resolveFileFolder({{ folder: "", filepath: "shows/S1/Ep01.mkv" }}),
+          nullFile: Fmt.resolveFileFolder(null),
+          emptyObj: Fmt.resolveFileFolder({{}}),
+        }};
+
+        const app = ctx.mkvForgeApp();
+        app.$nextTick = (fn) => Promise.resolve().then(fn);
+        app.$watch = () => {{}};
+        app.$refs = {{}};
+        app.showToast = (msg, type) => toasts.push({{ msg, type }});
+        app.loadJobs = async () => {{}};
+        app.loadDashboard = async () => {{}};
+        app._connectStreams = () => {{}};
+        app._bootApp = async () => {{}};
+
+        const origLoadLibrary = app.loadLibrary.bind(app);
+        ctx.MKVForgeApi = {{
+          ...ctx.MKVForgeApi,
+          listFiles: async (params) => {{
+            const folder = params.folder || "/";
+            return {{
+              items: [],
+              total: 0,
+              total_pages: 0,
+              folders: [],
+              subfolders: [],
+              other_files: [],
+              folder_counts: {{}},
+              audio_types: [],
+              facets: {{ aac51_only: 0, has_metadata: 0, no_dolby: 0, audio_types: [] }},
+              folder_exists: existingDirs.has(folder),
+            }};
+          }},
+        }};
+        // Re-create app after stubbing Api
+        vm.runInContext(fs.readFileSync({json.dumps(str(JS_DIR))} + "/app.js", "utf8"), ctx, {{ filename: "app.js" }});
+        const ctrl = ctx.mkvForgeApp();
+        ctrl.$nextTick = (fn) => Promise.resolve().then(fn);
+        ctrl.$watch = () => {{}};
+        ctrl.$refs = {{}};
+        ctrl.showToast = (msg, type) => toasts.push({{ msg, type }});
+        ctrl.loadJobs = async () => {{}};
+        ctrl.loadDashboard = async () => {{}};
+        ctrl._connectStreams = () => {{}};
+        ctrl._bootApp = async () => {{}};
+        ctrl.init();
+
+        (async () => {{
+          const flush = () => new Promise((r) => setTimeout(r, 25));
+
+          // 1. From All Files list view, tap folder path -> switches to Folders view at containing folder
+          ctrl.libraryView = "list";
+          ctrl.searchQuery = "Gram";
+          ctrl.openFileFolder({{
+            id: 10,
+            filename: "Gram.Chikitsalay.S02E03.mkv",
+            folder: "/shows/Gram Chikitsalay 2025",
+            filepath: "shows/Gram Chikitsalay 2025/Gram.Chikitsalay.S02E03.mkv",
+          }});
+          await flush();
+          const afterNormal = {{
+            view: ctrl.libraryView,
+            dir: ctrl.currentDir,
+            search: ctrl.searchQuery,
+          }};
+
+          // 2. While in mobileSelectMode, tapping folder path toggles selection instead of navigating away
+          ctrl.mobileSelectMode = true;
+          ctrl.selectedFileIds = [];
+          ctrl.openFileFolder({{
+            id: 42,
+            filename: "Movie.mkv",
+            folder: "/movies",
+            filepath: "movies/Movie.mkv",
+            scan_status: "ready",
+          }});
+          await flush();
+          const afterSelectTap = {{
+            dir: ctrl.currentDir,
+            selected: [...ctrl.selectedFileIds],
+          }};
+          ctrl.mobileSelectMode = false;
+
+          // 3. Long-press ghost click suppression blocks accidental navigation
+          ctrl._suppressClickFileId = 42;
+          ctrl._suppressClickUntilMs = Date.now() + 5000;
+          ctrl.openFileFolder({{
+            id: 42,
+            filename: "Movie.mkv",
+            folder: "/movies",
+            filepath: "movies/Movie.mkv",
+          }});
+          await flush();
+          const dirAfterGhostClick = ctrl.currentDir;
+
+          // 4. Root-level file opens "/" cleanly
+          ctrl.openFileFolder({{
+            id: 99,
+            filename: "RootOnly.mkv",
+            folder: "/",
+            filepath: "RootOnly.mkv",
+          }});
+          await flush();
+          const dirAfterRoot = ctrl.currentDir;
+
+          // 5. Null input safely no-ops
+          ctrl.openFileFolder(null);
+
+          console.log(JSON.stringify({{
+            resolvedCases,
+            afterNormal,
+            afterSelectTap,
+            dirAfterGhostClick,
+            dirAfterRoot,
+          }}));
+        }})().catch((err) => {{
+          console.error(err);
+          process.exit(1);
+        }});
+        """
+        out = _run_node(script)
+        assert out["resolvedCases"] == {
+            "normal": "/shows/Gram Chikitsalay 2025",
+            "trailingSlash": "/movies",
+            "rootExplicit": "/",
+            "rootDotFallback": "/",
+            "emptyFolderUsesFilepath": "/shows/S1",
+            "nullFile": "/",
+            "emptyObj": "/",
+        }
+        assert out["afterNormal"] == {
+            "view": "dir",
+            "dir": "/shows/Gram Chikitsalay 2025",
+            "search": "",
+        }
+        assert out["afterSelectTap"] == {
+            "dir": "/shows/Gram Chikitsalay 2025",
+            "selected": [42],
+        }
+        assert out["dirAfterGhostClick"] == "/shows/Gram Chikitsalay 2025"
+        assert out["dirAfterRoot"] == "/"

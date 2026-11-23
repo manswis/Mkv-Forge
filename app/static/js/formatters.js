@@ -182,6 +182,21 @@
     return folderOf(useOutput ? job.output_filepath : job.filepath);
   }
 
+  function resolveFileFolder(file) {
+    if (!file || typeof file !== "object") return "/";
+    if (typeof file.folder === "string") {
+      const cleaned = file.folder.trim().replace(/\\/g, "/").replace(/\/+$/, "");
+      if (cleaned && cleaned !== "." && cleaned !== "/") {
+        return cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
+      }
+      if (cleaned === "/") return "/";
+    }
+    if (typeof file.filepath === "string" && file.filepath.trim()) {
+      return folderOf(file.filepath);
+    }
+    return "/";
+  }
+
   function fileExtensionLabel(filename) {
     const base = basenameOf(filename);
     const dotIdx = base.lastIndexOf(".");
@@ -251,6 +266,7 @@
     basenameOf,
     folderOf,
     resolveJobFolder,
+    resolveFileFolder,
     fileExtensionLabel,
     videoCodecTooltip,
     videoCodecBadgeClass,
