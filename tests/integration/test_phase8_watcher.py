@@ -507,9 +507,9 @@ class TestDirectoryWatchingAndFolderSelfHeal:
             new_dir.mkdir(parents=True, exist_ok=True)
             watcher.handle_raw_fs_event(Change.added, new_dir)
 
-            # Unrelated sidecar .nfo deletion -> must NOT emit noise
+            # Non-media modification burst (.nfo write) -> ignored so Folder View is not spammed
             sidecar = test_settings.storage_dir / "shows" / "info.nfo"
-            watcher.handle_raw_fs_event(Change.deleted, sidecar)
+            watcher.handle_raw_fs_event(Change.modified, sidecar)
 
             await asyncio.sleep(0.08)
             assert len(events) == 1

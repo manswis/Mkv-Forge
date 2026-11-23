@@ -428,7 +428,7 @@ class TestPhase13AuthOnboardingAndRouteProtection:
         assert 'aria-label="Sign in to MKV Forge"' in html
         assert 'autocomplete="current-password"' in html
         assert "toggleMobileSettingsSection(C.SETTINGS_SECTIONS.ACCOUNT)" in html
-        assert "Running without authentication (Anonymous)" in html
+        assert "Running without authentication (Anonymous)" in " ".join(html.split())
         assert "Switch to No-Auth Mode" in html
         assert "API Keys &amp; Integrations" in html
         assert "createdApiKeyModal !== null" in html

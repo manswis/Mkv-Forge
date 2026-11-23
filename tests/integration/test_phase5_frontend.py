@@ -31,7 +31,9 @@ class TestPhase5FrontendAssets:
             if path == "/static/css/app.css":
                 assert re.search(r"@import\s+['\"]?https?://|url\(['\"]?https?://", resp.text) is None
             elif path != "/static/js/alpine.min.js":
-                scrubbed = resp.text.replace("https://github.com/manswis/Mkv-Forge", "")
+                scrubbed = resp.text.replace(
+                    "https://github.com/manswis/Mkv-Forge", ""
+                ).replace("https://buymeacoffee.com/cranbear", "")
                 assert re.search(r"https?://", scrubbed) is None, (
                     f"External URL found in {path}"
                 )

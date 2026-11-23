@@ -9,7 +9,11 @@
 #   2. Tagged release (bumps version, tests, commits, tags, triggers :latest):
 #      ./scripts/release.sh -m "Release v0.2.0" -t v0.2.0
 #
+#   3. Run full test suite with code coverage report (standalone, no commit):
+#      ./scripts/release.sh --cov
+#
 # Optional flags:
+#   --cov         Run full test suite with line coverage report (standalone if -m omitted)
 #   --no-push     Commit (and tag) locally without running `git push`
 #   --skip-tests  Skip running unit tests before committing
 # =============================================================================
@@ -23,18 +27,33 @@ if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
   PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
 fi
 
+# Resolve a Python interpreter that has pytest installed (for --cov and test execution)
+PYTEST_PYTHON="${PYTHON_BIN}"
+if ! "${PYTEST_PYTHON}" -m pytest --version >/dev/null 2>&1; then
+  if command -v pytest >/dev/null 2>&1; then
+    SHEBANG_PY="$(head -n 1 "$(command -v pytest)" | sed 's/^#![[:space:]]*//')"
+    if [[ -x "${SHEBANG_PY}" ]] && "${SHEBANG_PY}" -m pytest --version >/dev/null 2>&1; then
+      PYTEST_PYTHON="${SHEBANG_PY}"
+    fi
+  fi
+fi
+
 COMMIT_MSG=""
 RELEASE_TAG=""
 PUSH_CHANGES=1
 RUN_TESTS=1
+RUN_COV=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/release.sh -m "<commit message>" [-t <vX.Y.Z>] [--no-push] [--skip-tests]
+  ./scripts/release.sh -m "<commit message>" [-t <vX.Y.Z>] [--cov] [--no-push] [--skip-tests]
+  ./scripts/release.sh --cov
 
 Examples:
+  ./scripts/release.sh --cov
   ./scripts/release.sh -m "Improve watcher filter"
+  ./scripts/release.sh -m "Improve watcher filter" --cov
   ./scripts/release.sh -m "Release v0.2.0" -t v0.2.0
 EOF
 }
@@ -48,6 +67,10 @@ while [[ $# -gt 0 ]]; do
     -t|--tag)
       RELEASE_TAG="${2:-}"
       shift 2
+      ;;
+    --cov)
+      RUN_COV=1
+      shift
       ;;
     --no-push)
       PUSH_CHANGES=0
@@ -68,6 +91,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Standalone coverage mode: `./scripts/release.sh --cov` without -m or -t
+if [[ "${RUN_COV}" -eq 1 && -z "${COMMIT_MSG// }" && -z "${RELEASE_TAG}" ]]; then
+  echo "==> Running full test suite with coverage report..."
+  exec "${PYTEST_PYTHON}" "${ROOT_DIR}/scripts/run_coverage.py" tests -q
+fi
 
 if [[ -z "${COMMIT_MSG// }" ]]; then
   echo "Error: Commit message (-m) is required." >&2
@@ -104,21 +133,30 @@ if [[ -n "${RELEASE_TAG}" ]]; then
   fi
 fi
 
-# 2. Run unit tests BEFORE mutating version files or committing
+# 2. Run tests (with coverage when --cov is passed) BEFORE mutating version files or committing
 if [[ "${RUN_TESTS}" -eq 1 ]]; then
-  echo "==> Running unit test suite..."
   TEST_OK=0
-  if [[ -x "${ROOT_DIR}/.venv/bin/pytest" ]]; then
-    "${ROOT_DIR}/.venv/bin/pytest" tests/unit && TEST_OK=1
-  elif command -v pytest >/dev/null 2>&1; then
-    pytest tests/unit && TEST_OK=1
+  if [[ "${RUN_COV}" -eq 1 ]]; then
+    echo "==> Running full test suite with coverage report..."
+    "${PYTEST_PYTHON}" "${ROOT_DIR}/scripts/run_coverage.py" tests -q && TEST_OK=1
   else
-    "${PYTHON_BIN}" -m pytest tests/unit && TEST_OK=1
+    echo "==> Running unit test suite..."
+    if [[ -x "${ROOT_DIR}/.venv/bin/pytest" ]]; then
+      "${ROOT_DIR}/.venv/bin/pytest" tests/unit && TEST_OK=1
+    elif command -v pytest >/dev/null 2>&1; then
+      pytest tests/unit && TEST_OK=1
+    else
+      "${PYTEST_PYTHON}" -m pytest tests/unit && TEST_OK=1
+    fi
   fi
 
   if [[ "${TEST_OK}" -ne 1 ]]; then
     echo "" >&2
-    echo "Error: Unit tests failed. Fix failing tests before releasing (or pass --skip-tests to override)." >&2
+    if [[ "${RUN_COV}" -eq 1 ]]; then
+      echo "Error: Test suite failed during coverage check. Fix failing tests before releasing (or pass --skip-tests to override)." >&2
+    else
+      echo "Error: Unit tests failed. Fix failing tests before releasing (or pass --skip-tests to override)." >&2
+    fi
     exit 1
   fi
 fi

@@ -409,11 +409,12 @@ class TestDashboardUILandmarks:
         resp = await api_client.get("/")
         assert resp.status_code == AppConstants.HTTP_OK
         html = resp.text
+        normalized_html = " ".join(html.split())
 
         # Honest actionable KPI wording (profile-driven Needs Conversion replaces hardcoded AAC 5.1 Only)
-        assert "Show library" in html
-        assert "Show incompatible" in html
-        assert "Show extra metadata" in html
+        assert "Show library" in normalized_html
+        assert "Show incompatible" in normalized_html
+        assert "Show extra metadata" in normalized_html
         # Misleading Quick Actions wording removed
         assert "Fix ${dashboard.stats.aac51_only}" not in html
         assert "Clean ${dashboard.stats.has_metadata}" not in html
