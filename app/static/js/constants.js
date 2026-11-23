@@ -613,6 +613,8 @@ window.MKVForgeConstants = Object.freeze({
     TEST_MEDIA_REQUEST_TIMEOUT: 40000,
     SCAN_LIVE_DASHBOARD_MS: 1500,
     SCAN_LIVE_LIBRARY_MS: 2500,
+    LIBRARY_CHANGED_DEBOUNCE: 250,
+    LIVE_LOG_FLUSH: 100,
   }),
 
   TEST_MEDIA: Object.freeze({

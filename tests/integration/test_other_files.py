@@ -117,17 +117,18 @@ class TestOtherFilesListingAndOps:
 
         api_app.state.library_broker.record_change = _capture
 
-        # 1. Added -> emits once immediately so Show All Files shows it right away
+        # 1. Added -> emits once (offloaded off event loop) so Show All Files shows it right away
+        import asyncio
         watcher.handle_raw_fs_event(Change.added, uploading)
         # 2. Modified bursts while uploading -> emits ZERO SSE events (no spam!)
         watcher.handle_raw_fs_event(Change.modified, uploading)
         watcher.handle_raw_fs_event(Change.modified, uploading)
+        await asyncio.sleep(0.05)
         assert events == [("updated", "movies/NewFilm.mkv.44f10dd8.uploading")]
 
         # 3. Deleted/renamed away -> emits deleted SSE
         uploading.unlink()
         watcher.handle_raw_fs_event(Change.deleted, uploading)
-        import asyncio
         await asyncio.sleep(0.05)
         assert ("deleted", "movies/NewFilm.mkv.44f10dd8.uploading") in events
 

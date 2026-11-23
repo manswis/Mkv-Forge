@@ -17,6 +17,7 @@ from app.models.schemas import (
     MaintenanceStatusResponse,
 )
 from app.services.auth_service import AuthCredentialsError, AuthService
+from app.services.folder_sync import FolderReconcileCache
 from app.services.maintenance_service import (
     MaintenanceBusyError,
     MaintenanceService,
@@ -26,6 +27,14 @@ from app.services.maintenance_service import (
 router = APIRouter(prefix="/api/maintenance", tags=["maintenance"])
 
 _T = TypeVar("_T")
+
+
+def _invalidate_all_folder_cache(request: Request) -> None:
+    cache: FolderReconcileCache | None = getattr(
+        request.app.state, "folder_reconcile_cache", None
+    )
+    if cache is not None:
+        cache.invalidate_all()
 
 
 async def _run_serialized(
@@ -65,14 +74,18 @@ async def optimize_database(request: Request) -> MaintenanceActionResponse:
 async def clean_temp_files(request: Request) -> MaintenanceActionResponse:
     """Remove stale orphaned staged uploads and stray `.mkvforge.*` temp files."""
     service: MaintenanceService = request.app.state.maintenance_service
-    return await _run_serialized(service, service.clean_temp_and_uploads)
+    result = await _run_serialized(service, service.clean_temp_and_uploads)
+    _invalidate_all_folder_cache(request)
+    return result
 
 
 @router.post("/prune-missing", response_model=MaintenanceActionResponse)
 async def prune_missing_files(request: Request) -> MaintenanceActionResponse:
     """Prune SQLite rows for files no longer on disk (USB-unmount protected)."""
     service: MaintenanceService = request.app.state.maintenance_service
-    return await _run_serialized(service, service.prune_missing_files)
+    result = await _run_serialized(service, service.prune_missing_files)
+    _invalidate_all_folder_cache(request)
+    return result
 
 
 @router.post("/prune-jobs", response_model=MaintenanceActionResponse)
@@ -86,7 +99,9 @@ async def prune_old_jobs(request: Request) -> MaintenanceActionResponse:
 async def run_all_maintenance(request: Request) -> MaintenanceRunAllResponse:
     """Execute clean-temp, prune-missing, prune-jobs, and optimize-db sequentially."""
     service: MaintenanceService = request.app.state.maintenance_service
-    return await _run_serialized(service, service.run_all)
+    result = await _run_serialized(service, service.run_all)
+    _invalidate_all_folder_cache(request)
+    return result
 
 
 @router.post("/factory-reset", response_model=FactoryResetResponse)
@@ -146,5 +161,6 @@ async def factory_reset_app(
             detail=str(exc),
         ) from exc
 
+    _invalidate_all_folder_cache(request)
     _clear_session_cookie(response, request)
     return result

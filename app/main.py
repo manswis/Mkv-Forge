@@ -43,6 +43,7 @@ from app.logging_config import (
 )
 from app.services.auth_service import AuthService
 from app.services.file_ops_service import FileOpsService
+from app.services.folder_sync import FolderReconcileCache
 from app.services.job_worker import JobWorker
 from app.services.library_events import LibraryEventBroker
 from app.services.maintenance_service import MaintenanceService
@@ -73,10 +74,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     media_repo = MediaFileRepository(db_manager)
     job_repo = JobRepository(db_manager)
     template_repo = TemplateRepository(db_manager)
+    folder_reconcile_cache = FolderReconcileCache()
     scanner = LibraryScanner(
         settings=resolved_settings,
         media_repo=media_repo,
         state_repo=state_repo,
+        folder_cache=folder_reconcile_cache,
     )
     job_broker = JobSSEBroker()
     upload_service = UploadService(settings=resolved_settings)
@@ -87,8 +90,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         scanner=scanner,
         broker=job_broker,
         upload_service=upload_service,
+        folder_cache=folder_reconcile_cache,
     )
-    library_broker = LibraryEventBroker()
+    library_broker = LibraryEventBroker(
+        on_change=folder_reconcile_cache.invalidate_for_filepath
+    )
     user_settings_service = UserSettingsService(
         state_repo=state_repo,
         auth_repo=auth_repo,
@@ -178,6 +184,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.job_broker = job_broker
     application.state.job_worker = job_worker
     application.state.library_broker = library_broker
+    application.state.folder_reconcile_cache = folder_reconcile_cache
     application.state.file_ops = file_ops
     application.state.library_watcher = library_watcher
     application.state.user_settings_service = user_settings_service

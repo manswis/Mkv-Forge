@@ -25,7 +25,7 @@ from app.models.schemas import (
     OtherFileEntry,
 )
 from app.services.folder_service import parse_visible_extensions_set
-from app.services.folder_sync import reconcile_folder_snapshot
+from app.services.folder_sync import FolderReconcileCache, reconcile_folder_snapshot
 from app.services.media_info_extractor import extract_media_file_info
 from app.services.playback_profile import (
     PlaybackProfileSpec,
@@ -312,15 +312,29 @@ async def list_files(
             )
 
         t_rec = time.perf_counter()
-        reconcile = await asyncio.to_thread(
-            reconcile_folder_snapshot,
-            folder.strip(),
-            storage_dir=storage_dir,
-            media_repo=media_repo,
-            check_grand_children=False,
-            show_media_files_only=show_media_only,
-            visible_extensions=visible_exts,
+        folder_cache: FolderReconcileCache | None = getattr(
+            request.app.state, "folder_reconcile_cache", None
         )
+        if folder_cache is not None:
+            reconcile = await folder_cache.get_or_reconcile(
+                folder.strip(),
+                storage_dir=storage_dir,
+                media_repo=media_repo,
+                check_grand_children=False,
+                show_media_files_only=show_media_only,
+                visible_extensions=visible_exts,
+                reconcile_fn=reconcile_folder_snapshot,
+            )
+        else:
+            reconcile = await asyncio.to_thread(
+                reconcile_folder_snapshot,
+                folder.strip(),
+                storage_dir=storage_dir,
+                media_repo=media_repo,
+                check_grand_children=False,
+                show_media_files_only=show_media_only,
+                visible_extensions=visible_exts,
+            )
         reconcile_ms = (time.perf_counter() - t_rec) * 1000.0
         folder_exists = reconcile.folder_exists
         pruned_count = reconcile.pruned_count
@@ -523,6 +537,11 @@ async def rescan_single_file(request: Request, file_id: int) -> MediaFileDetailR
             size_bytes=int(existing["size_bytes"]),
             mtime=float(existing["mtime"]),
         )
+        folder_cache: FolderReconcileCache | None = getattr(
+            request.app.state, "folder_reconcile_cache", None
+        )
+        if folder_cache is not None:
+            folder_cache.invalidate_for_filepath(str(existing["filepath"]))
         raise HTTPException(
             status_code=AppConstants.HTTP_BAD_GATEWAY,
             detail=str(exc),

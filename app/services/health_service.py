@@ -134,7 +134,9 @@ async def run_health_check(settings: Settings) -> HealthResponse:
         ),
     )
 
-    data_dir_status = check_data_dir_writable(settings.data_dir)
+    data_dir_status = await asyncio.to_thread(
+        check_data_dir_writable, settings.data_dir
+    )
     all_healthy = (
         mkvmerge_status.available
         and ffmpeg_status.available

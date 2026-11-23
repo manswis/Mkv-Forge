@@ -20,6 +20,7 @@ from app.services.ffmpeg_runner import (
     ProgressCallback,
     run_ffmpeg_transcode,
 )
+from app.services.folder_sync import FolderReconcileCache
 from app.services.mkv_builder import build_mkvmerge_command
 from app.services.preflight import TargetFileCollisionError, run_preflight_checks
 from app.services.scanner import LibraryScanner
@@ -32,6 +33,7 @@ from app.utils.paths import (
     build_temp_remux_path,
     ensure_mp4_replace_target_available,
     ensure_save_as_target_available,
+    extract_folder,
     resolve_keep_both_path,
     to_relative_storage_path,
 )
@@ -204,7 +206,7 @@ async def run_mkvmerge_remux(
     )
 
 
-async def finalize_remux_output(
+def _commit_remux_files_sync(
     source_path: Path,
     output_tmp_path: Path,
     *,
@@ -212,23 +214,15 @@ async def finalize_remux_output(
     storage_root: Path,
     output_path: str | None = None,
     delete_original: bool = False,
-    media_repo: MediaFileRepository | None = None,
-    scanner: LibraryScanner | None = None,
-) -> tuple[Path, str, bool]:
-    """Commit `output_tmp_path` atomically and refresh SQLite cache.
+) -> tuple[Path, str, str, bool, str | None]:
+    """Execute blocking filesystem commit/swap steps inside a worker thread.
 
-    Handles:
-    - `.mkv` + `replace`: `os.replace(tmp, source)`
-    - `.mp4` + `replace`: move `tmp` -> `<stem>.mkv` (failing safely if it exists),
-      delete original `.mp4` ONLY after `<stem>.mkv` is in place, delete old `.mp4`
-      row from `media_files`, and call `probe_single_file()` on `<stem>.mkv`.
-    - `keep_both`: move `tmp` -> auto-incremented `<stem>.remux[.N].mkv`.
-    - `save_as`: move `tmp` -> validated custom destination path inside
-      `storage_root` (failing safely if destination exists); deletes original
-      source ONLY when `delete_original=True` and new output is verified on disk.
+    Returns `(final_path, final_rel, source_rel, replaced_deleted, deleted_old_rel)`.
     """
     is_mp4 = source_path.suffix.lower() == AppConstants.EXT_MP4
     replaced_mp4_deleted = False
+    deleted_old_rel: str | None = None
+    source_rel = to_relative_storage_path(source_path, storage_root)
 
     if output_mode == AppConstants.OUTPUT_MODE_SAVE_AS:
         if not output_path:
@@ -250,11 +244,9 @@ async def finalize_remux_output(
                     f"Expected Save As output missing after rename: {final_path}"
                 )
             if final_path.resolve() != source_path.resolve():
-                old_rel = to_relative_storage_path(source_path, storage_root)
                 source_path.unlink(missing_ok=True)
                 replaced_mp4_deleted = True
-                if media_repo is not None:
-                    await asyncio.to_thread(media_repo.delete_by_filepaths, [old_rel])
+                deleted_old_rel = source_rel
     elif output_mode == AppConstants.OUTPUT_MODE_KEEP_BOTH:
         final_path = resolve_keep_both_path(source_path)
         _move_without_overwrite(output_tmp_path, final_path)
@@ -271,18 +263,79 @@ async def finalize_remux_output(
             )
 
         # Delete original .mp4 ONLY after <stem>.mkv is safely in place
-        old_mp4_rel = to_relative_storage_path(source_path, storage_root)
         source_path.unlink()
         replaced_mp4_deleted = True
-
-        # Remove stale .mp4 DB row alongside probing the new .mkv
-        if media_repo is not None:
-            await asyncio.to_thread(media_repo.delete_by_filepaths, [old_mp4_rel])
+        deleted_old_rel = source_rel
     else:
         final_path = source_path
         os.replace(output_tmp_path, final_path)
 
     final_rel = to_relative_storage_path(final_path, storage_root)
+    return final_path, final_rel, source_rel, replaced_mp4_deleted, deleted_old_rel
+
+
+def _prepare_save_as_temp_path_sync(
+    output_path: str,
+    storage_root: Path,
+    source_path: Path,
+) -> Path:
+    """Validate Save As destination, ensure parent directory exists, and build temp path."""
+    save_as_target = ensure_save_as_target_available(
+        output_path,
+        storage_root,
+        source_path=source_path,
+    )
+    save_as_target.parent.mkdir(parents=True, exist_ok=True)
+    return build_temp_remux_path(save_as_target)
+
+
+async def finalize_remux_output(
+    source_path: Path,
+    output_tmp_path: Path,
+    *,
+    output_mode: str,
+    storage_root: Path,
+    output_path: str | None = None,
+    delete_original: bool = False,
+    media_repo: MediaFileRepository | None = None,
+    scanner: LibraryScanner | None = None,
+    folder_cache: FolderReconcileCache | None = None,
+) -> tuple[Path, str, bool]:
+    """Commit `output_tmp_path` atomically off the event loop and refresh SQLite cache.
+
+    Handles:
+    - `.mkv` + `replace`: `os.replace(tmp, source)`
+    - `.mp4` + `replace`: move `tmp` -> `<stem>.mkv` (failing safely if it exists),
+      delete original `.mp4` ONLY after `<stem>.mkv` is in place, delete old `.mp4`
+      row from `media_files`, and call `probe_single_file()` on `<stem>.mkv`.
+    - `keep_both`: move `tmp` -> auto-incremented `<stem>.remux[.N].mkv`.
+    - `save_as`: move `tmp` -> validated custom destination path inside
+      `storage_root` (failing safely if destination exists); deletes original
+      source ONLY when `delete_original=True` and new output is verified on disk.
+    """
+    (
+        final_path,
+        final_rel,
+        source_rel,
+        replaced_mp4_deleted,
+        deleted_old_rel,
+    ) = await asyncio.to_thread(
+        _commit_remux_files_sync,
+        source_path,
+        output_tmp_path,
+        output_mode=output_mode,
+        storage_root=storage_root,
+        output_path=output_path,
+        delete_original=delete_original,
+    )
+
+    if deleted_old_rel is not None and media_repo is not None:
+        await asyncio.to_thread(media_repo.delete_by_filepaths, [deleted_old_rel])
+
+    if folder_cache is not None:
+        folder_cache.invalidate_folder(extract_folder(source_rel), include_parent=True)
+        folder_cache.invalidate_folder(extract_folder(final_rel), include_parent=True)
+
     if scanner is not None:
         await scanner.probe_single_file(final_rel)
 
@@ -298,6 +351,7 @@ async def execute_two_stage_pipeline(
     media_repo: MediaFileRepository | None = None,
     scanner: LibraryScanner | None = None,
     upload_service: UploadService | None = None,
+    folder_cache: FolderReconcileCache | None = None,
     on_stage: StageCallback | None = None,
     on_progress: ProgressCallback | None = None,
     on_log: LogCallback | None = None,
@@ -321,7 +375,8 @@ async def execute_two_stage_pipeline(
         if check_cancelled is not None:
             check_cancelled()
 
-        run_preflight_checks(
+        await asyncio.to_thread(
+            run_preflight_checks,
             source_path,
             config,
             duration_us=duration_us,
@@ -339,13 +394,12 @@ async def execute_two_stage_pipeline(
 
         if config.output_mode == AppConstants.OUTPUT_MODE_SAVE_AS:
             assert config.output_path is not None
-            save_as_target = ensure_save_as_target_available(
+            output_tmp_path = await asyncio.to_thread(
+                _prepare_save_as_temp_path_sync,
                 config.output_path,
                 storage_root,
-                source_path=source_path,
+                source_path,
             )
-            save_as_target.parent.mkdir(parents=True, exist_ok=True)
-            output_tmp_path = build_temp_remux_path(save_as_target)
         else:
             output_tmp_path = build_temp_remux_path(source_path)
 
@@ -422,6 +476,7 @@ async def execute_two_stage_pipeline(
             delete_original=bool(config.delete_original),
             media_repo=media_repo,
             scanner=scanner,
+            folder_cache=folder_cache,
         )
         finalized = True
 
@@ -433,8 +488,9 @@ async def execute_two_stage_pipeline(
             replaced_mp4_deleted=replaced_mp4_deleted,
         )
     finally:
-        _safe_unlink(temp_audio_path)
-        if not finalized:
-            _safe_unlink(output_tmp_path)
+        if temp_audio_path is not None:
+            await asyncio.to_thread(_safe_unlink, temp_audio_path)
+        if not finalized and output_tmp_path is not None:
+            await asyncio.to_thread(_safe_unlink, output_tmp_path)
         if upload_service is not None and job_upload_ids:
             await asyncio.to_thread(upload_service.cleanup_uploads, job_upload_ids)

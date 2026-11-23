@@ -185,7 +185,7 @@ class LibraryWatcher:
         storage_dir = self._settings.storage_dir
 
         while not self._stop_event.is_set():
-            if not storage_dir.is_dir():
+            if not await asyncio.to_thread(storage_dir.is_dir):
                 logger.warning(
                     "Watcher waiting: storage directory %s is not mounted/present",
                     storage_dir,
@@ -301,6 +301,24 @@ class LibraryWatcher:
             lambda done_task, key=rel_filepath: self._cleanup_task_ref(key, done_task)
         )
 
+    @staticmethod
+    def _path_is_dir_or_file_sync(path: Path) -> bool:
+        try:
+            return path.is_dir() or path.is_file()
+        except OSError:
+            return False
+
+    async def _process_added_non_media(self, path: Path, rel_filepath: str) -> None:
+        """Verify added non-media path off the event loop and emit library_changed."""
+        try:
+            exists = await asyncio.to_thread(self._path_is_dir_or_file_sync, path)
+            if exists:
+                self._library_broker.record_change(
+                    action="updated", filepath=rel_filepath
+                )
+        except asyncio.CancelledError:
+            raise
+
     def _handle_non_media_fs_event(
         self, change_type: Change, path: Path, rel_filepath: str
     ) -> None:
@@ -310,13 +328,17 @@ class LibraryWatcher:
         writes never spam SSE; emits once on creation and once on deletion/rename.
         """
         if change_type == Change.added:
-            try:
-                if path.is_dir() or path.is_file():
-                    self._library_broker.record_change(
-                        action="updated", filepath=rel_filepath
-                    )
-            except OSError:
-                return
+            key = f"nonmedia_add:{rel_filepath}"
+            prev_task = self._debounce_tasks.pop(key, None)
+            if prev_task is not None and not prev_task.done():
+                prev_task.cancel()
+            task = asyncio.create_task(
+                self._process_added_non_media(path, rel_filepath)
+            )
+            self._debounce_tasks[key] = task
+            task.add_done_callback(
+                lambda done_task, k=key: self._cleanup_task_ref(k, done_task)
+            )
             return
 
         if change_type == Change.deleted:
@@ -360,13 +382,15 @@ class LibraryWatcher:
     ) -> None:
         """Prune orphaned SQLite rows if a folder vanished on disk and notify UI."""
         try:
-            if not self._settings.storage_dir.is_dir():
+            if not await asyncio.to_thread(self._settings.storage_dir.is_dir):
                 return
             try:
-                resolved = safe_resolve_path(rel_filepath, self._settings.storage_dir)
+                resolved = await asyncio.to_thread(
+                    safe_resolve_path, rel_filepath, self._settings.storage_dir
+                )
             except PathSafetyError:
                 return
-            if resolved.exists():
+            if await asyncio.to_thread(resolved.exists):
                 return
 
             display_folder = f"/{rel_filepath.strip('/')}"
@@ -397,7 +421,7 @@ class LibraryWatcher:
         while not self._stop_event.is_set() and checks < AppConstants.WATCH_MAX_STABILITY_CHECKS:
             checks += 1
             try:
-                st1 = resolved_path.stat()
+                st1 = await asyncio.to_thread(resolved_path.stat)
             except OSError:
                 return None
             size1, mtime1 = int(st1.st_size), float(st1.st_mtime)
@@ -407,7 +431,7 @@ class LibraryWatcher:
                 return None
 
             try:
-                st2 = resolved_path.stat()
+                st2 = await asyncio.to_thread(resolved_path.stat)
             except OSError:
                 return None
             size2, mtime2 = int(st2.st_size), float(st2.st_mtime)
@@ -432,14 +456,16 @@ class LibraryWatcher:
                 return
 
             try:
-                resolved = safe_resolve_path(rel_filepath, self._settings.storage_dir)
+                resolved = await asyncio.to_thread(
+                    safe_resolve_path, rel_filepath, self._settings.storage_dir
+                )
             except PathSafetyError:
                 return
 
             # Phase A (Instant Discovery): insert a lightweight 'scanning' placeholder right
             # away so the UI shows the new file immediately before debounce/probing completes.
             try:
-                st_initial = resolved.stat()
+                st_initial = await asyncio.to_thread(resolved.stat)
                 placeholder_id, inserted_new = await asyncio.to_thread(
                     self._media_repo.upsert_scanning_placeholder,
                     filepath=rel_filepath,
@@ -460,7 +486,7 @@ class LibraryWatcher:
             settled: tuple[int, float] | None = None
             if fast_if_aged:
                 try:
-                    st = resolved.stat()
+                    st = await asyncio.to_thread(resolved.stat)
                     age_sec = time.time() - float(st.st_mtime)
                     if int(st.st_size) > 0 and age_sec >= self._settings.watch_debounce_sec:
                         settled = (int(st.st_size), float(st.st_mtime))
@@ -471,7 +497,7 @@ class LibraryWatcher:
                 settled = await self._wait_for_stability(resolved)
             if settled is None:
                 # File disappeared while debouncing (e.g., cancelled copy or rename)
-                if not resolved.exists():
+                if not await asyncio.to_thread(resolved.exists):
                     await self._process_deleted(rel_filepath)
                 return
 
@@ -545,7 +571,7 @@ class LibraryWatcher:
         """Remove a single deleted media row without wiping SQLite on storage unmount."""
         try:
             # Safety guard: never delete rows if STORAGE_DIR itself disappeared/unmounted
-            if not self._settings.storage_dir.is_dir():
+            if not await asyncio.to_thread(self._settings.storage_dir.is_dir):
                 return
 
             any_running, owned = await self._is_owned_by_running_job(rel_filepath)
@@ -554,12 +580,14 @@ class LibraryWatcher:
                 return
 
             try:
-                resolved = safe_resolve_path(rel_filepath, self._settings.storage_dir)
+                resolved = await asyncio.to_thread(
+                    safe_resolve_path, rel_filepath, self._settings.storage_dir
+                )
             except PathSafetyError:
                 return
 
             # Guard against atomic replace (file still exists right after rename)
-            if resolved.exists():
+            if await asyncio.to_thread(resolved.exists):
                 return
 
             existing = await asyncio.to_thread(

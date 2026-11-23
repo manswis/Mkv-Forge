@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 from app.config import AppConstants, Settings
 from app.db.repositories import JobRepository, MediaFileRepository
 from app.models.schemas import JobConfig
+from app.services.folder_sync import FolderReconcileCache
 from app.services.mkv_runner import JobCancelledError, execute_two_stage_pipeline
 from app.services.scanner import LibraryScanner
 from app.services.sse_broker import JobSSEBroker
@@ -22,6 +24,7 @@ from app.services.upload_service import (
     extract_upload_ids_from_tracks,
 )
 from app.utils.paths import (
+    extract_folder,
     is_mkvforge_temp_file,
     safe_resolve_path,
     to_relative_storage_path,
@@ -131,6 +134,116 @@ async def terminate_subprocess(
     await proc.wait()
 
 
+class _AsyncJobProgressPersister:
+    """Serialized, throttled off-loop SQLite progress writer for a single running job.
+
+    Guarantees:
+    - All SQLite writes execute via `asyncio.to_thread`, never blocking the event loop.
+    - At most ONE worker-thread write is in-flight at a time (coalescing bursts).
+    - `close_and_drain()` marks the persister closed, discards pending ticks, and
+      awaits any in-flight write BEFORE terminal state persistence (`mark_completed`,
+      `mark_failed`, `mark_cancelled`) so a delayed tick can never race terminal status.
+    """
+
+    def __init__(
+        self,
+        job_repo: JobRepository,
+        job_id: str,
+        *,
+        throttle_sec: float = AppConstants.JOB_PROGRESS_DB_THROTTLE_SEC,
+        min_delta_pct: int = AppConstants.JOB_PROGRESS_DB_MIN_DELTA_PCT,
+    ) -> None:
+        self._job_repo = job_repo
+        self._job_id = job_id
+        self._throttle_sec = max(0.0, float(throttle_sec))
+        self._min_delta_pct = max(1, int(min_delta_pct))
+        self._closed = False
+        self._pending: tuple[str | None, int] | None = None
+        self._task: asyncio.Task[None] | None = None
+        self._last_scheduled_stage: str | None = None
+        self._last_scheduled_percent: int = -1
+        self._last_write_at: float = 0.0
+
+    def schedule(
+        self,
+        stage: str | None,
+        percent: int,
+        *,
+        force: bool = False,
+    ) -> bool:
+        """Queue a coalesced progress update if it crosses throttle/delta bounds."""
+        if self._closed:
+            return False
+
+        bounded = max(0, min(100, int(percent)))
+        now = time.monotonic()
+        stage_changed = stage != self._last_scheduled_stage
+        pct_delta = abs(bounded - self._last_scheduled_percent)
+        elapsed = now - self._last_write_at
+
+        if not (
+            force
+            or stage_changed
+            or bounded == 100
+            or self._last_scheduled_percent < 0
+            or pct_delta >= self._min_delta_pct
+            or elapsed >= self._throttle_sec
+        ):
+            return False
+
+        if not force and not stage_changed and bounded == self._last_scheduled_percent:
+            return False
+
+        self._last_scheduled_stage = stage
+        self._last_scheduled_percent = bounded
+        self._last_write_at = now
+        self._pending = (stage, bounded)
+
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._drain_loop())
+        return True
+
+    async def _drain_loop(self) -> None:
+        while not self._closed and self._pending is not None:
+            stage, percent = self._pending
+            self._pending = None
+            try:
+                still_running = await asyncio.to_thread(
+                    self._job_repo.update_progress,
+                    self._job_id,
+                    stage=stage,
+                    progress=percent,
+                )
+                if not still_running:
+                    self._closed = True
+                    self._pending = None
+                    return
+            except Exception as exc:
+                logger.warning(
+                    "Non-fatal progress persist error for job %s: %s",
+                    self._job_id,
+                    exc,
+                )
+
+    async def close_and_drain(self) -> None:
+        """Stop accepting updates and wait for any in-flight DB write to settle."""
+        self._closed = True
+        self._pending = None
+        task = self._task
+        self._task = None
+        if task is not None and not task.done():
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                logger.warning(
+                    "Progress writer drain error for job %s: %s",
+                    self._job_id,
+                    exc,
+                )
+
+
 class JobWorker:
     """Single-worker sequential job processor with cancellation and crash recovery."""
 
@@ -143,6 +256,7 @@ class JobWorker:
         scanner: LibraryScanner,
         broker: JobSSEBroker,
         upload_service: UploadService | None = None,
+        folder_cache: FolderReconcileCache | None = None,
         cancel_grace_sec: float = AppConstants.SUBPROCESS_CANCEL_GRACE_SEC,
     ) -> None:
         self._settings = settings
@@ -151,6 +265,7 @@ class JobWorker:
         self._scanner = scanner
         self._broker = broker
         self._upload_service = upload_service or UploadService(settings)
+        self._folder_cache = folder_cache
         self._cancel_grace_sec = cancel_grace_sec
 
         self._wake_event = asyncio.Event()
@@ -250,7 +365,9 @@ class JobWorker:
         batch_id: str | None = None,
     ) -> dict[str, Any]:
         """Validate path, enforce duplicate guard, persist queued job, and wake worker."""
-        resolved = safe_resolve_path(filepath, self._settings.storage_dir)
+        resolved = await asyncio.to_thread(
+            safe_resolve_path, filepath, self._settings.storage_dir
+        )
         rel_filepath = to_relative_storage_path(resolved, self._settings.storage_dir)
 
         existing = await asyncio.to_thread(
@@ -365,8 +482,8 @@ class JobWorker:
 
         current_stage: str | None = None
         current_stage_label: str | None = "Starting job"
-        last_persisted_stage: str | None = None
-        last_persisted_percent: int = -1
+        last_reported_percent: int = 0
+        progress_persister = _AsyncJobProgressPersister(self._job_repo, job_id)
 
         media_row = await asyncio.to_thread(
             self._media_repo.get_by_filepath, rel_filepath
@@ -385,12 +502,11 @@ class JobWorker:
                 raise JobCancelledError(AppConstants.CANCELLED_BY_USER_MESSAGE)
 
         def _on_stage(stage: str, stage_label: str) -> None:
-            nonlocal current_stage, current_stage_label, last_persisted_stage, last_persisted_percent
+            nonlocal current_stage, current_stage_label, last_reported_percent
             current_stage = stage
             current_stage_label = stage_label
-            last_persisted_stage = stage
-            last_persisted_percent = 0
-            self._job_repo.update_progress(job_id, stage=stage, progress=0)
+            last_reported_percent = 0
+            progress_persister.schedule(stage, 0, force=True)
             self._broker.publish_progress(
                 job_id=job_id,
                 filepath=rel_filepath,
@@ -400,24 +516,18 @@ class JobWorker:
             )
 
         def _on_progress(percent: int, speed: str | None) -> None:
-            nonlocal last_persisted_stage, last_persisted_percent
-            if (
-                percent != last_persisted_percent
-                or current_stage != last_persisted_stage
-            ):
-                last_persisted_stage = current_stage
-                last_persisted_percent = percent
-                self._job_repo.update_progress(
-                    job_id, stage=current_stage, progress=percent
-                )
+            nonlocal last_reported_percent
+            bounded = max(0, min(100, int(percent)))
+            last_reported_percent = bounded
+            progress_persister.schedule(current_stage, bounded)
             self._broker.publish_progress(
                 job_id=job_id,
                 filepath=rel_filepath,
                 stage=current_stage,
                 stage_label=current_stage_label,
-                percent=percent,
+                percent=bounded,
                 speed=speed,
-                eta=estimate_eta(duration_us, percent, speed),
+                eta=estimate_eta(duration_us, bounded, speed),
             )
 
         def _on_log(line: str) -> None:
@@ -438,7 +548,9 @@ class JobWorker:
         try:
             _check_cancelled()
             config = JobConfig.model_validate(json.loads(str(job_row["config_json"])))
-            source_path = safe_resolve_path(rel_filepath, self._settings.storage_dir)
+            source_path = await asyncio.to_thread(
+                safe_resolve_path, rel_filepath, self._settings.storage_dir
+            )
 
             result = await execute_two_stage_pipeline(
                 source_path,
@@ -448,6 +560,7 @@ class JobWorker:
                 media_repo=self._media_repo,
                 scanner=self._scanner,
                 upload_service=self._upload_service,
+                folder_cache=self._folder_cache,
                 on_stage=_on_stage,
                 on_progress=_on_progress,
                 on_log=_on_log,
@@ -455,12 +568,20 @@ class JobWorker:
                 check_cancelled=_check_cancelled,
             )
 
+            await progress_persister.close_and_drain()
             await asyncio.to_thread(
                 self._job_repo.mark_completed,
                 job_id,
                 output_filepath=result.output_rel_filepath,
                 warnings=result.warnings,
             )
+            if self._folder_cache is not None:
+                self._folder_cache.invalidate_folder(
+                    extract_folder(rel_filepath), include_parent=True
+                )
+                self._folder_cache.invalidate_folder(
+                    extract_folder(result.output_rel_filepath), include_parent=True
+                )
             self._broker.publish_terminal(
                 job_id=job_id,
                 filepath=rel_filepath,
@@ -471,6 +592,7 @@ class JobWorker:
                 warnings=result.warnings,
             )
         except JobCancelledError:
+            await progress_persister.close_and_drain()
             interrupted_by_shutdown = (
                 self._stop_event.is_set() and not cancel_event.is_set()
             )
@@ -486,7 +608,7 @@ class JobWorker:
                     status=AppConstants.JOB_STATUS_FAILED,
                     stage=current_stage,
                     stage_label="Interrupted",
-                    percent=max(0, last_persisted_percent),
+                    percent=max(0, last_reported_percent),
                     error_message=AppConstants.CRASH_RECOVERY_ERROR_MESSAGE,
                 )
             else:
@@ -501,10 +623,11 @@ class JobWorker:
                     status=AppConstants.JOB_STATUS_CANCELLED,
                     stage=current_stage,
                     stage_label="Cancelled",
-                    percent=max(0, last_persisted_percent),
+                    percent=max(0, last_reported_percent),
                     error_message=AppConstants.CANCELLED_BY_USER_MESSAGE,
                 )
         except Exception as exc:
+            await progress_persister.close_and_drain()
             error_msg = str(exc) or exc.__class__.__name__
             logger.error("Job %s failed for %s: %s", job_id, rel_filepath, error_msg)
             await asyncio.to_thread(
@@ -518,10 +641,11 @@ class JobWorker:
                 status=AppConstants.JOB_STATUS_FAILED,
                 stage=current_stage,
                 stage_label="Failed",
-                percent=max(0, last_persisted_percent),
+                percent=max(0, last_reported_percent),
                 error_message=error_msg,
             )
         finally:
+            await progress_persister.close_and_drain()
             self._active_proc = None
             self._active_cancel_event = None
             self._active_done_event = None

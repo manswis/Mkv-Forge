@@ -527,6 +527,8 @@ class AppConstants:
         {"filename", "folder", "size_bytes", "mtime", "scanned_at", "duration_us"}
     )
     ALLOWED_SORT_ORDERS: frozenset[str] = frozenset({"asc", "desc"})
+    FOLDER_RECONCILE_CACHE_TTL_SEC: float = 2.0
+    FOLDER_RECONCILE_CACHE_MAX_ENTRIES: int = 128
 
     # SSE
     SSE_PING_INTERVAL_SEC: int = 15
@@ -547,6 +549,8 @@ class AppConstants:
     JOB_LOG_BUFFER_MAX_LINES: int = 100
     JOB_SUBSCRIBER_QUEUE_MAXSIZE: int = 256
     JOB_HISTORY_LIMIT: int = 50
+    JOB_PROGRESS_DB_THROTTLE_SEC: float = 0.75
+    JOB_PROGRESS_DB_MIN_DELTA_PCT: int = 5
     SUBPROCESS_CANCEL_GRACE_SEC: float = 5.0
     CRASH_RECOVERY_ERROR_MESSAGE: str = "Interrupted by container restart"
     CANCELLED_BY_USER_MESSAGE: str = "Cancelled by user"

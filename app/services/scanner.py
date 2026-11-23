@@ -18,6 +18,7 @@ from app.db.repositories import (
     utc_now_iso,
 )
 from app.models.schemas import ScanProgressPayload
+from app.services.folder_sync import FolderReconcileCache
 from app.services.probe_parser import parse_mkvmerge_json
 from app.utils.paths import (
     PathSafetyError,
@@ -200,10 +201,12 @@ class LibraryScanner:
         settings: Settings,
         media_repo: MediaFileRepository,
         state_repo: AppStateRepository,
+        folder_cache: FolderReconcileCache | None = None,
     ) -> None:
         self._settings = settings
         self._media_repo = media_repo
         self._state_repo = state_repo
+        self._folder_cache = folder_cache
         self._task: asyncio.Task[None] | None = None
         self._progress: ScanProgressPayload = ScanProgressPayload(
             status=AppConstants.SCAN_STATUS_IDLE
@@ -292,13 +295,17 @@ class LibraryScanner:
 
         Returns the refreshed DB row dict, or `None` if the file no longer exists on disk.
         """
-        abs_path = safe_resolve_path(rel_filepath, self._settings.storage_dir)
+        abs_path = await asyncio.to_thread(
+            safe_resolve_path, rel_filepath, self._settings.storage_dir
+        )
         normalized_rel = to_relative_storage_path(abs_path, self._settings.storage_dir)
 
-        if not abs_path.is_file():
+        if not await asyncio.to_thread(abs_path.is_file):
             await asyncio.to_thread(
                 self._media_repo.delete_by_filepaths, [normalized_rel]
             )
+            if self._folder_cache is not None:
+                self._folder_cache.invalidate_for_filepath(normalized_rel)
             return None
 
         stat_result = await asyncio.to_thread(abs_path.stat)
@@ -315,6 +322,8 @@ class LibraryScanner:
             raw_json=raw_json,
         )
         file_id = await asyncio.to_thread(self._media_repo.upsert, upsert_record)
+        if self._folder_cache is not None:
+            self._folder_cache.invalidate_for_filepath(normalized_rel)
         return await asyncio.to_thread(self._media_repo.get_by_id, file_id)
 
     def _build_upsert_record(
@@ -352,7 +361,7 @@ class LibraryScanner:
     async def _run_scan(self, *, full: bool) -> None:
         """Execute incremental or full library scan and publish progress updates."""
         storage_root = self._settings.storage_dir
-        if not storage_root.is_dir():
+        if not await asyncio.to_thread(storage_root.is_dir):
             message = f"Storage directory does not exist: {storage_root}"
             logger.error(message)
             await asyncio.to_thread(
@@ -479,6 +488,9 @@ class LibraryScanner:
                 AppConstants.STATE_KEY_LAST_SCAN_STATUS,
                 AppConstants.SCAN_STATUS_COMPLETED,
             )
+
+            if self._folder_cache is not None:
+                self._folder_cache.invalidate_all()
 
             self._publish(
                 ScanProgressPayload(

@@ -27,9 +27,30 @@ from app.services.folder_service import (
     list_storage_folder_and_tracks,
     list_storage_subfolders,
 )
+from app.services.folder_sync import FolderReconcileCache
 from app.utils.paths import PathSafetyError
 
 router = APIRouter(prefix="/api/folders", tags=["folders"])
+
+
+def _invalidate_folder_cache(
+    request: Request,
+    *folders: str,
+    include_parent: bool = True,
+    include_descendants: bool = False,
+) -> None:
+    cache: FolderReconcileCache | None = getattr(
+        request.app.state, "folder_reconcile_cache", None
+    )
+    if cache is None:
+        return
+    for folder in folders:
+        if folder:
+            cache.invalidate_folder(
+                folder,
+                include_parent=include_parent,
+                include_descendants=include_descendants,
+            )
 
 
 @router.get("", response_model=FolderListResponse)
@@ -124,6 +145,8 @@ async def create_folder(
             detail=str(exc),
         ) from exc
 
+    _invalidate_folder_cache(request, payload.parent, created.path, include_parent=True)
+
     return FolderTreeEntry(
         name=created.name,
         path=created.path,
@@ -139,7 +162,7 @@ async def rename_folder(
     """Rename a folder inside STORAGE_DIR and rewrite descendant DB rows."""
     file_ops: FileOpsService = request.app.state.file_ops
     try:
-        return await asyncio.to_thread(
+        result = await asyncio.to_thread(
             file_ops.rename_folder,
             payload.path,
             payload.new_name,
@@ -151,6 +174,14 @@ async def rename_folder(
         ) from exc
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    _invalidate_folder_cache(
+        request,
+        payload.path,
+        result.new_path or "",
+        include_parent=True,
+        include_descendants=True,
+    )
+    return result
 
 
 @router.post("/move", response_model=FolderOpResponse)
@@ -161,7 +192,7 @@ async def move_folder(
     """Move a folder into `destination_folder` and rewrite descendant DB rows."""
     file_ops: FileOpsService = request.app.state.file_ops
     try:
-        return await asyncio.to_thread(
+        result = await asyncio.to_thread(
             file_ops.move_folder,
             payload.path,
             payload.destination_folder,
@@ -173,6 +204,15 @@ async def move_folder(
         ) from exc
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    _invalidate_folder_cache(
+        request,
+        payload.path,
+        payload.destination_folder,
+        result.new_path or "",
+        include_parent=True,
+        include_descendants=True,
+    )
+    return result
 
 
 @router.post("/delete", response_model=FolderOpResponse)
@@ -183,7 +223,7 @@ async def delete_folder(
     """Delete a folder inside STORAGE_DIR (403 on :ro volumes, 409 if non-empty without recursive)."""
     file_ops: FileOpsService = request.app.state.file_ops
     try:
-        return await asyncio.to_thread(
+        result = await asyncio.to_thread(
             file_ops.delete_folder,
             payload.path,
             recursive=payload.recursive,
@@ -195,3 +235,10 @@ async def delete_folder(
         ) from exc
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    _invalidate_folder_cache(
+        request,
+        payload.path,
+        include_parent=True,
+        include_descendants=True,
+    )
+    return result

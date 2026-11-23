@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.config import AppConstants
 from app.models.schemas import TestMediaGenerateRequest, TestMediaGenerateResponse
+from app.services.folder_sync import FolderReconcileCache
 from app.services.test_media_generator import (
     TestMediaCollisionError,
     TestMediaGenerationError,
@@ -33,12 +34,22 @@ async def create_test_media(
     library_broker = request.app.state.library_broker
 
     try:
-        return await generate_test_media(
+        result = await generate_test_media(
             payload,
             storage_root=settings.storage_dir,
             scanner=scanner,
             library_broker=library_broker,
         )
+        folder_cache: FolderReconcileCache | None = getattr(
+            request.app.state, "folder_reconcile_cache", None
+        )
+        if folder_cache is not None:
+            folder_cache.invalidate_folder(
+                payload.destination_dir or "/", include_parent=True
+            )
+            if result.filepath:
+                folder_cache.invalidate_for_filepath(result.filepath)
+        return result
     except TestMediaValidationError as exc:
         raise HTTPException(
             status_code=AppConstants.HTTP_BAD_REQUEST,

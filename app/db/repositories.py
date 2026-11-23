@@ -1639,11 +1639,15 @@ class JobRepository:
         *,
         stage: str | None,
         progress: int,
-    ) -> None:
-        """Persist current stage and percentage for a running job."""
+    ) -> bool:
+        """Persist current stage and percentage for a running job.
+
+        Returns True iff the row was still `running` and updated; terminal jobs
+        (`completed`, `failed`, `cancelled`) are never overwritten.
+        """
         bounded = max(0, min(100, int(progress)))
         with self._db.connect() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
                 UPDATE jobs
                 SET stage = ?, progress = ?
@@ -1651,6 +1655,7 @@ class JobRepository:
                 """,
                 (stage, bounded, job_id, AppConstants.JOB_STATUS_RUNNING),
             )
+            return cursor.rowcount > 0
 
     def mark_completed(
         self,

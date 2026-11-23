@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable
 
 from app.config import AppConstants
 from app.models.schemas import LibraryChangedEvent
@@ -17,9 +17,11 @@ class LibraryEventBroker:
         *,
         coalesce_sec: float = AppConstants.WATCH_EVENT_COALESCE_SEC,
         subscriber_queue_size: int = AppConstants.LIBRARY_SUBSCRIBER_QUEUE_MAXSIZE,
+        on_change: Callable[[str], None] | None = None,
     ) -> None:
         self._coalesce_sec = max(0.0, float(coalesce_sec))
         self._subscriber_queue_size = subscriber_queue_size
+        self._on_change = on_change
         self._subscribers: set[asyncio.Queue[LibraryChangedEvent | None]] = set()
 
         self._pending_actions: list[str] = []
@@ -47,9 +49,13 @@ class LibraryEventBroker:
     ) -> None:
         """Queue one library mutation and schedule a coalesced SSE broadcast.
 
-        Thread-safe: if invoked from a worker thread (`asyncio.to_thread`),
-        marshals back onto the bound event loop via `call_soon_threadsafe`.
+        Thread-safe: invokes any registered `on_change` invalidation hook
+        immediately on the caller thread before marshaling the SSE broadcast
+        onto the bound event loop via `call_soon_threadsafe`.
         """
+        if self._on_change is not None:
+            self._on_change(filepath)
+
         if self._closed:
             return
 
@@ -59,12 +65,26 @@ class LibraryEventBroker:
         except RuntimeError:
             if self._loop is not None and not self._loop.is_closed():
                 self._loop.call_soon_threadsafe(
-                    lambda: self.record_change(
+                    lambda: self._enqueue_on_loop(
                         action=action, filepath=filepath, file_id=file_id
                     )
                 )
             return
 
+        self._enqueue_on_loop(action=action, filepath=filepath, file_id=file_id)
+
+    def _enqueue_on_loop(
+        self,
+        *,
+        action: str,
+        filepath: str,
+        file_id: int | None = None,
+    ) -> None:
+        """Record change into pending coalesce buffers (must run on the event loop)."""
+        if self._closed:
+            return
+        running_loop = asyncio.get_running_loop()
+        self._loop = running_loop
         self._pending_actions.append(action)
         if filepath and filepath not in self._pending_paths:
             self._pending_paths.append(filepath)

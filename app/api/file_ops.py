@@ -20,10 +20,22 @@ from app.models.schemas import (
     OtherFileRenameRequest,
 )
 from app.services.file_ops_service import FileOpError, FileOpsService
+from app.services.folder_sync import FolderReconcileCache
 from app.services.watcher import LibraryWatcher
 from app.utils.paths import PathSafetyError
 
 router = APIRouter(prefix="/api/files", tags=["file-ops"])
+
+
+def _invalidate_cache_for_paths(request: Request, *paths: str) -> None:
+    cache: FolderReconcileCache | None = getattr(
+        request.app.state, "folder_reconcile_cache", None
+    )
+    if cache is None:
+        return
+    for raw in paths:
+        if raw:
+            cache.invalidate_for_filepath(raw)
 
 
 def _raise_if_total_batch_failure(result: BatchFileOpResponse) -> None:
@@ -65,6 +77,17 @@ async def move_files(
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     _raise_if_total_batch_failure(result)
+    cache: FolderReconcileCache | None = getattr(
+        request.app.state, "folder_reconcile_cache", None
+    )
+    if cache is not None and result.succeeded > 0:
+        cache.invalidate_folder(payload.destination_folder, include_parent=True)
+        for item in result.results:
+            if item.ok:
+                if item.filepath:
+                    cache.invalidate_for_filepath(item.filepath)
+                if item.new_filepath:
+                    cache.invalidate_for_filepath(item.new_filepath)
     return result
 
 
@@ -89,6 +112,10 @@ async def delete_files(
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     _raise_if_total_batch_failure(result)
+    if result.succeeded > 0:
+        _invalidate_cache_for_paths(
+            request, *(item.filepath or "" for item in result.results if item.ok)
+        )
     return result
 
 
@@ -113,6 +140,7 @@ async def rename_other_file(
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
+    _invalidate_cache_for_paths(request, payload.filepath, result.new_filepath or "")
     if result.promoted_to_media and result.new_filepath:
         watcher: LibraryWatcher | None = getattr(
             request.app.state, "library_watcher", None
@@ -130,7 +158,7 @@ async def move_other_file(
     """Move a non-indexed file into `destination_folder`."""
     file_ops: FileOpsService = request.app.state.file_ops
     try:
-        return await asyncio.to_thread(
+        result = await asyncio.to_thread(
             file_ops.move_other_file,
             payload.filepath,
             payload.destination_folder,
@@ -142,6 +170,13 @@ async def move_other_file(
         ) from exc
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    _invalidate_cache_for_paths(request, payload.filepath, result.new_filepath or "")
+    cache: FolderReconcileCache | None = getattr(
+        request.app.state, "folder_reconcile_cache", None
+    )
+    if cache is not None:
+        cache.invalidate_folder(payload.destination_folder, include_parent=True)
+    return result
 
 
 @router.post("/other/delete", response_model=OtherFileOpResponse)
@@ -152,7 +187,7 @@ async def delete_other_file(
     """Delete a non-indexed file from disk."""
     file_ops: FileOpsService = request.app.state.file_ops
     try:
-        return await asyncio.to_thread(
+        result = await asyncio.to_thread(
             file_ops.delete_other_file,
             payload.filepath,
         )
@@ -163,6 +198,8 @@ async def delete_other_file(
         ) from exc
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    _invalidate_cache_for_paths(request, payload.filepath)
+    return result
 
 
 @router.post("/{file_id}/rename", response_model=MediaFileListItem)
@@ -187,6 +224,7 @@ async def rename_file(
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
+    _invalidate_cache_for_paths(request, str(updated.get("filepath") or ""))
     return _row_to_list_item(updated)
 
 
@@ -210,4 +248,5 @@ async def duplicate_file(
     except FileOpError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
+    _invalidate_cache_for_paths(request, str(created.get("filepath") or ""))
     return _row_to_list_item(created)

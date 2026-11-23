@@ -602,6 +602,8 @@
       thumbLoadErrors: {},
       _searchTimer: null,
       _libraryRequestSeq: 0,
+      _loadedLibraryFolderScope: null,
+      _libraryChangedTimer: null,
 
       // File Editor state (Screen 3: #/files/{id})
       editorFileId: null,
@@ -684,6 +686,10 @@
       logsAutoScroll: true,
       liveLogs: [],
       _liveLogJobId: null,
+      _pendingLogLines: [],
+      _liveLogFlushTimer: null,
+      _loadJobsPromise: null,
+      _loadJobsPendingRefresh: false,
       jobsState: {
         active: null,
         queued: [],
@@ -3573,6 +3579,8 @@
           this._hiddenCloseTimer = null;
         }
         this._clearScanLiveTimer();
+        this._clearLibraryChangedTimer();
+        this._resetLiveLogBuffer();
         if (this._eventStream) {
           this._eventStream.close();
           this._eventStream = null;
@@ -3789,23 +3797,95 @@
         }
       },
 
+      _clearLibraryChangedTimer() {
+        if (this._libraryChangedTimer !== null) {
+          clearTimeout(this._libraryChangedTimer);
+          this._libraryChangedTimer = null;
+        }
+      },
+
+      _scheduleLibraryAndDashboardRefresh() {
+        this._clearLibraryChangedTimer();
+        const delayMs =
+          (C.TIMINGS_MS && C.TIMINGS_MS.LIBRARY_CHANGED_DEBOUNCE) || 250;
+        this._libraryChangedTimer = setTimeout(() => {
+          this._libraryChangedTimer = null;
+          this.loadDashboard();
+          if (this.route === C.ROUTES.LIBRARY) {
+            if (this.libraryLoading) {
+              this._pendingLibraryReload = true;
+            } else {
+              this.loadLibrary({ preserveSelection: true });
+            }
+          }
+        }, delayMs);
+      },
+
+      _resetLiveLogBuffer() {
+        if (this._liveLogFlushTimer !== null) {
+          clearTimeout(this._liveLogFlushTimer);
+          this._liveLogFlushTimer = null;
+        }
+        this._pendingLogLines = [];
+      },
+
+      _enqueueLiveLogLine(line) {
+        if (!line) return;
+        this._pendingLogLines.push(line);
+        if (this._liveLogFlushTimer === null) {
+          const flushMs =
+            (C.TIMINGS_MS && C.TIMINGS_MS.LIVE_LOG_FLUSH) || 100;
+          this._liveLogFlushTimer = setTimeout(() => {
+            this._flushLiveLogs();
+          }, flushMs);
+        }
+      },
+
+      _flushLiveLogs() {
+        if (this._liveLogFlushTimer !== null) {
+          clearTimeout(this._liveLogFlushTimer);
+          this._liveLogFlushTimer = null;
+        }
+        if (this._pendingLogLines.length === 0) return;
+        const batch = this._pendingLogLines;
+        this._pendingLogLines = [];
+        const maxLines = C.EDITOR.MAX_CLIENT_LOG_LINES;
+        const merged = this.liveLogs.concat(batch);
+        this.liveLogs =
+          merged.length > maxLines ? merged.slice(-maxLines) : merged;
+        if (this.showCliLogs) {
+          this.$nextTick(() => this.scrollLogsToBottom(false));
+        }
+      },
+
+      _isPureJobLogFrame(payload) {
+        if (!payload || !payload.log_line || Array.isArray(payload.recent_logs)) {
+          return false;
+        }
+        const cur = this.liveJob || {};
+        const sameWarnings =
+          !Array.isArray(payload.warnings) ||
+          (Array.isArray(cur.warnings) &&
+            payload.warnings.length === cur.warnings.length);
+        return (
+          (payload.job_id || null) === (cur.job_id || null) &&
+          (payload.filepath ?? null) === (cur.filepath ?? null) &&
+          (payload.status || C.STATUSES.IDLE) ===
+            (cur.status || C.STATUSES.IDLE) &&
+          (payload.stage ?? null) === (cur.stage ?? null) &&
+          (payload.stage_label ?? null) === (cur.stage_label ?? null) &&
+          Number(payload.percent ?? 0) === Number(cur.percent ?? 0) &&
+          (payload.speed ?? null) === (cur.speed ?? null) &&
+          (payload.eta ?? null) === (cur.eta ?? null) &&
+          (payload.error_message ?? null) === (cur.error_message ?? null) &&
+          sameWarnings
+        );
+      },
+
       _handleLibraryChangedEvent(payload) {
         if (!payload) return;
 
-        // 1. Dashboard: silently refresh stat cards in real time
-        this.loadDashboard();
-
-        // 2. Library: always auto-reload seamlessly in place (preserve scroll & selection)
-        if (this.route === C.ROUTES.LIBRARY) {
-          if (this.libraryLoading) {
-            this._pendingLibraryReload = true;
-          } else {
-            this.loadLibrary({ preserveSelection: true });
-          }
-          return;
-        }
-
-        // 3. File Editor: never wipe unsaved edits; only warn if THIS open file changed
+        // 1. File Editor: never wipe unsaved edits; warn immediately if THIS open file changed
         if (this.route === C.ROUTES.EDITOR && this.editorFile) {
           const changedIds = Array.isArray(payload.file_ids)
             ? payload.file_ids
@@ -3823,6 +3903,9 @@
             };
           }
         }
+
+        // 2. Dashboard & Library: coalesce bursty job + watcher updates into one refresh
+        this._scheduleLibraryAndDashboardRefresh();
       },
 
       reloadEditorAfterExternalChange() {
@@ -3835,25 +3918,33 @@
         const prev = this._lastJobStatus;
         const incomingJobId = payload.job_id || null;
 
+        // Fast-path: pure log-line frames only buffer logs without cloning liveJob
+        // or triggering reactive re-renders across the Library file grid.
+        if (
+          this._isPureJobLogFrame(payload) &&
+          incomingJobId &&
+          incomingJobId === this._liveLogJobId
+        ) {
+          this._enqueueLiveLogLine(payload.log_line);
+          return;
+        }
+
         // Hydrate rolling ring buffer on reconnect snapshot or clear on new job
         if (Array.isArray(payload.recent_logs)) {
+          this._resetLiveLogBuffer();
           this._liveLogJobId = incomingJobId;
           this.liveLogs = payload.recent_logs.slice(-C.EDITOR.MAX_CLIENT_LOG_LINES);
-          this.$nextTick(() => this.scrollLogsToBottom(false));
+          if (this.showCliLogs) {
+            this.$nextTick(() => this.scrollLogsToBottom(false));
+          }
         } else if (incomingJobId && incomingJobId !== this._liveLogJobId) {
+          this._resetLiveLogBuffer();
           this._liveLogJobId = incomingJobId;
           this.liveLogs = [];
         }
 
         if (payload.log_line) {
-          this.liveLogs.push(payload.log_line);
-          if (this.liveLogs.length > C.EDITOR.MAX_CLIENT_LOG_LINES) {
-            this.liveLogs.splice(
-              0,
-              this.liveLogs.length - C.EDITOR.MAX_CLIENT_LOG_LINES
-            );
-          }
-          this.$nextTick(() => this.scrollLogsToBottom(false));
+          this._enqueueLiveLogLine(payload.log_line);
         }
 
         this.liveJob = { ...this.liveJob, ...payload };
@@ -3873,15 +3964,14 @@
           prev === C.STATUSES.RUNNING &&
           terminalStatuses.includes(payload.status)
         ) {
+          this._flushLiveLogs();
           this.jobsState = {
             ...this.jobsState,
             active: null,
           };
-          this.loadJobs();
-          this.loadDashboard();
-          if (this.route === C.ROUTES.LIBRARY) {
-            this.loadLibrary();
-          } else if (
+          this.loadJobs({ force: true });
+          this._scheduleLibraryAndDashboardRefresh();
+          if (
             this.route === C.ROUTES.EDITOR &&
             this.editorFile &&
             payload.filepath === this.editorFile.filepath &&
@@ -4372,6 +4462,15 @@
         const queryText = String(this.searchQuery || "").trim();
         const isSearching = Boolean(queryText);
         const includeFolderScope = this.isDirView && !isSearching;
+        // Search always runs recursively from root (/), and All Files is always root (/).
+        const activeFolder = includeFolderScope
+          ? FT.normalizeFolderPath(this.currentDir)
+          : "";
+        const targetScopeKey = includeFolderScope ? activeFolder : "__all__";
+        const isFolderChanged =
+          this._loadedLibraryFolderScope !== null &&
+          this._loadedLibraryFolderScope !== targetScopeKey;
+        const shouldClearStale = Boolean(clearStale || isFolderChanged);
 
         if (!silent) {
           this.libraryLoading = true;
@@ -4381,17 +4480,15 @@
           this.selectedFileIds = [];
           this.closeContextMenu();
         }
-        if (clearStale) {
+        if (shouldClearStale) {
           this.files = [];
           this.subfolders = [];
           this.otherFiles = [];
+          this.totalFiles = 0;
           this.totalPages = 0;
+          this._loadedLibraryFolderScope = null;
         }
         try {
-          // Search always runs recursively from root (/), and All Files is always root (/).
-          const activeFolder = includeFolderScope
-            ? FT.normalizeFolderPath(this.currentDir)
-            : "";
           const data = await Api.listFiles(
             {
               q: queryText,
@@ -4441,6 +4538,7 @@
           }
 
           this.appliedSearchQuery = queryText;
+          this._loadedLibraryFolderScope = targetScopeKey;
           this.files = data.items || [];
           if (preserveSelection && this.selectedFileIds.length > 0) {
             const visibleIds = new Set(this.files.map((item) => item.id));
@@ -4495,18 +4593,43 @@
         }
       },
 
-      async loadJobs() {
+      async loadJobs({ force = false } = {}) {
+        if (this._loadJobsPromise) {
+          if (force) {
+            this._loadJobsPendingRefresh = true;
+            await this._loadJobsPromise;
+            if (this._loadJobsPromise) {
+              return this._loadJobsPromise;
+            }
+            return;
+          }
+          return this._loadJobsPromise;
+        }
+        this._loadJobsPendingRefresh = false;
         this.jobsLoading = true;
         this.jobsError = null;
-        try {
-          this.jobsState = await Api.getJobs();
-          this._pruneBusySelection();
-        } catch (err) {
-          if (err && err.status === 401) return;
-          this.jobsError = err.message || "Failed to load jobs";
-        } finally {
-          this.jobsLoading = false;
-        }
+        let needsTrailingRefresh = false;
+        const promise = (async () => {
+          try {
+            this.jobsState = await Api.getJobs();
+            this._pruneBusySelection();
+          } catch (err) {
+            if (err && err.status === 401) return;
+            this.jobsError = err.message || "Failed to load jobs";
+          } finally {
+            this.jobsLoading = false;
+            needsTrailingRefresh = this._loadJobsPendingRefresh;
+            this._loadJobsPendingRefresh = false;
+            if (this._loadJobsPromise === promise) {
+              this._loadJobsPromise = null;
+            }
+          }
+          if (needsTrailingRefresh) {
+            await this.loadJobs({ force: false });
+          }
+        })();
+        this._loadJobsPromise = promise;
+        return promise;
       },
 
       _pruneBusySelection() {
@@ -6319,7 +6442,7 @@
           const payload = Ed.buildJobRequestPayload(this.editor, this.editorFile);
           await Api.createJob(payload);
           this.showToast(`Queued ${this.editorFile.filename}.`, "success");
-          await this.loadJobs();
+          this.loadJobs({ force: true });
           this.backToParentFolder();
           this.openJobsDrawer();
         } catch (err) {
@@ -6414,7 +6537,7 @@
         try {
           await Api.cancelJob(jobId);
           this.showToast("Cancellation requested.", "info");
-          await this.loadJobs();
+          await this.loadJobs({ force: true });
           this.loadDashboard();
         } catch (err) {
           this.showToast(err.message || "Failed to cancel job.", "error");
@@ -6442,7 +6565,7 @@
         try {
           await Api.deleteJobHistoryItem(jobId);
           this.confirmClearHistory = false;
-          await this.loadJobs();
+          await this.loadJobs({ force: true });
           this.loadDashboard();
         } catch (err) {
           this.showToast(err.message || "Failed to remove history item.", "error");
@@ -6460,7 +6583,7 @@
           const res = await Api.clearJobHistory();
           this.confirmClearHistory = false;
           this.expandedHistoryWarnings = {};
-          await this.loadJobs();
+          await this.loadJobs({ force: true });
           this.loadDashboard();
           const count = Number((res && res.deleted) || 0);
           this.showToast(
@@ -7304,7 +7427,7 @@
           }
           this.closeBatchModal();
           this.clearSelection();
-          await this.loadJobs();
+          this.loadJobs({ force: true });
           this.loadLibrary({ preserveSelection: false });
           this.loadDashboard();
           this.openJobsDrawer();
