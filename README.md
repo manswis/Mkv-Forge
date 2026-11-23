@@ -241,6 +241,16 @@ If **Local Sign-In** is enabled:
 
 ---
 
+## Development Transparency
+
+MKV Forge is built with LLM assistance. I design the architecture and features, manually review the code, and test changes against my own media library—backed by an automated suite of 700+ unit and integration tests (~87% backend line coverage). Everything is open-source, so you can inspect the code or build the Docker image yourself.
+
+## Privacy
+
+MKV Forge runs completely offline with zero telemetry and makes no outbound network calls at runtime. You can verify this in the source or run the container without internet egress (for example, behind a firewall blocking outbound traffic or on an `internal: true` Docker network behind your reverse proxy).
+
+---
+
 ## Legal & Liability Disclaimer
 
 **MKV Forge** is open-source software distributed under the **MIT License**.

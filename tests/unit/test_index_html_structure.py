@@ -267,6 +267,9 @@ class TestIndexHtmlStructure:
 
         # Factory Reset Danger Zone + plain-language alertdialog modal landmarks
         normalized_html = _normalize_ws(html)
+        assert "Development Transparency" in normalized_html
+        assert "MKV Forge is built with LLM assistance." in normalized_html
+        assert "makes no outbound network calls at runtime." in normalized_html
         assert "Danger Zone · Factory Reset" in normalized_html
         assert "openFactoryResetModal()" in html
         assert 'id="factory-reset-title"' in html

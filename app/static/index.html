@@ -4648,8 +4648,19 @@
                           </div>
                         </div>
 
-                        <!-- Terms & Conditions / Zero-Liability Covenant -->
+                        <!-- Development Transparency & Terms / Zero-Liability Covenant -->
                         <div class="space-y-3 text-xs leading-relaxed text-ink-secondary">
+                          <div class="rounded-ui-md border border-subtle bg-inset/60 p-3.5">
+                            <p class="font-semibold text-ink-primary">Development Transparency</p>
+                            <p class="mt-1 text-xs leading-relaxed text-ink-secondary">
+                              MKV Forge is built with LLM assistance. The architecture and features are designed by
+                              hand, code is manually reviewed, and changes are tested against real media
+                              libraries—backed by an automated suite of 700+ unit and integration tests (~87% backend
+                              line coverage). Everything is open-source, so you can inspect the code or build the Docker
+                              image yourself.
+                            </p>
+                          </div>
+
                           <div
                             class="rounded-ui-md border border-[var(--color-status-info-border)] bg-[var(--color-status-info-bg)] p-3.5">
                             <p class="font-semibold text-[var(--color-status-info)]">Deemed Consent by Continued Use
@@ -4727,10 +4738,14 @@
                               <p class="font-semibold text-ink-primary">5. 100% Offline, Private &amp; Self-Hosted
                                 Architecture</p>
                               <p class="text-xs text-ink-secondary">
-                                MKV Forge contains zero telemetry, zero analytics, zero external tracking, and zero
-                                remote cloud connectivity. All file indexing, audio transcoding, and remuxing execute
-                                exclusively inside your private container or host environment. The developer never
-                                accesses, hosts, intercepts, or controls your data.
+                                MKV Forge runs completely offline with zero telemetry, zero analytics, zero external
+                                tracking, and makes no outbound network calls at runtime. All file indexing, audio
+                                transcoding, and remuxing execute exclusively inside your private container or host
+                                environment—you can verify this in the source or run the container without internet
+                                egress (e.g. behind a firewall blocking outbound traffic or on an
+                                <code class="font-mono text-ink-primary">internal: true</code> Docker network behind
+                                your reverse proxy). The developer never accesses, hosts, intercepts, or controls your
+                                data.
                               </p>
                             </div>
 
