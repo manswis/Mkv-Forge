@@ -47,7 +47,7 @@
   <script defer src="/static/js/constants.js?v=0.1.0-p18.13"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/formatters.js?v=0.1.0-p17.7"></script>
+  <script defer src="/static/js/formatters.js?v=0.1.0-p18.17"></script>
   <script defer src="/static/js/api.js?v=0.1.0-p18.1"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p15.1"></script>
@@ -59,7 +59,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.12"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.14"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.17"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -985,10 +985,21 @@
               <template x-for="item in dashboard.recent_activity" :key="item.id">
                 <div class="ui-row flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                   <div class="min-w-0 flex-1">
-                    <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="item.filepath"
+                    <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="item.output_filepath || item.filepath"
                       x-text="Fmt.basenameOf(item.output_filepath || item.filepath)"></p>
-                    <p class="mt-0.5 min-w-0 truncate text-xs text-ink-muted"
-                      x-text="item.error_message || item.output_filepath || item.filepath"></p>
+                    <button type="button" @click="openJobFolder(item)"
+                      :title="`Open folder ${Fmt.resolveJobFolder(item)}`"
+                      :aria-label="`Open folder ${Fmt.resolveJobFolder(item)}`"
+                      class="mt-0.5 inline-flex max-w-full min-w-0 items-center gap-1 rounded-ui-sm py-0.5 font-mono text-xs text-ink-muted transition hover:text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                      <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z">
+                        </path>
+                      </svg>
+                      <span class="min-w-0 truncate" x-text="Fmt.resolveJobFolder(item)"></span>
+                    </button>
+                    <p x-show="item.error_message" class="mt-0.5 min-w-0 truncate text-xs text-[var(--color-status-err)]"
+                      :title="item.error_message" x-text="item.error_message"></p>
                   </div>
                   <div class="flex shrink-0 flex-col items-end gap-1">
                     <div class="flex items-center gap-2">
@@ -2920,10 +2931,17 @@
                       <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary"
                         :title="job.output_filepath || job.filepath"
                         x-text="Fmt.basenameOf(job.output_filepath || job.filepath)"></p>
-                      <p class="mt-0.5 min-w-0 truncate font-mono text-xs text-ink-muted"
-                        :title="job.output_filepath && job.output_filepath !== job.filepath ? `${job.filepath} → ${job.output_filepath}` : job.filepath"
-                        x-text="job.output_filepath && job.output_filepath !== job.filepath ? `/${job.filepath} → /${job.output_filepath}` : `/${job.filepath}`">
-                      </p>
+                      <button type="button" @click="openJobFolder(job)"
+                        :title="`Open folder ${Fmt.resolveJobFolder(job)}`"
+                        :aria-label="`Open folder ${Fmt.resolveJobFolder(job)}`"
+                        class="mt-0.5 inline-flex max-w-full min-w-0 items-center gap-1 rounded-ui-sm py-0.5 font-mono text-xs text-ink-muted transition hover:text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                        <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z">
+                          </path>
+                        </svg>
+                        <span class="min-w-0 truncate" x-text="Fmt.resolveJobFolder(job)"></span>
+                      </button>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
                       <button type="button" x-show="job.warnings && job.warnings.length > 0"
@@ -6056,10 +6074,19 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
                       <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary"
+                        :title="job.output_filepath || job.filepath"
                         x-text="Fmt.basenameOf(job.output_filepath || job.filepath)"></p>
-                      <p x-show="job.output_filepath && job.output_filepath !== job.filepath"
-                        class="mt-0.5 min-w-0 truncate font-mono text-xs text-ink-muted"
-                        x-text="`/${job.filepath} → /${job.output_filepath}`"></p>
+                      <button type="button" @click="openJobFolder(job)"
+                        :title="`Open folder ${Fmt.resolveJobFolder(job)}`"
+                        :aria-label="`Open folder ${Fmt.resolveJobFolder(job)}`"
+                        class="mt-0.5 inline-flex max-w-full min-w-0 items-center gap-1 rounded-ui-sm py-0.5 font-mono text-xs text-ink-muted transition hover:text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+                        <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z">
+                          </path>
+                        </svg>
+                        <span class="min-w-0 truncate" x-text="Fmt.resolveJobFolder(job)"></span>
+                      </button>
                     </div>
                     <div class="flex shrink-0 items-center gap-1.5">
                       <span class="ui-status capitalize"

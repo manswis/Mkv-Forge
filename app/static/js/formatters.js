@@ -142,6 +142,46 @@
     return idx >= 0 ? normalized.slice(idx + 1) : normalized;
   }
 
+  function folderOf(filepath) {
+    const rootPath =
+      (global.MKVForgeConstants &&
+        global.MKVForgeConstants.FOLDER_TREE &&
+        global.MKVForgeConstants.FOLDER_TREE.ROOT_PATH) ||
+      "/";
+    if (!filepath || typeof filepath !== "string") return rootPath;
+    const normalized = filepath
+      .replace(/\\/g, "/")
+      .trim()
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    if (!normalized) return rootPath;
+    const segments = normalized
+      .split("/")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && s !== ".");
+    if (segments.length <= 1) return rootPath;
+    return `/${segments.slice(0, -1).join("/")}`;
+  }
+
+  function resolveJobFolder(job) {
+    const rootPath =
+      (global.MKVForgeConstants &&
+        global.MKVForgeConstants.FOLDER_TREE &&
+        global.MKVForgeConstants.FOLDER_TREE.ROOT_PATH) ||
+      "/";
+    if (!job || typeof job !== "object") return rootPath;
+    const completedStatus =
+      (global.MKVForgeConstants &&
+        global.MKVForgeConstants.STATUSES &&
+        global.MKVForgeConstants.STATUSES.COMPLETED) ||
+      "completed";
+    const useOutput =
+      job.status === completedStatus &&
+      typeof job.output_filepath === "string" &&
+      job.output_filepath.trim().length > 0;
+    return folderOf(useOutput ? job.output_filepath : job.filepath);
+  }
+
   function fileExtensionLabel(filename) {
     const base = basenameOf(filename);
     const dotIdx = base.lastIndexOf(".");
@@ -209,6 +249,8 @@
     jobStatusBadgeClass,
     jobChangeBadgeClass,
     basenameOf,
+    folderOf,
+    resolveJobFolder,
     fileExtensionLabel,
     videoCodecTooltip,
     videoCodecBadgeClass,

@@ -192,7 +192,8 @@ class TestIndexHtmlStructure:
         assert "/static/css/app.css?v=0.1.0-p18.16" in html
         assert "/static/js/constants.js?v=0.1.0-p18.13" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
-        assert "/static/js/app.js?v=0.1.0-p18.14" in html
+        assert "/static/js/formatters.js?v=0.1.0-p18.17" in html
+        assert "/static/js/app.js?v=0.1.0-p18.17" in html
         assert "/static/js/batch.js?v=0.1.0-p18.12" in html
         assert html.index("/static/js/nav_history.js") < html.index("/static/js/app.js")
         assert "/static/js/charts.js?v=0.1.0-p17.7" in html
@@ -427,4 +428,8 @@ class TestIndexHtmlStructure:
         assert ms_html.index("toggleSelectAllPage()") < ms_html.index("clearSelection()") < ms_html.index("openBatchModalForSelection()") < ms_html.index("openDeleteSelectedFilesModal()")
         assert "order-2 ml-auto" in ms_html
         assert "lg:order-3" in ms_html
+
+        # Clickable job folder path appears across all 3 history surfaces (Dashboard, Jobs Page, Live Jobs Drawer)
+        assert html.count('openJobFolder(') == 3
+        assert html.count('Fmt.resolveJobFolder(') == 9  # title + aria-label + x-text x 3 surfaces
 

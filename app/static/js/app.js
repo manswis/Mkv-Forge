@@ -711,6 +711,7 @@
       _mobileNav: null,
       _mobileNavSyncQueued: false,
       _lastHandledNavHash: "",
+      _missingFolderFallbackOrigin: null,
 
       // Lifecycle initialization (idempotent: Alpine v3 auto-invokes init())
       init() {
@@ -3426,10 +3427,20 @@
         }
       },
 
+      openJobFolder(job) {
+        if (!job) return;
+        const targetFolder = Fmt.resolveJobFolder(job);
+        if (this.jobsDrawerOpen) {
+          this.closeJobsDrawer();
+        }
+        this.openFolderInLibrary(targetFolder);
+      },
+
       openFolderInLibrary(folderPath) {
         this.scanMenuOpen = false;
         this.closeContextMenu();
         this._clearLibraryReturnOrigin();
+        this._missingFolderFallbackOrigin = null;
         const normalized = FT.normalizeFolderPath(folderPath);
         this.libraryView = C.LIBRARY_VIEWS.DIR;
         try {
@@ -4412,12 +4423,21 @@
             FT.normalizeFolderPath(this.currentDir) !== C.FOLDER_TREE.ROOT_PATH
           ) {
             this._pendingLibraryReload = false;
+            if (!this._missingFolderFallbackOrigin) {
+              this._missingFolderFallbackOrigin = FT.normalizeFolderPath(this.currentDir);
+            }
+            this.goUpDirectory({ replace: true });
+            return;
+          }
+
+          if (this._missingFolderFallbackOrigin) {
+            const missingOrigin = this._missingFolderFallbackOrigin;
+            this._missingFolderFallbackOrigin = null;
+            const landed = FT.normalizeFolderPath(this.currentDir);
             this.showToast(
-              `Folder ${this.currentDir} no longer exists on disk.`,
+              `Folder ${missingOrigin} no longer exists — opened ${landed}.`,
               "info"
             );
-            this.goUpDirectory();
-            return;
           }
 
           this.appliedSearchQuery = queryText;
@@ -5584,24 +5604,27 @@
         }
       },
 
-      openDirectory(folderPath) {
+      openDirectory(folderPath, { replace = false } = {}) {
         this.folderBarMenuOpen = false;
         this._clearLibraryReturnOrigin();
+        if (!replace) {
+          this._missingFolderFallbackOrigin = null;
+        }
         const normalized = FT.normalizeFolderPath(folderPath);
         this.currentDir = normalized;
         this.page = C.PAGINATION.DEFAULT_PAGE;
         this.clearSelection();
         this.closeContextMenu();
-        this._syncUrlHash(false);
+        this._syncUrlHash(Boolean(replace));
         this.loadLibrary({ clearStale: true });
       },
 
-      goUpDirectory() {
+      goUpDirectory({ replace = false } = {}) {
         const normalized = FT.normalizeFolderPath(this.currentDir);
         if (normalized === C.FOLDER_TREE.ROOT_PATH) return;
         const idx = normalized.lastIndexOf("/");
         const parent = idx <= 0 ? C.FOLDER_TREE.ROOT_PATH : normalized.slice(0, idx);
-        this.openDirectory(parent);
+        this.openDirectory(parent, { replace });
       },
 
       // Unified Context Menu (File & Folder actions)
