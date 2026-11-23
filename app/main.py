@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
+from app.api.batch import router as batch_router
 from app.api.dashboard import router as dashboard_router
 from app.api.events import router as events_router
 from app.api.file_ops import router as file_ops_router
@@ -33,6 +34,7 @@ from app.db.repositories import (
     AuthRepository,
     JobRepository,
     MediaFileRepository,
+    TemplateRepository,
 )
 from app.logging_config import (
     configure_application_logging,
@@ -70,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     auth_service = AuthService(state_repo=state_repo, auth_repo=auth_repo)
     media_repo = MediaFileRepository(db_manager)
     job_repo = JobRepository(db_manager)
+    template_repo = TemplateRepository(db_manager)
     scanner = LibraryScanner(
         settings=resolved_settings,
         media_repo=media_repo,
@@ -170,6 +173,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.auth_service = auth_service
     application.state.media_repo = media_repo
     application.state.job_repo = job_repo
+    application.state.template_repo = template_repo
     application.state.scanner = scanner
     application.state.job_broker = job_broker
     application.state.job_worker = job_worker
@@ -191,6 +195,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(files_router)
     application.include_router(folders_router)
     application.include_router(scan_router)
+    application.include_router(batch_router)
     application.include_router(jobs_router)
     application.include_router(tools_router)
 

@@ -348,6 +348,35 @@
       requestJson(`${API.JOBS}/history`, {
         method: "DELETE",
       }),
+    previewBatchJobs: (payload) =>
+      requestJson(API.JOBS_BATCH_PREVIEW, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      }),
+    enqueueBatchJobs: (payload) =>
+      requestJson(API.JOBS_BATCH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      }),
+    listTemplates: () => requestJson(API.TEMPLATES),
+    createTemplate: (payload) =>
+      requestJson(API.TEMPLATES, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      }),
+    updateTemplate: (templateId, payload) =>
+      requestJson(`${API.TEMPLATES}/${encodeURIComponent(templateId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      }),
+    deleteTemplate: (templateId) =>
+      requestJson(`${API.TEMPLATES}/${encodeURIComponent(templateId)}`, {
+        method: "DELETE",
+      }),
     getSettings: () => requestJson(API.SETTINGS),
     updateSettings: (patch) =>
       requestJson(API.SETTINGS, {

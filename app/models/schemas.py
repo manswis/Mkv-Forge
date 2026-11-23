@@ -384,6 +384,7 @@ class RecentJobItem(BaseModel):
     created_at: str
     completed_at: str | None = None
     created_by_name: str = AppConstants.AUTH_ANONYMOUS_DISPLAY_NAME
+    batch_id: str | None = None
 
 
 class DashboardStats(BaseModel):
@@ -883,6 +884,7 @@ class JobItemResponse(BaseModel):
     created_at: str
     completed_at: str | None = None
     created_by_name: str = AppConstants.AUTH_ANONYMOUS_DISPLAY_NAME
+    batch_id: str | None = None
 
 
 class JobHistoryDeleteResponse(BaseModel):
@@ -1236,5 +1238,315 @@ class TestMediaGenerateResponse(BaseModel):
     container: str
     file_id: int | None = None
     warnings: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Phase 18: Rule-Based Batch Processing & Reusable Templates Schemas
+# ---------------------------------------------------------------------------
+
+
+class BatchContainerRule(BaseModel):
+    """Declarative container & track-naming cleanup rule for batch jobs and templates."""
+
+    model_config = ConfigDict(frozen=True)
+
+    title_action: Literal["clear", "keep"] = AppConstants.BATCH_TITLE_ACTION_CLEAR  # type: ignore[assignment]
+    strip_global_tags: bool = True
+    strip_track_tags: bool = True
+    strip_attachments: bool = False
+    strip_chapters: bool = False
+    smart_fill_track_names: bool = False
+
+
+class BatchAudioRule(BaseModel):
+    """Declarative audio selection & conversion rule across mixed files."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = True
+    source_language_mode: Literal["preferred", "first_audio", "custom"] = (
+        AppConstants.BATCH_AUDIO_LANG_MODE_PREFERRED  # type: ignore[assignment]
+    )
+    custom_source_language: str = Field(
+        default=AppConstants.DEFAULT_PREFERRED_LANGUAGE,
+        min_length=2,
+        max_length=16,
+    )
+    match_condition: Literal[
+        "incompatible_or_non_dolby",
+        "aac_51_only",
+        "any_non_target",
+    ] = AppConstants.BATCH_MATCH_INCOMPATIBLE_OR_NON_DOLBY  # type: ignore[assignment]
+    target_codec: Literal["eac3", "ac3", "aac", "opus", "flac"] = (
+        AppConstants.TARGET_CODEC_EAC3  # type: ignore[assignment]
+    )
+    target_channels: int | None = Field(
+        default=None,
+        ge=AppConstants.MIN_AUDIO_CHANNELS,
+        le=AppConstants.MAX_AUDIO_CHANNELS,
+    )
+    bitrate: str | None = AppConstants.DEFAULT_BITRATE
+    accept_existing_dolby: bool = True
+    set_as_default: bool = True
+    drop_source_track: bool = False
+
+
+class BatchTrackFilterRule(BaseModel):
+    """Declarative language retagging and track filtering rule."""
+
+    model_config = ConfigDict(frozen=True)
+
+    retag_und_audio_to_preferred: bool = False
+    retag_und_target_language: str = Field(
+        default=AppConstants.DEFAULT_LANGUAGE,
+        min_length=2,
+        max_length=16,
+    )
+    preferred_language: str = Field(
+        default=AppConstants.DEFAULT_PREFERRED_LANGUAGE,
+        min_length=2,
+        max_length=16,
+    )
+    keep_audio_mode: Literal["all", "preferred_only"] = (
+        AppConstants.BATCH_KEEP_TRACKS_ALL  # type: ignore[assignment]
+    )
+    keep_audio_languages: list[str] = Field(default_factory=list)
+    keep_subtitle_mode: Literal["all", "preferred_only", "none"] = (
+        AppConstants.BATCH_KEEP_TRACKS_ALL  # type: ignore[assignment]
+    )
+    keep_subtitle_languages: list[str] = Field(default_factory=list)
+
+
+class BatchRenameRule(BaseModel):
+    """Declarative batch filename pattern rule (with smart episode extraction)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool = False
+    pattern: str = Field(
+        default="",
+        max_length=AppConstants.BATCH_RENAME_MAX_PATTERN_LEN,
+    )
+    start_number: int = Field(
+        default=AppConstants.BATCH_RENAME_START_DEFAULT,
+        ge=AppConstants.BATCH_RENAME_MIN_START,
+        le=AppConstants.BATCH_RENAME_MAX_START,
+    )
+
+
+class BatchFileOverride(BaseModel):
+    """Per-file user chip & filename overrides applied on top of a declarative `BatchRuleSpec`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    audio_convert_enabled: bool | None = None
+    retag_und_enabled: bool | None = None
+    track_enabled: dict[int, bool] = Field(default_factory=dict)
+    clear_title: bool | None = None
+    strip_global_tags: bool | None = None
+    strip_track_tags: bool | None = None
+    strip_attachments: bool | None = None
+    strip_chapters: bool | None = None
+    smart_fill_track_names: bool | None = None
+    output_filename: str | None = Field(
+        default=None,
+        max_length=AppConstants.BATCH_RENAME_MAX_FILENAME_LEN,
+    )
+
+
+class BatchFileChip(BaseModel):
+    """Interactive per-file chip rendered in the Batch Dry-Run Preview list."""
+
+    model_config = ConfigDict(frozen=True)
+
+    chip_id: str
+    category: Literal["video", "audio", "subtitle", "tag"]
+    label: str
+    detail: str | None = None
+    diff_from: str | None = None
+    diff_to: str | None = None
+    selected: bool
+    default_selected: bool
+    overridden: bool = False
+    override_key: str
+    track_id: int | None = None
+    disabled: bool = False
+    disabled_reason: str | None = None
+
+
+class BatchRuleSpec(BaseModel):
+    """Unified file-agnostic rule specification for Batch Processing and Templates."""
+
+    model_config = ConfigDict(frozen=True)
+
+    container: BatchContainerRule = Field(default_factory=BatchContainerRule)
+    audio: BatchAudioRule = Field(default_factory=BatchAudioRule)
+    track_filter: BatchTrackFilterRule = Field(default_factory=BatchTrackFilterRule)
+    rename: BatchRenameRule = Field(default_factory=BatchRenameRule)
+    output_mode: Literal["keep_both", "replace", "save_as"] = (
+        AppConstants.DEFAULT_SETTINGS_OUTPUT_MODE  # type: ignore[assignment]
+    )
+    destination_folder: str | None = None
+    delete_original: bool = False
+
+
+class BatchPreviewRequest(BaseModel):
+    """Dry-run batch evaluation request (by explicit file_ids or folder path)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    file_ids: list[int] | None = Field(
+        default=None,
+        max_length=AppConstants.BATCH_MAX_FILES_PER_REQUEST,
+    )
+    folder: str | None = None
+    include_subfolders: bool = False
+    rule: BatchRuleSpec = Field(default_factory=BatchRuleSpec)
+    file_overrides: dict[int, BatchFileOverride] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_scope(self) -> "BatchPreviewRequest":
+        has_ids = bool(self.file_ids and len(self.file_ids) > 0)
+        has_folder = bool(self.folder and self.folder.strip())
+        if not has_ids and not has_folder:
+            raise ValueError("Either file_ids or folder must be provided")
+        return self
+
+
+class BatchFilePlan(BaseModel):
+    """Compiled per-file execution plan produced by `batch_compiler.py`."""
+
+    model_config = ConfigDict(frozen=True)
+
+    file_id: int
+    filepath: str
+    filename: str
+    folder: str
+    size_bytes: int
+    action: Literal[
+        "enqueue",
+        "skip_already_compliant",
+        "skip_active_job",
+        "skip_not_ready",
+        "skip_warning",
+    ]
+    stage_plan: Literal["transcode_and_remux", "remux_only", "none"]
+    reason: str
+    source_audio_summary: str | None = None
+    output_filename: str | None = None
+    output_rel_path: str | None = None
+    is_renamed: bool = False
+    collision_error: str | None = None
+    changes: list[JobChangeItem] = Field(default_factory=list)
+    chips: list[BatchFileChip] = Field(default_factory=list)
+    has_overrides: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    job_config: JobConfig | None = None
+
+
+class BatchInventorySummary(BaseModel):
+    """Selection X-Ray heterogeneity summary across the selected media files."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total_files: int = 0
+    total_bytes: int = 0
+    aac_51_count: int = 0
+    dolby_count: int = 0
+    other_audio_count: int = 0
+    has_metadata_count: int = 0
+    untagged_audio_count: int = 0
+    detected_majority_audio_language: str = AppConstants.DEFAULT_LANGUAGE
+    detected_audio_languages: list[str] = Field(default_factory=list)
+
+
+class BatchPreviewResponse(BaseModel):
+    """Complete Dry-Run Batch Preview matrix with disk-space check."""
+
+    model_config = ConfigDict(frozen=True)
+
+    batch_scope_label: str
+    inventory: BatchInventorySummary
+    items: list[BatchFilePlan] = Field(default_factory=list)
+    enqueue_count: int = 0
+    transcode_count: int = 0
+    remux_only_count: int = 0
+    skip_compliant_count: int = 0
+    skip_active_job_count: int = 0
+    skip_other_count: int = 0
+    collision_count: int = 0
+    disk_free_bytes: int = 0
+    disk_required_bytes: int = 0
+    disk_space_ok: bool = True
+    disk_space_warning: str | None = None
+
+
+class BatchEnqueueRequest(BaseModel):
+    """Payload for POST /api/jobs/batch to enqueue compiled jobs."""
+
+    model_config = ConfigDict(frozen=True)
+
+    file_ids: list[int] = Field(
+        min_length=1,
+        max_length=AppConstants.BATCH_MAX_FILES_PER_REQUEST,
+    )
+    excluded_file_ids: list[int] = Field(
+        default_factory=list,
+        max_length=AppConstants.BATCH_MAX_FILES_PER_REQUEST,
+    )
+    rule: BatchRuleSpec = Field(default_factory=BatchRuleSpec)
+    file_overrides: dict[int, BatchFileOverride] = Field(default_factory=dict)
+
+
+class BatchEnqueueResponse(BaseModel):
+    """Outcome payload returned by POST /api/jobs/batch."""
+
+    model_config = ConfigDict(frozen=True)
+
+    batch_id: str
+    enqueued_count: int
+    skipped_count: int
+    enqueued_jobs: list[JobItemResponse] = Field(default_factory=list)
+    skipped_items: list[BatchFilePlan] = Field(default_factory=list)
+
+
+class JobTemplateResponse(BaseModel):
+    """Reusable batch/editor template (built-in or user-saved)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    template_id: int | None = None
+    name: str
+    description: str = ""
+    is_builtin: bool = False
+    rule: BatchRuleSpec
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class JobTemplateListResponse(BaseModel):
+    """List of built-in starter templates and user-saved templates."""
+
+    model_config = ConfigDict(frozen=True)
+
+    templates: list[JobTemplateResponse] = Field(default_factory=list)
+
+
+class JobTemplateUpsertRequest(BaseModel):
+    """Create or update a user-saved batch/editor template."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str = Field(
+        min_length=AppConstants.TEMPLATE_MIN_NAME_LEN,
+        max_length=AppConstants.TEMPLATE_MAX_NAME_LEN,
+    )
+    description: str = Field(
+        default="",
+        max_length=AppConstants.TEMPLATE_MAX_DESCRIPTION_LEN,
+    )
+    rule: BatchRuleSpec
+
 
 

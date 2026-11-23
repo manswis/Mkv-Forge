@@ -59,13 +59,23 @@ CREATE TABLE IF NOT EXISTS jobs (
     created_at TEXT NOT NULL,
     completed_at TEXT,
     created_by_user_id INTEGER,
-    created_by_name TEXT NOT NULL DEFAULT 'Anonymous'
+    created_by_name TEXT NOT NULL DEFAULT 'Anonymous',
+    batch_id TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_filepath
     ON jobs(filepath);
 CREATE INDEX IF NOT EXISTS idx_jobs_status
     ON jobs(status);
+
+CREATE TABLE IF NOT EXISTS job_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    rule_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,6 +185,9 @@ class DatabaseManager:
             conn.execute(
                 "ALTER TABLE jobs ADD COLUMN created_by_name TEXT NOT NULL DEFAULT 'Anonymous'"
             )
+        if "batch_id" not in job_cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN batch_id TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_batch_id ON jobs(batch_id)")
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:

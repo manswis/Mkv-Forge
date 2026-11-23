@@ -273,6 +273,66 @@ class MediaFileRepository:
             ).fetchone()
         return None if row is None else dict(row)
 
+    def list_by_ids(self, file_ids: Iterable[int]) -> list[dict[str, Any]]:
+        """Return full media_files rows (with raw_json) for `file_ids` preserving input order."""
+        ordered_ids = list(dict.fromkeys(int(fid) for fid in file_ids))
+        if not ordered_ids:
+            return []
+        placeholders = ", ".join("?" for _ in ordered_ids)
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM media_files WHERE id IN ({placeholders})",
+                ordered_ids,
+            ).fetchall()
+        by_id = {int(row["id"]): dict(row) for row in rows}
+        return [by_id[fid] for fid in ordered_ids if fid in by_id]
+
+    def list_by_folder_scope(
+        self,
+        display_folder: str,
+        *,
+        include_subfolders: bool = False,
+        limit: int = AppConstants.BATCH_MAX_FILES_PER_REQUEST,
+    ) -> list[dict[str, Any]]:
+        """Return full media_files rows inside `display_folder` sorted by filename."""
+        norm = f"/{display_folder.strip('/')}" if display_folder.strip("/") else "/"
+        safe_limit = max(1, min(AppConstants.BATCH_MAX_FILES_PER_REQUEST, int(limit)))
+        with self._db.connect() as conn:
+            if not include_subfolders:
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM media_files
+                    WHERE folder = ?
+                    ORDER BY filename COLLATE NOCASE ASC, id ASC
+                    LIMIT ?
+                    """,
+                    (norm, safe_limit),
+                ).fetchall()
+            elif norm == "/":
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM media_files
+                    ORDER BY folder COLLATE NOCASE ASC, filename COLLATE NOCASE ASC, id ASC
+                    LIMIT ?
+                    """,
+                    (safe_limit,),
+                ).fetchall()
+            else:
+                prefix_pattern = f"{_escape_like(norm)}/%"
+                rows = conn.execute(
+                    """
+                    SELECT *
+                    FROM media_files
+                    WHERE folder = ? OR folder LIKE ? ESCAPE '\\'
+                    ORDER BY folder COLLATE NOCASE ASC, filename COLLATE NOCASE ASC, id ASC
+                    LIMIT ?
+                    """,
+                    (norm, prefix_pattern, safe_limit),
+                ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_by_filepath(self, filepath: str) -> dict[str, Any] | None:
         """Return full media_files row including raw_json by unique filepath."""
         with self._db.connect() as conn:
@@ -1407,7 +1467,7 @@ class JobRepository:
     _JOB_COLUMNS: str = """
         id, filepath, output_filepath, status, config_json, stage, progress,
         warnings_json, error_message, created_at, completed_at,
-        created_by_user_id, created_by_name
+        created_by_user_id, created_by_name, batch_id
     """
 
     def __init__(self, db: DatabaseManager) -> None:
@@ -1421,6 +1481,7 @@ class JobRepository:
         config_json: str,
         created_by_user_id: int | None = None,
         created_by_name: str = AppConstants.AUTH_ANONYMOUS_DISPLAY_NAME,
+        batch_id: str | None = None,
     ) -> dict[str, Any]:
         """Insert a new queued job row and return it."""
         now = utc_now_iso()
@@ -1435,9 +1496,9 @@ class JobRepository:
                 INSERT INTO jobs (
                     id, filepath, output_filepath, status, config_json,
                     stage, progress, warnings_json, error_message,
-                    created_at, completed_at, created_by_user_id, created_by_name
+                    created_at, completed_at, created_by_user_id, created_by_name, batch_id
                 )
-                VALUES (?, ?, NULL, ?, ?, NULL, 0, NULL, NULL, ?, NULL, ?, ?)
+                VALUES (?, ?, NULL, ?, ?, NULL, 0, NULL, NULL, ?, NULL, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -1447,6 +1508,7 @@ class JobRepository:
                     now,
                     created_by_user_id,
                     author_name,
+                    batch_id,
                 ),
             )
             row = conn.execute(
@@ -1455,6 +1517,22 @@ class JobRepository:
             ).fetchone()
         assert row is not None
         return dict(row)
+
+    def list_active_filepaths(self) -> set[str]:
+        """Return set of filepaths that currently have a `queued` or `running` job."""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT filepath
+                FROM jobs
+                WHERE status IN (?, ?)
+                """,
+                (
+                    AppConstants.JOB_STATUS_QUEUED,
+                    AppConstants.JOB_STATUS_RUNNING,
+                ),
+            ).fetchall()
+        return {str(row["filepath"]) for row in rows if row["filepath"]}
 
     def get_by_id(self, job_id: str) -> dict[str, Any] | None:
         """Fetch a single job row by UUID."""
@@ -1809,7 +1887,7 @@ class JobRepository:
             rows = conn.execute(
                 """
                 SELECT id, filepath, output_filepath, status, stage, progress,
-                       error_message, created_at, completed_at, created_by_name
+                       error_message, created_at, completed_at, created_by_name, batch_id
                 FROM jobs
                 ORDER BY created_at DESC, rowid DESC
                 LIMIT ?
@@ -1817,6 +1895,102 @@ class JobRepository:
                 (safe_limit,),
             ).fetchall()
         return [dict(row) for row in rows]
+
+
+class TemplateRepository:
+    """SQLite persistence for user-saved reusable batch/editor templates."""
+
+    _TEMPLATE_COLUMNS: str = """
+        id, name, description, rule_json, created_at, updated_at
+    """
+
+    def __init__(self, db: DatabaseManager) -> None:
+        self._db = db
+
+    def list_templates(self) -> list[dict[str, Any]]:
+        """Return all user-created templates ordered by name ascending."""
+        with self._db.connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT {self._TEMPLATE_COLUMNS}
+                FROM job_templates
+                ORDER BY name COLLATE NOCASE ASC, id ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_by_id(self, template_id: int) -> dict[str, Any] | None:
+        """Fetch one user template by integer primary key."""
+        with self._db.connect() as conn:
+            row = conn.execute(
+                f"SELECT {self._TEMPLATE_COLUMNS} FROM job_templates WHERE id = ?",
+                (template_id,),
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    def create_template(
+        self,
+        *,
+        name: str,
+        description: str,
+        rule_json: str,
+    ) -> dict[str, Any]:
+        """Insert a new user template and return the created row."""
+        now = utc_now_iso()
+        clean_name = name.strip()
+        clean_desc = description.strip()
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO job_templates (name, description, rule_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (clean_name, clean_desc, rule_json, now, now),
+            )
+            row = conn.execute(
+                f"SELECT {self._TEMPLATE_COLUMNS} FROM job_templates WHERE id = ?",
+                (int(cursor.lastrowid),),
+            ).fetchone()
+        assert row is not None
+        return dict(row)
+
+    def update_template(
+        self,
+        template_id: int,
+        *,
+        name: str,
+        description: str,
+        rule_json: str,
+    ) -> dict[str, Any] | None:
+        """Update an existing user template and return the updated row, or None."""
+        now = utc_now_iso()
+        clean_name = name.strip()
+        clean_desc = description.strip()
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE job_templates
+                SET name = ?, description = ?, rule_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (clean_name, clean_desc, rule_json, now, template_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+            row = conn.execute(
+                f"SELECT {self._TEMPLATE_COLUMNS} FROM job_templates WHERE id = ?",
+                (template_id,),
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    def delete_template(self, template_id: int) -> bool:
+        """Delete a user template by ID; returns True if deleted."""
+        with self._db.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM job_templates WHERE id = ?",
+                (template_id,),
+            )
+            return cursor.rowcount > 0
 
 
 class AuthRepository:

@@ -698,6 +698,97 @@ class AppConstants:
     TEST_MEDIA_MIN_FREE_BYTES: int = 50 * 1024 * 1024  # 50 MiB safety floor
     TEST_MEDIA_MAX_FILENAME_LEN: int = 120
 
+    # Phase 18: Batch Processing & Reusable Templates constants (zero magic numbers)
+    BATCH_MAX_FILES_PER_REQUEST: int = 500
+    BATCH_ID_PREFIX: str = "batch_"
+    BATCH_ID_HEX_LEN: int = 10
+    TEMPLATE_MIN_NAME_LEN: int = 1
+    TEMPLATE_MAX_NAME_LEN: int = 64
+    TEMPLATE_MAX_DESCRIPTION_LEN: int = 200
+    BATCH_TITLE_ACTION_CLEAR: str = "clear"
+    BATCH_TITLE_ACTION_KEEP: str = "keep"
+    BATCH_AUDIO_LANG_MODE_PREFERRED: str = "preferred"
+    BATCH_AUDIO_LANG_MODE_FIRST: str = "first_audio"
+    BATCH_AUDIO_LANG_MODE_CUSTOM: str = "custom"
+    BATCH_MATCH_INCOMPATIBLE_OR_NON_DOLBY: str = "incompatible_or_non_dolby"
+    BATCH_MATCH_AAC51_ONLY: str = "aac_51_only"
+    BATCH_MATCH_ANY_NON_TARGET: str = "any_non_target"
+    BATCH_KEEP_TRACKS_ALL: str = "all"
+    BATCH_KEEP_TRACKS_PREFERRED: str = "preferred_only"
+    BATCH_KEEP_SUBS_NONE: str = "none"
+    BATCH_PLAN_ACTION_ENQUEUE: str = "enqueue"
+    BATCH_PLAN_ACTION_SKIP_COMPLIANT: str = "skip_already_compliant"
+    BATCH_PLAN_ACTION_SKIP_ACTIVE_JOB: str = "skip_active_job"
+    BATCH_PLAN_ACTION_SKIP_NOT_READY: str = "skip_not_ready"
+    BATCH_PLAN_ACTION_SKIP_WARNING: str = "skip_warning"
+    BATCH_STAGE_TRANSCODE_AND_REMUX: str = "transcode_and_remux"
+    BATCH_STAGE_REMUX_ONLY: str = "remux_only"
+    BATCH_STAGE_NONE: str = "none"
+    BATCH_CHIP_CAT_VIDEO: str = "video"
+    BATCH_CHIP_CAT_AUDIO: str = "audio"
+    BATCH_CHIP_CAT_SUBTITLE: str = "subtitle"
+    BATCH_CHIP_CAT_TAG: str = "tag"
+    BATCH_OVERRIDE_TRACK_ENABLED: str = "track_enabled"
+    BATCH_OVERRIDE_AUDIO_CONVERT: str = "audio_convert_enabled"
+    BATCH_OVERRIDE_RETAG_UND: str = "retag_und_enabled"
+    BATCH_OVERRIDE_CLEAR_TITLE: str = "clear_title"
+    BATCH_OVERRIDE_STRIP_GLOBAL_TAGS: str = "strip_global_tags"
+    BATCH_OVERRIDE_STRIP_TRACK_TAGS: str = "strip_track_tags"
+    BATCH_OVERRIDE_STRIP_ATTACHMENTS: str = "strip_attachments"
+    BATCH_OVERRIDE_STRIP_CHAPTERS: str = "strip_chapters"
+    BATCH_OVERRIDE_SMART_FILL_NAMES: str = "smart_fill_track_names"
+    BATCH_OVERRIDE_OUTPUT_FILENAME: str = "output_filename"
+    BATCH_RENAME_START_DEFAULT: int = 1
+    BATCH_RENAME_MIN_START: int = 0
+    BATCH_RENAME_MAX_START: int = 9999
+    BATCH_RENAME_MAX_PATTERN_LEN: int = 180
+    BATCH_RENAME_MAX_FILENAME_LEN: int = 220
+    BATCH_RENAME_PAD_DIGITS_2: int = 2
+    BATCH_RENAME_PAD_DIGITS_3: int = 3
+    BATCH_RENAME_PAD_THRESHOLD_3: int = 100
+    ISO_LANG_ALIAS_MAP: Mapping[str, str] = {
+        "en": "eng",
+        "eng": "eng",
+        "hi": "hin",
+        "hin": "hin",
+        "bn": "ben",
+        "ben": "ben",
+        "ja": "jpn",
+        "jpn": "jpn",
+        "es": "spa",
+        "spa": "spa",
+        "fr": "fra",
+        "fra": "fra",
+        "fre": "fra",
+        "de": "deu",
+        "deu": "deu",
+        "ger": "deu",
+        "ko": "kor",
+        "kor": "kor",
+        "zh": "zho",
+        "zho": "zho",
+        "chi": "zho",
+        "it": "ita",
+        "ita": "ita",
+        "ru": "rus",
+        "rus": "rus",
+        "pt": "por",
+        "por": "por",
+        "ta": "tam",
+        "tam": "tam",
+        "te": "tel",
+        "tel": "tel",
+        "ml": "mal",
+        "mal": "mal",
+        "kn": "kan",
+        "kan": "kan",
+        "mr": "mar",
+        "mar": "mar",
+        "ar": "ara",
+        "ara": "ara",
+        "und": "und",
+    }
+
     STATIC_ROUTE_PREFIX: str = "/static"
     STATIC_REVALIDATE_PREFIXES: tuple[str, ...] = ("/static/js/", "/static/css/")
     CACHE_CONTROL_HEADER: str = "Cache-Control"

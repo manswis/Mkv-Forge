@@ -180,6 +180,210 @@ class TestFileInfoEndpointAndModal:
         assert out["sr441"] == "44.1 kHz"
         assert out["srNull"] == "—"
 
+    async def test_context_menu_process_opens_editor_and_guards_locked_or_invalid_files(
+        self, api_client: httpx.AsyncClient
+    ) -> None:
+        html = (await api_client.get("/")).text
+        assert "runContextMenuAction('info')" in html
+        assert "runContextMenuAction('process')" in html
+        assert "openFileInfoModal(file)" in html
+
+        js_dir = Path(__file__).resolve().parents[2] / "app" / "static" / "js"
+        script = f"""
+        const fs = require("fs");
+        const vm = require("vm");
+        const fetchCalls = [];
+        const ctx = {{
+          console, setTimeout, clearTimeout,
+          setInterval: () => 1, clearInterval: () => {{}},
+          URL, URLSearchParams, AbortController,
+          EventSource: function() {{ this.addEventListener = () => {{}}; this.close = () => {{}}; }},
+          localStorage: {{ getItem: () => null, setItem: () => {{}} }},
+          location: {{ hash: "#/library", origin: "http://localhost" }},
+          history: {{ replaceState: () => {{}} }},
+          document: {{ visibilityState: "visible", readyState: "loading", addEventListener: () => {{}} }},
+          addEventListener: () => {{}},
+          innerWidth: 1440, innerHeight: 900,
+          fetch: async (url) => {{
+            fetchCalls.push(url);
+            return {{ ok: true, status: 200, json: async () => ({{ id: 7, filename: "Ready.mkv", filepath: "Ready.mkv", container: {{ container_type: "Matroska" }}, video_tracks: [], audio_tracks: [], subtitle_tracks: [], other_tracks: [], attachments: [], warnings: [] }}) }};
+          }},
+        }};
+        ctx.window = ctx;
+        vm.createContext(ctx);
+        for (const f of ["constants.js", "formatters.js", "api.js", "folder_tree.js", "editor.js", "toast_stack.js", "app.js"]) {{
+          vm.runInContext(fs.readFileSync({json.dumps(str(js_dir))} + "/" + f, "utf8"), ctx, {{ filename: f }});
+        }}
+        const app = ctx.mkvForgeApp();
+        app.route = "library";
+
+        // 1. Positive: context menu Process on ready file opens MKV Editor
+        const readyFile = {{ id: 7, filepath: "movies/Ready.mkv", filename: "Ready.mkv", scan_status: "ready" }};
+        app.contextMenu = {{ kind: "file", file: readyFile, title: readyFile.filename }};
+        app.runContextMenuAction("process");
+        const hashAfterReadyProcess = ctx.location.hash;
+
+        // 2. Negative: context menu Process on busy file is blocked with toast
+        ctx.location.hash = "#/library";
+        const busyFile = {{ id: 8, filepath: "movies/Busy.mkv", filename: "Busy.mkv", scan_status: "ready" }};
+        app.liveJob = {{ ...app.liveJob, status: "running", job_id: "j8", filepath: "movies/Busy.mkv", percent: 42 }};
+        app.contextMenu = {{ kind: "file", file: busyFile, title: busyFile.filename }};
+        app.runContextMenuAction("process");
+        const hashAfterBusyProcess = ctx.location.hash;
+        const busyToastCount = app.toasts.length;
+
+        // 3. Negative: context menu Process on scanning file is blocked
+        const scanningFile = {{ id: 9, filepath: "movies/Scan.mkv", filename: "Scan.mkv", scan_status: "scanning" }};
+        app.contextMenu = {{ kind: "file", file: scanningFile, title: scanningFile.filename }};
+        app.runContextMenuAction("process");
+        const hashAfterScanningProcess = ctx.location.hash;
+
+        // 4. Negative: context menu Process on scan-error file is blocked
+        const errorFile = {{ id: 10, filepath: "movies/Err.mkv", filename: "Err.mkv", scan_status: "error" }};
+        app.contextMenu = {{ kind: "file", file: errorFile, title: errorFile.filename }};
+        app.runContextMenuAction("process");
+        const hashAfterErrorProcess = ctx.location.hash;
+
+        // 5. Negative: tapping scanning/error/null files to open Info modal safely blocks without fetching
+        app.openFileInfoModal(null);
+        app.openFileInfoModal({{}});
+        app.openFileInfoModal(scanningFile);
+        app.openFileInfoModal(errorFile);
+        const modalAfterGuardedCalls = app.infoModal;
+        const fetchesAfterGuardedCalls = fetchCalls.length;
+
+        // 6. Positive: tapping ready file opens Info modal and fetches /api/files/7/info
+        app.openFileInfoModal(readyFile);
+        setTimeout(() => {{
+          console.log(JSON.stringify({{
+            hashAfterReadyProcess,
+            hashAfterBusyProcess,
+            busyToastCount,
+            hashAfterScanningProcess,
+            hashAfterErrorProcess,
+            modalAfterGuardedCalls,
+            fetchesAfterGuardedCalls,
+            modalOpenAfterReady: app.infoModal !== null,
+            loadedIdAfterReady: app.infoModal && app.infoModal.data ? app.infoModal.data.id : null,
+            fetchCalls,
+          }}));
+        }}, 50);
+        """
+        proc = subprocess.run(
+            ["node", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        out = json.loads(proc.stdout)
+        assert out["hashAfterReadyProcess"] == "#/files/7"
+        assert out["hashAfterBusyProcess"] == "#/library"
+        assert out["busyToastCount"] >= 1
+        assert out["hashAfterScanningProcess"] == "#/library"
+        assert out["hashAfterErrorProcess"] == "#/library"
+        assert out["modalAfterGuardedCalls"] is None
+        assert out["fetchesAfterGuardedCalls"] == 0
+        assert out["modalOpenAfterReady"] is True
+        assert out["loadedIdAfterReady"] == 7
+        assert out["fetchCalls"] == ["/api/files/7/info"]
+
+    async def test_touch_long_press_select_mode_ghost_click_scroll_cancel_and_context_menu(
+        self, api_client: httpx.AsyncClient
+    ) -> None:
+        html = (await api_client.get("/")).text
+        assert "startFileLongPress(file, $event)" in html
+        assert "onFileTileClick(file)" in html
+
+        js_dir = Path(__file__).resolve().parents[2] / "app" / "static" / "js"
+        script = f"""
+        const fs = require("fs");
+        const vm = require("vm");
+        const fetchCalls = [];
+        const ctx = {{
+          console, setTimeout, clearTimeout,
+          setInterval: () => 1, clearInterval: () => {{}},
+          URL, URLSearchParams, AbortController,
+          EventSource: function() {{ this.addEventListener = () => {{}}; this.close = () => {{}}; }},
+          localStorage: {{ getItem: () => null, setItem: () => {{}} }},
+          location: {{ hash: "#/library", origin: "http://localhost" }},
+          history: {{ replaceState: () => {{}} }},
+          document: {{ visibilityState: "visible", readyState: "loading", addEventListener: () => {{}} }},
+          addEventListener: () => {{}},
+          innerWidth: 390, innerHeight: 844,
+          fetch: async (url) => {{
+            fetchCalls.push(url);
+            return {{ ok: true, status: 200, json: async () => ({{ id: 1, filename: "A.mkv", filepath: "A.mkv", container: {{ container_type: "Matroska" }}, video_tracks: [], audio_tracks: [], subtitle_tracks: [], other_tracks: [], attachments: [], warnings: [] }}) }};
+          }},
+        }};
+        ctx.window = ctx;
+        vm.createContext(ctx);
+        for (const f of ["constants.js", "formatters.js", "api.js", "folder_tree.js", "editor.js", "toast_stack.js", "app.js"]) {{
+          vm.runInContext(fs.readFileSync({json.dumps(str(js_dir))} + "/" + f, "utf8"), ctx, {{ filename: f }});
+        }}
+        const app = ctx.mkvForgeApp();
+        const file1 = {{ id: 1, filepath: "A.mkv", filename: "A.mkv", scan_status: "ready" }};
+        const file2 = {{ id: 2, filepath: "B.mkv", filename: "B.mkv", scan_status: "ready" }};
+        app.files = [file1, file2];
+
+        (async () => {{
+          // 1. Scroll-safe cancellation: moving > 10px during touch cancels long-press
+          app.startFileLongPress(file1, {{ touches: [{{ clientX: 100, clientY: 100 }}] }});
+          app.moveFileLongPress({{ touches: [{{ clientX: 100, clientY: 118 }}] }});
+          await new Promise((r) => setTimeout(r, 430));
+          const modeAfterScrollCancel = app.mobileSelectMode;
+          const selectedAfterScrollCancel = [...app.selectedFileIds];
+          app.endFileLongPress();
+
+          // 2. Clean 400ms long-press enters mobileSelectMode, selects file1, suppresses touch contextmenu & trailing ghost click!
+          app.startFileLongPress(file1, {{ touches: [{{ clientX: 100, clientY: 100 }}] }});
+          app.handleFileCardContextMenu(file1, {{ clientX: 100, clientY: 100 }});
+          const contextMenuDuringTouch = app.contextMenu;
+          await new Promise((r) => setTimeout(r, 430));
+          app.endFileLongPress();
+          // Trailing ghost click fired by mobile browser right after touchend
+          app.onFileTileClick(file1);
+          const modeAfterLongPress = app.mobileSelectMode;
+          const selectedAfterGhostClick = [...app.selectedFileIds];
+          const infoModalAfterGhostClick = app.infoModal;
+
+          // 3. Subsequent normal tap on file2 in select mode selects file2
+          app.onFileTileClick(file2);
+          const selectedAfterSecondTap = [...app.selectedFileIds];
+
+          // 4. Desktop mouse right-click (outside touch suppress window) opens context menu normally
+          app._suppressClickUntilMs = 0;
+          app._touchPressActive = false;
+          app.handleFileCardContextMenu(file1, {{ clientX: 120, clientY: 120, pointerType: "mouse" }});
+          const desktopContextMenuOpened = Boolean(app.contextMenu && app.contextMenu.kind === "file");
+
+          console.log(JSON.stringify({{
+            modeAfterScrollCancel,
+            selectedAfterScrollCancel,
+            contextMenuDuringTouch,
+            modeAfterLongPress,
+            selectedAfterGhostClick,
+            infoModalAfterGhostClick,
+            selectedAfterSecondTap,
+            desktopContextMenuOpened,
+          }}));
+        }})();
+        """
+        proc = subprocess.run(
+            ["node", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        out = json.loads(proc.stdout)
+        assert out["modeAfterScrollCancel"] is False
+        assert out["selectedAfterScrollCancel"] == []
+        assert out["contextMenuDuringTouch"] is None
+        assert out["modeAfterLongPress"] is True
+        assert out["selectedAfterGhostClick"] == [1]
+        assert out["infoModalAfterGhostClick"] is None
+        assert out["selectedAfterSecondTap"] == [1, 2]
+        assert out["desktopContextMenuOpened"] is True
+
     async def test_editor_attachment_and_tag_inspection_and_selective_removal(
         self, api_app, api_client: httpx.AsyncClient
     ) -> None:

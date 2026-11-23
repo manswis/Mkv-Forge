@@ -71,6 +71,7 @@ def _row_to_job_item(row: dict[str, Any]) -> JobItemResponse:
         created_by_name=str(
             row.get("created_by_name") or AppConstants.AUTH_ANONYMOUS_DISPLAY_NAME
         ),
+        batch_id=str(row["batch_id"]) if row.get("batch_id") else None,
     )
 
 

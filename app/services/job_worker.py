@@ -247,6 +247,7 @@ class JobWorker:
         config: JobConfig,
         created_by_user_id: int | None = None,
         created_by_name: str = AppConstants.AUTH_ANONYMOUS_DISPLAY_NAME,
+        batch_id: str | None = None,
     ) -> dict[str, Any]:
         """Validate path, enforce duplicate guard, persist queued job, and wake worker."""
         resolved = safe_resolve_path(filepath, self._settings.storage_dir)
@@ -266,6 +267,7 @@ class JobWorker:
             config_json=config.model_dump_json(),
             created_by_user_id=created_by_user_id,
             created_by_name=created_by_name,
+            batch_id=batch_id,
         )
         self._wake_event.set()
         return row

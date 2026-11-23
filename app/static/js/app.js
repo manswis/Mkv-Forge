@@ -7,6 +7,7 @@
   const Ed = global.MKVForgeEditor;
   const FT = global.MKVForgeFolderTree;
   const TS = global.MKVForgeToastStack;
+  const NavHistory = global.MKVForgeNavHistory || null;
   const PP = global.MKVForgePlaybackProfile || {
     PRESETS: [],
     CODEC_OPTIONS: [],
@@ -64,6 +65,11 @@
       estimatedDurationSec: 16.5,
     }),
     buildTestMediaPayload: (d) => d,
+  };
+  const Batch = global.MKVForgeBatch || {
+    createDefaultBatchRule: () => ({}),
+    cloneBatchRule: (r) => r || {},
+    formatPlanStageBadge: () => ({ label: "Pending", statusClass: "ui-tag" }),
   };
   const Theme = global.MKVForgeTheme || {
     normalizeThemeMode: (m) => m || "dark",
@@ -640,6 +646,12 @@
       testMediaError: null,
       testMediaResult: null,
 
+      // Phase 18: Batch Studio & Reusable Templates modal state
+      batchModal: null,
+      batchTemplates: [],
+      _batchPreviewTimer: null,
+      _batchPreviewSeq: 0,
+
       // Scan SSE state
       scanTriggering: false,
       scanProgress: {
@@ -696,19 +708,47 @@
       _eventStream: null,
       _hiddenCloseTimer: null,
       _libraryAbortController: null,
+      _mobileNav: null,
+      _mobileNavSyncQueued: false,
+      _lastHandledNavHash: "",
 
       // Lifecycle initialization (idempotent: Alpine v3 auto-invokes init())
       init() {
         if (this._initialized) return;
         this._initialized = true;
+        this._mobileNav = NavHistory
+          ? NavHistory.createMobileNavManager({ win: window })
+          : null;
         this._applyHashState(window.location.hash, false);
         if (!window.location.hash) {
           this._syncUrlHash(true);
+        } else if (
+          this.route === C.ROUTES.LIBRARY &&
+          this.isDirView &&
+          this.currentDir !== C.FOLDER_TREE.ROOT_PATH
+        ) {
+          this._seedMobileFolderAncestors(this.currentDir, true);
         }
+        this._lastHandledNavHash = window.location.hash;
+
+        window.addEventListener("popstate", (event) => {
+          this._handlePopState(event);
+        });
 
         window.addEventListener("hashchange", () => {
+          if (window.location.hash === this._lastHandledNavHash) return;
+          this._lastHandledNavHash = window.location.hash;
           this._applyHashState(window.location.hash, true);
         });
+
+        if (typeof this.$watch === "function") {
+          this.$watch(
+            () => this._computeActiveMobileNavLayers().join("|"),
+            () => {
+              this._scheduleMobileNavSync();
+            }
+          );
+        }
 
         window.addEventListener("keydown", (event) => {
           if (event.key === "Escape") {
@@ -728,6 +768,8 @@
               this.newFolderModal = null;
             } else if (this.folderPickerOpen) {
               this.closeFolderPicker();
+            } else if (this.batchModal) {
+              this.closeBatchModal();
             } else if (this.testMediaModalOpen) {
               this.closeTestMediaModal();
             } else if (this.importTrackModal) {
@@ -2720,6 +2762,7 @@
         this.activeSettingsSection = nextSection;
         this.mobileSettingsSection = nextSection;
         this.settingsModalOpen = true;
+        this._scheduleMobileNavSync();
         this.authError = null;
         this.loadUserSettings();
         this.loadMaintenanceStatus();
@@ -2731,6 +2774,7 @@
 
       closeSettings() {
         this.settingsModalOpen = false;
+        this._scheduleMobileNavSync();
         if (this.route === C.ROUTES.SETTINGS) {
           this.navigate(this._lastNonSettingsRoute || C.ROUTES.DASHBOARD);
         }
@@ -2967,6 +3011,187 @@
         this._loadCurrentRoute();
       },
 
+      _computeActiveMobileNavLayers() {
+        const L = (C.NAV_HISTORY && C.NAV_HISTORY.LAYERS) || {};
+        const active = [];
+        if (this.mobileSelectMode || (Array.isArray(this.selectedFileIds) && this.selectedFileIds.length > 0)) {
+          active.push(L.SELECTION || "selection");
+        }
+        if (this.jobsDrawerOpen) active.push(L.JOBS_DRAWER || "jobs_drawer");
+        if (this.settingsModalOpen && this.route !== C.ROUTES.SETTINGS) {
+          active.push(L.SETTINGS_MODAL || "settings_modal");
+        }
+        if (this.batchModal) active.push(L.BATCH_MODAL || "batch_modal");
+        if (this.testMediaModalOpen) active.push(L.TEST_MEDIA_MODAL || "test_media_modal");
+        if (this.importTrackModal) active.push(L.IMPORT_TRACK_MODAL || "import_track_modal");
+        if (this.addAudioModalOpen) active.push(L.ADD_AUDIO_MODAL || "add_audio_modal");
+        if (this.factoryResetModalOpen) active.push(L.FACTORY_RESET_MODAL || "factory_reset_modal");
+        if (this.infoModal) active.push(L.INFO_MODAL || "info_modal");
+        if (this.folderPickerOpen) active.push(L.FOLDER_PICKER || "folder_picker");
+        if (this.deleteModal) active.push(L.DELETE_MODAL || "delete_modal");
+        if (this.renameModal) active.push(L.RENAME_MODAL || "rename_modal");
+        if (this.newFolderModal) active.push(L.NEW_FOLDER_MODAL || "new_folder_modal");
+        if (this.cancelJobModal) active.push(L.CANCEL_JOB_MODAL || "cancel_job_modal");
+        if (this.contextMenu) active.push(L.CONTEXT_MENU || "context_menu");
+        if (this.folderBarMenuOpen) active.push(L.FOLDER_BAR_MENU || "folder_bar_menu");
+        if (this.scanMenuOpen) active.push(L.SCAN_MENU || "scan_menu");
+        return active;
+      },
+
+      _syncMobileNavLayers() {
+        if (!this._mobileNav) return;
+        this._mobileNav.reconcile(this._computeActiveMobileNavLayers());
+      },
+
+      _scheduleMobileNavSync() {
+        if (!this._mobileNav || this._mobileNavSyncQueued) return;
+        this._mobileNavSyncQueued = true;
+        const flush = () => {
+          this._mobileNavSyncQueued = false;
+          this._syncMobileNavLayers();
+        };
+        if (typeof queueMicrotask === "function") {
+          queueMicrotask(flush);
+        } else {
+          Promise.resolve().then(flush);
+        }
+      },
+
+      _dismissMobileNavLayer(layerKey) {
+        const L = (C.NAV_HISTORY && C.NAV_HISTORY.LAYERS) || {};
+        switch (layerKey) {
+          case L.SCAN_MENU || "scan_menu":
+            this.scanMenuOpen = false;
+            break;
+          case L.FOLDER_BAR_MENU || "folder_bar_menu":
+            this.folderBarMenuOpen = false;
+            break;
+          case L.CONTEXT_MENU || "context_menu":
+            this.closeContextMenu();
+            break;
+          case L.CANCEL_JOB_MODAL || "cancel_job_modal":
+            this.closeCancelJobModal();
+            break;
+          case L.NEW_FOLDER_MODAL || "new_folder_modal":
+            this.newFolderModal = null;
+            break;
+          case L.RENAME_MODAL || "rename_modal":
+            this.renameModal = null;
+            break;
+          case L.DELETE_MODAL || "delete_modal":
+            this.deleteModal = null;
+            break;
+          case L.FOLDER_PICKER || "folder_picker":
+            this.closeFolderPicker();
+            break;
+          case L.INFO_MODAL || "info_modal":
+            this.closeFileInfoModal();
+            break;
+          case L.FACTORY_RESET_MODAL || "factory_reset_modal":
+            this.closeFactoryResetModal();
+            break;
+          case L.ADD_AUDIO_MODAL || "add_audio_modal":
+            this.closeAddAudioModal();
+            break;
+          case L.IMPORT_TRACK_MODAL || "import_track_modal":
+            this.closeImportTrackModal();
+            break;
+          case L.TEST_MEDIA_MODAL || "test_media_modal":
+            this.closeTestMediaModal();
+            break;
+          case L.BATCH_MODAL || "batch_modal":
+            this.closeBatchModal();
+            break;
+          case L.SETTINGS_MODAL || "settings_modal":
+            this.closeSettings();
+            break;
+          case L.JOBS_DRAWER || "jobs_drawer":
+            this.closeJobsDrawer();
+            break;
+          case L.SELECTION || "selection":
+            this.clearSelection();
+            break;
+          default:
+            break;
+        }
+      },
+
+      _handlePopState(event) {
+        if (this._mobileNav) {
+          const res = this._mobileNav.handlePopState(event);
+          if (res && res.handled) {
+            for (const key of res.dismissedKeys || []) {
+              this._dismissMobileNavLayer(key);
+            }
+            return;
+          }
+        }
+        this._lastHandledNavHash = window.location.hash;
+        this._applyHashState(window.location.hash, true);
+      },
+
+      _buildFolderHashForMobileSeed(folderPath) {
+        const normalized = FT.normalizeFolderPath(folderPath);
+        return buildHash({
+          route: C.ROUTES.LIBRARY,
+          view: C.LIBRARY_VIEWS.DIR,
+          needsConversion: false,
+          noDolby: false,
+          hasMetadata: false,
+          audioType: "",
+          audioCodec: "",
+          videoCodec: "",
+          resolution: "",
+          dynamicRange: "",
+          audioChannels: "",
+          audioLanguage: "",
+          noSubtitles: false,
+          folder: normalized === C.FOLDER_TREE.ROOT_PATH ? "" : normalized,
+          q: "",
+          sort: this.sortField,
+          order: this.sortOrder,
+          page: C.PAGINATION.DEFAULT_PAGE,
+        });
+      },
+
+      _seedMobileFolderAncestors(targetDir, replaceFirst = false) {
+        if (!this._mobileNav || !NavHistory) return false;
+        const ancestors = NavHistory.getFolderAncestorPaths(
+          targetDir,
+          C.FOLDER_TREE.ROOT_PATH
+        );
+        if (ancestors.length < 2) return false;
+        const hashes = ancestors.map((p) => this._buildFolderHashForMobileSeed(p));
+        const seeded = this._mobileNav.seedFolderAncestors(hashes, { replaceFirst });
+        if (seeded) {
+          this._lastHandledNavHash = hashes[hashes.length - 1];
+        }
+        return seeded;
+      },
+
+      _commitRouteHash(nextHash, { replace = false, shouldLoad = true } = {}) {
+        if (!nextHash) return false;
+        if (this._mobileNav) {
+          return this._mobileNav.navigateHash(nextHash, {
+            replace,
+            onApplied: (appliedHash) => {
+              this._lastHandledNavHash = appliedHash;
+              if (shouldLoad) {
+                this._applyHashState(appliedHash, true);
+              }
+            },
+          });
+        }
+        if (window.location.hash === nextHash) return false;
+        if (replace) {
+          window.history.replaceState(null, "", nextHash);
+        } else {
+          window.location.hash = nextHash;
+        }
+        this._lastHandledNavHash = nextHash;
+        return true;
+      },
+
       _syncUrlHash(replace = false) {
         const nextHash = buildHash({
           route: this.route,
@@ -2996,12 +3221,22 @@
         if (this.route === C.ROUTES.LIBRARY) {
           this.lastLibraryHash = nextHash;
         }
+        if (this._mobileNav) {
+          this._mobileNav.navigateHash(nextHash, {
+            replace,
+            onApplied: (appliedHash) => {
+              this._lastHandledNavHash = appliedHash;
+            },
+          });
+          return;
+        }
         if (window.location.hash === nextHash) return;
         if (replace) {
           window.history.replaceState(null, "", nextHash);
         } else {
           window.location.hash = nextHash;
         }
+        this._lastHandledNavHash = nextHash;
       },
 
       _loadCurrentRoute() {
@@ -3070,9 +3305,18 @@
           if (origin && LR.hashesMatch(origin.hash, nextHash)) {
             this._pendingLibraryScrollRestore = { ...origin };
           }
+          if (
+            this.route !== C.ROUTES.LIBRARY &&
+            this.isDirView &&
+            this.currentDir !== C.FOLDER_TREE.ROOT_PATH &&
+            this._seedMobileFolderAncestors(this.currentDir, false)
+          ) {
+            this._applyHashState(nextHash, true);
+            return;
+          }
         }
-        if (window.location.hash !== nextHash) {
-          window.location.hash = nextHash;
+        if (window.location.hash !== nextHash || (this._mobileNav && this._mobileNav.getDepth() > 0)) {
+          this._commitRouteHash(nextHash, { replace: false, shouldLoad: true });
         } else {
           this.route = targetRoute;
           this._loadCurrentRoute();
@@ -3175,8 +3419,8 @@
           this._captureLibraryOrigin(file.id);
         }
         const targetHash = `#/${C.ROUTES.EDITOR}/${file.id}`;
-        if (window.location.hash !== targetHash) {
-          window.location.hash = targetHash;
+        if (window.location.hash !== targetHash || (this._mobileNav && this._mobileNav.getDepth() > 0)) {
+          this._commitRouteHash(targetHash, { replace: false, shouldLoad: true });
         } else {
           this.loadEditor(file.id);
         }
@@ -3217,8 +3461,15 @@
           page: C.PAGINATION.DEFAULT_PAGE,
         });
         this.lastLibraryHash = nextHash;
-        if (window.location.hash !== nextHash) {
-          window.location.hash = nextHash;
+        if (
+          normalized !== C.FOLDER_TREE.ROOT_PATH &&
+          this._seedMobileFolderAncestors(normalized, false)
+        ) {
+          this._applyHashState(nextHash, true);
+          return;
+        }
+        if (window.location.hash !== nextHash || (this._mobileNav && this._mobileNav.getDepth() > 0)) {
+          this._commitRouteHash(nextHash, { replace: false, shouldLoad: true });
         } else {
           this.route = C.ROUTES.LIBRARY;
           this.needsConversion = false;
@@ -3266,12 +3517,14 @@
       // Global Jobs Drawer controls
       openJobsDrawer() {
         this.jobsDrawerOpen = true;
+        this._scheduleMobileNavSync();
         this.loadJobs();
         this.$nextTick(() => this.scrollLogsToBottom(true));
       },
 
       closeJobsDrawer() {
         this.jobsDrawerOpen = false;
+        this._scheduleMobileNavSync();
       },
 
       handleGlobalPillClick() {
@@ -4814,6 +5067,7 @@
           initialPath || C.FOLDER_TREE.ROOT_PATH
         );
         this.folderPickerOpen = true;
+        this._scheduleMobileNavSync();
 
         const ancestors = FT.getAncestorPaths(this.folderTree.selectedPath);
         const toLoad = ancestors.length > 1 ? ancestors.slice(0, -1) : ancestors;
@@ -4876,6 +5130,7 @@
       closeFolderPicker() {
         this.folderPickerOpen = false;
         this.folderPickerSubmitting = false;
+        this._scheduleMobileNavSync();
       },
 
       // Phase 16: Speaker & Audio System Test Generator modal lifecycle
@@ -5143,6 +5398,15 @@
           return;
         }
 
+        if (this.folderPickerPurpose === "batch_save_as") {
+          if (this.batchModal && this.batchModal.rule) {
+            this.batchModal.rule.destination_folder = chosenPath;
+            this.onBatchRuleChange();
+          }
+          this.closeFolderPicker();
+          return;
+        }
+
         if (this.folderPickerPurpose === "move_files") {
           const fileIds =
             (this.folderPickerContext && this.folderPickerContext.fileIds) || [];
@@ -5328,7 +5592,7 @@
         this.page = C.PAGINATION.DEFAULT_PAGE;
         this.clearSelection();
         this.closeContextMenu();
-        this._syncUrlHash(true);
+        this._syncUrlHash(false);
         this.loadLibrary({ clearStale: true });
       },
 
@@ -5396,10 +5660,22 @@
 
       closeContextMenu() {
         this.contextMenu = null;
+        this._scheduleMobileNavSync();
       },
 
       async openFileInfoModal(file) {
         if (!file || !file.id) return;
+        if (this.isFileScanning(file)) {
+          this.showToast("Scanning metadata — ready in a moment.", "info");
+          return;
+        }
+        if (this.isFileScanError(file)) {
+          this.showToast(
+            "Metadata scan failed — use Re-scan from the menu to retry.",
+            "error"
+          );
+          return;
+        }
         this.infoModal = {
           fileId: file.id,
           filename: file.filename || Fmt.basenameOf(file.filepath),
@@ -5407,6 +5683,7 @@
           error: null,
           data: null,
         };
+        this._scheduleMobileNavSync();
         try {
           const data = await Api.getFileInfo(file.id);
           if (this.infoModal && this.infoModal.fileId === file.id) {
@@ -5425,6 +5702,7 @@
 
       closeFileInfoModal() {
         this.infoModal = null;
+        this._scheduleMobileNavSync();
       },
 
       runContextMenuAction(action) {
@@ -5453,6 +5731,10 @@
             this.openFileInfoModal(menu.file);
             return;
           }
+          if (action === "process") {
+            this.openEditor(menu.file);
+            return;
+          }
           if (action === "rescan") {
             this.rescanSingleFile(menu.file);
           } else if (action === "duplicate") {
@@ -5479,7 +5761,9 @@
         }
 
         if (menu.kind === "folder" && menu.folder) {
-          if (action === "rename") {
+          if (action === "batch_folder") {
+            this.openBatchModalForFolder(menu.folder.path);
+          } else if (action === "rename") {
             this.openRenameFolderModal(menu.folder.path);
           } else if (action === "move") {
             this.openMoveFolderModal(menu.folder.path);
@@ -5498,6 +5782,7 @@
         const target = (this.files || []).find((f) => f.id === fileId);
         if (target && this.isFileLocked(target)) {
           this.selectedFileIds = this.selectedFileIds.filter((id) => id !== fileId);
+          this._scheduleMobileNavSync();
           return;
         }
         if (this.isFileSelected(fileId)) {
@@ -5505,6 +5790,7 @@
         } else {
           this.selectedFileIds = [...this.selectedFileIds, fileId];
         }
+        this._scheduleMobileNavSync();
       },
 
       toggleSelectAllPage() {
@@ -5515,11 +5801,13 @@
             .filter((f) => !this.isFileLocked(f))
             .map((f) => f.id);
         }
+        this._scheduleMobileNavSync();
       },
 
       clearSelection() {
         this.selectedFileIds = [];
         this.mobileSelectMode = false;
+        this._scheduleMobileNavSync();
       },
 
       toggleMobileSelectMode() {
@@ -5527,6 +5815,113 @@
         if (!this.mobileSelectMode) {
           this.selectedFileIds = [];
         }
+        this._scheduleMobileNavSync();
+      },
+
+      // Touch Long-Press Selection Helpers (400ms hold, 10px scroll cancel, ghost-click suppression)
+      _longPressTimer: null,
+      _longPressStartX: 0,
+      _longPressStartY: 0,
+      _longPressFileId: null,
+      _suppressClickUntilMs: 0,
+      _suppressClickFileId: null,
+      _touchPressActive: false,
+
+      startFileLongPress(file, event) {
+        if (!file || !file.id || this.isFileLocked(file)) return;
+        const touches = event && event.touches;
+        if (!touches || touches.length !== 1) {
+          this.cancelFileLongPress();
+          return;
+        }
+        this.cancelFileLongPress();
+        this._touchPressActive = true;
+        this._longPressFileId = file.id;
+        this._longPressStartX = Number(touches[0].clientX) || 0;
+        this._longPressStartY = Number(touches[0].clientY) || 0;
+        this._longPressTimer = setTimeout(() => {
+          this._longPressTimer = null;
+          if (!this.isFileLocked(file)) {
+            this.mobileSelectMode = true;
+            if (!this.isFileSelected(file.id)) {
+              this.toggleFileSelection(file.id);
+            }
+            this._suppressClickFileId = file.id;
+            this._suppressClickUntilMs =
+              Date.now() + C.LONG_PRESS.GHOST_CLICK_SUPPRESS_MS;
+            try {
+              if (
+                typeof navigator !== "undefined" &&
+                typeof navigator.vibrate === "function"
+              ) {
+                navigator.vibrate(C.LONG_PRESS.HAPTIC_MS);
+              }
+            } catch (_err) {
+              // Ignore unsupported haptics
+            }
+          }
+        }, C.LONG_PRESS.DURATION_MS);
+      },
+
+      moveFileLongPress(event) {
+        if (!this._longPressTimer) return;
+        const touches = event && event.touches;
+        if (!touches || touches.length !== 1) {
+          this.cancelFileLongPress();
+          return;
+        }
+        const dx = (Number(touches[0].clientX) || 0) - this._longPressStartX;
+        const dy = (Number(touches[0].clientY) || 0) - this._longPressStartY;
+        if (Math.hypot(dx, dy) > C.LONG_PRESS.MOVE_CANCEL_PX) {
+          this.cancelFileLongPress();
+        }
+      },
+
+      cancelFileLongPress() {
+        if (this._longPressTimer !== null) {
+          clearTimeout(this._longPressTimer);
+          this._longPressTimer = null;
+        }
+        this._longPressFileId = null;
+      },
+
+      endFileLongPress() {
+        this.cancelFileLongPress();
+        this._touchPressActive = false;
+      },
+
+      handleFileCardContextMenu(file, event) {
+        const isTouchTriggered = Boolean(
+          this._touchPressActive ||
+            Date.now() <= this._suppressClickUntilMs ||
+            (event && event.pointerType === "touch") ||
+            (event &&
+              event.sourceCapabilities &&
+              event.sourceCapabilities.firesTouchEvents)
+        );
+        if (isTouchTriggered) {
+          return;
+        }
+        this.openFileContextMenu(file, event);
+      },
+
+      onFileTileClick(file) {
+        if (!file || !file.id) return;
+        if (
+          this._suppressClickFileId === file.id &&
+          Date.now() <= this._suppressClickUntilMs
+        ) {
+          this._suppressClickFileId = null;
+          this._suppressClickUntilMs = 0;
+          return;
+        }
+        if (this.mobileSelectMode) {
+          if (!this.isFileLocked(file)) {
+            this.toggleFileSelection(file.id);
+          }
+          return;
+        }
+        this.openFileInfoModal(file);
       },
 
       // New Folder Modal (in Library Directory View)
@@ -6276,6 +6671,636 @@
         if (this._toastTimers[id] !== undefined) {
           clearTimeout(this._toastTimers[id]);
           delete this._toastTimers[id];
+        }
+      },
+
+      // -----------------------------------------------------------------------
+      // Phase 18: Rule-Based Batch Studio & Reusable Templates
+      // -----------------------------------------------------------------------
+
+      formatBatchPlanBadge(item) {
+        return Batch.formatPlanStageBadge(item);
+      },
+
+      get batchSelectedEnqueueIds() {
+        if (!this.batchModal || !this.batchModal.preview) return [];
+        const excluded = this.batchModal.excludedFileIds || {};
+        return (this.batchModal.preview.items || [])
+          .filter(
+            (item) =>
+              item.action === C.BATCH.ACTION_ENQUEUE && !excluded[item.file_id]
+          )
+          .map((item) => item.file_id);
+      },
+
+      get batchActiveTemplate() {
+        if (!this.batchModal || !this.batchModal.selectedTemplateId) return null;
+        return (
+          (this.batchTemplates || []).find(
+            (t) => t.id === this.batchModal.selectedTemplateId
+          ) || null
+        );
+      },
+
+      get isBatchTemplateDirty() {
+        const active = this.batchActiveTemplate;
+        if (!active || !this.batchModal || !this.batchModal.templateBaselineRuleJson) {
+          return false;
+        }
+        return (
+          Batch.serializeBatchRule(this.batchModal.rule, this.userSettings) !==
+          this.batchModal.templateBaselineRuleJson
+        );
+      },
+
+      get batchAudioApplyToOptions() {
+        const codec =
+          this.batchModal &&
+          this.batchModal.rule &&
+          this.batchModal.rule.audio
+            ? this.batchModal.rule.audio.target_codec
+            : C.EDITOR.CODEC_EAC3;
+        return Batch.getAudioApplyToOptions(codec);
+      },
+
+      get batchAudioBitrateOptions() {
+        const codec =
+          this.batchModal &&
+          this.batchModal.rule &&
+          this.batchModal.rule.audio
+            ? this.batchModal.rule.audio.target_codec
+            : C.EDITOR.CODEC_EAC3;
+        return Batch.getBitrateOptionsForCodec(codec);
+      },
+
+      onBatchTargetCodecChange() {
+        if (!this.batchModal || !this.batchModal.rule || !this.batchModal.rule.audio) return;
+        Batch.normalizeAudioRuleForTargetCodec(this.batchModal.rule.audio);
+        this.onBatchRuleChange(C.BATCH.OVERRIDE_AUDIO_CONVERT);
+      },
+
+      onBatchMatchConditionChange() {
+        if (!this.batchModal || !this.batchModal.rule || !this.batchModal.rule.audio) return;
+        Batch.normalizeAudioRuleForTargetCodec(this.batchModal.rule.audio);
+        this.onBatchRuleChange(C.BATCH.OVERRIDE_AUDIO_CONVERT);
+      },
+
+      selectBatchTab(tabId, el) {
+        if (!this.batchModal) return;
+        if (!C.BATCH.TAB_IDS.includes(tabId)) return;
+        this.batchModal.activeTab = tabId;
+        if (el && typeof el.scrollIntoView === "function") {
+          el.scrollIntoView(C.BATCH.TAB_SCROLL_OPTIONS);
+        }
+      },
+
+      get batchAudioTabSummary() {
+        return this.batchModal ? Batch.formatAudioTabSummary(this.batchModal.rule) : "";
+      },
+
+      get batchMetadataTabSummary() {
+        return this.batchModal ? Batch.formatMetadataTabSummary(this.batchModal.rule) : "";
+      },
+
+      get batchOutputTabSummary() {
+        return this.batchModal ? Batch.formatOutputTabSummary(this.batchModal.rule) : "";
+      },
+
+      get batchHasCollisions() {
+        return Boolean(
+          this.batchModal &&
+            this.batchModal.preview &&
+            Number(this.batchModal.preview.collision_count || 0) > 0
+        );
+      },
+
+      async openBatchDestinationFolderPicker() {
+        if (!this.batchModal || !this.batchModal.rule) return;
+        const initialPath =
+          this.batchModal.rule.destination_folder ||
+          this.batchModal.folder ||
+          (this.isDirView ? this.currentDir : C.FOLDER_TREE.ROOT_PATH);
+        await this._openFolderPickerWithConfig({
+          purpose: "batch_save_as",
+          initialPath,
+          title: "Choose Batch Destination Folder",
+          confirmLabel: "Select Folder",
+        });
+      },
+
+      onBatchOutputModeChange() {
+        if (!this.batchModal || !this.batchModal.rule) return;
+        if (
+          this.batchModal.rule.output_mode === C.EDITOR.OUTPUT_SAVE_AS &&
+          !this.batchModal.rule.destination_folder
+        ) {
+          this.batchModal.rule.destination_folder =
+            this.batchModal.folder ||
+            (this.isDirView ? this.currentDir : C.FOLDER_TREE.ROOT_PATH);
+        }
+        this.onBatchRuleChange();
+      },
+
+      insertBatchRenameToken(token) {
+        if (!this.batchModal || !this.batchModal.rule || !this.batchModal.rule.rename) return;
+        this.batchModal.rule.rename.enabled = true;
+        const current = String(this.batchModal.rule.rename.pattern || "");
+        this.batchModal.rule.rename.pattern = `${current}${token}`;
+        this.onBatchRuleChange(C.BATCH.OVERRIDE_OUTPUT_FILENAME);
+      },
+
+      startInlineBatchRename(item) {
+        if (!this.batchModal || !item) return;
+        this.batchModal.editingRenameFileId = item.file_id;
+        this.batchModal.editingRenameDraft = item.output_filename || item.filename || "";
+      },
+
+      cancelInlineBatchRename() {
+        if (!this.batchModal) return;
+        this.batchModal.editingRenameFileId = null;
+        this.batchModal.editingRenameDraft = "";
+      },
+
+      commitInlineBatchRename(fileId) {
+        if (!this.batchModal) return;
+        const draft = String(this.batchModal.editingRenameDraft || "").trim();
+        this.batchModal.editingRenameFileId = null;
+        this.batchModal.editingRenameDraft = "";
+        this.batchModal.fileOverrides = Batch.setFileOutputFilenameOverride(
+          this.batchModal.fileOverrides,
+          fileId,
+          draft
+        );
+        if (this._batchPreviewTimer) {
+          clearTimeout(this._batchPreviewTimer);
+          this._batchPreviewTimer = null;
+        }
+        this.refreshBatchPreview();
+      },
+
+      clearInlineBatchRename(fileId) {
+        if (!this.batchModal) return;
+        this.batchModal.fileOverrides = Batch.setFileOutputFilenameOverride(
+          this.batchModal.fileOverrides,
+          fileId,
+          ""
+        );
+        this.refreshBatchPreview();
+      },
+
+      get batchRetagLanguageOptions() {
+        const detected =
+          this.batchModal &&
+          this.batchModal.preview &&
+          this.batchModal.preview.inventory &&
+          Array.isArray(this.batchModal.preview.inventory.detected_audio_languages)
+            ? this.batchModal.preview.inventory.detected_audio_languages
+            : [];
+        const current =
+          this.batchModal &&
+          this.batchModal.rule &&
+          this.batchModal.rule.track_filter
+            ? this.batchModal.rule.track_filter.retag_und_target_language
+            : C.EDITOR.DEFAULT_LANGUAGE;
+        return Batch.buildRetagLanguageOptions(detected, current);
+      },
+
+      batchChipsForCategory(item, category) {
+        return Batch.getChipsByCategory(item, category);
+      },
+
+      batchVisibleChips(item, category) {
+        const all = Batch.getChipsByCategory(item, category);
+        const key = `${item.file_id}:${category}`;
+        const expanded = Boolean(
+          this.batchModal &&
+            this.batchModal.expandedChipGroups &&
+            this.batchModal.expandedChipGroups[key]
+        );
+        if (expanded || all.length <= C.BATCH.MAX_VISIBLE_CHIPS_PER_GROUP) {
+          return all;
+        }
+        return all.slice(0, C.BATCH.MAX_VISIBLE_CHIPS_PER_GROUP);
+      },
+
+      batchHiddenChipCount(item, category) {
+        const all = Batch.getChipsByCategory(item, category);
+        const key = `${item.file_id}:${category}`;
+        const expanded = Boolean(
+          this.batchModal &&
+            this.batchModal.expandedChipGroups &&
+            this.batchModal.expandedChipGroups[key]
+        );
+        if (expanded || all.length <= C.BATCH.MAX_VISIBLE_CHIPS_PER_GROUP) {
+          return 0;
+        }
+        return all.length - C.BATCH.MAX_VISIBLE_CHIPS_PER_GROUP;
+      },
+
+      isBatchChipGroupExpanded(fileId, category) {
+        const key = `${fileId}:${category}`;
+        return Boolean(
+          this.batchModal &&
+            this.batchModal.expandedChipGroups &&
+            this.batchModal.expandedChipGroups[key]
+        );
+      },
+
+      toggleBatchChipGroupExpanded(fileId, category) {
+        if (!this.batchModal) return;
+        const key = `${fileId}:${category}`;
+        const map = { ...(this.batchModal.expandedChipGroups || {}) };
+        if (map[key]) {
+          delete map[key];
+        } else {
+          map[key] = true;
+        }
+        this.batchModal.expandedChipGroups = map;
+      },
+
+      toggleBatchFileChip(fileId, chip) {
+        if (!this.batchModal || !chip || chip.disabled) return;
+        this.batchModal.fileOverrides = Batch.toggleFileChipOverride(
+          this.batchModal.fileOverrides,
+          fileId,
+          chip
+        );
+        if (this._batchPreviewTimer) {
+          clearTimeout(this._batchPreviewTimer);
+          this._batchPreviewTimer = null;
+        }
+        this.refreshBatchPreview();
+      },
+
+      resetBatchFileOverrides(fileId) {
+        if (!this.batchModal) return;
+        this.batchModal.fileOverrides = Batch.resetFileOverrides(
+          this.batchModal.fileOverrides,
+          fileId
+        );
+        if (this._batchPreviewTimer) {
+          clearTimeout(this._batchPreviewTimer);
+          this._batchPreviewTimer = null;
+        }
+        this.refreshBatchPreview();
+      },
+
+      isBatchFileIncluded(item) {
+        if (!item || item.action !== C.BATCH.ACTION_ENQUEUE) return false;
+        if (!this.batchModal || !this.batchModal.excludedFileIds) return true;
+        return !this.batchModal.excludedFileIds[item.file_id];
+      },
+
+      toggleBatchFileIncluded(fileId) {
+        if (!this.batchModal) return;
+        const map = { ...(this.batchModal.excludedFileIds || {}) };
+        if (map[fileId]) {
+          delete map[fileId];
+        } else {
+          map[fileId] = true;
+        }
+        this.batchModal.excludedFileIds = map;
+      },
+
+      async loadBatchTemplates() {
+        try {
+          const res = await Api.listTemplates();
+          this.batchTemplates = Array.isArray(res && res.templates)
+            ? res.templates
+            : [];
+        } catch (_err) {
+          // Keep existing templates list on transient failure
+        }
+      },
+
+      async openBatchModalForSelection() {
+        const ids = Array.isArray(this.selectedFileIds)
+          ? [...this.selectedFileIds]
+          : [];
+        if (ids.length === 0) return;
+        await this._openBatchModal({
+          scopeMode: "files",
+          fileIds: ids,
+          folder: null,
+          includeSubfolders: false,
+        });
+      },
+
+      async openBatchModalForFolder(folderPath) {
+        const normalized = FT.normalizeFolderPath(folderPath || this.currentDir);
+        await this._openBatchModal({
+          scopeMode: "folder",
+          fileIds: null,
+          folder: normalized,
+          includeSubfolders: true,
+        });
+      },
+
+      async _openBatchModal({ scopeMode, fileIds, folder, includeSubfolders }) {
+        this.closeContextMenu();
+        this.folderBarMenuOpen = false;
+        const defaultRule = Batch.createDefaultBatchRule(this.userSettings);
+        if (defaultRule.output_mode === C.EDITOR.OUTPUT_SAVE_AS && !defaultRule.destination_folder) {
+          defaultRule.destination_folder =
+            folder || (this.isDirView ? this.currentDir : C.FOLDER_TREE.ROOT_PATH);
+        }
+        this.batchModal = {
+          scopeMode,
+          fileIds,
+          folder,
+          includeSubfolders: Boolean(includeSubfolders),
+          activeTab: C.BATCH.TAB_AUDIO,
+          selectedTemplateId: "",
+          templateBaselineRuleJson: "",
+          updateTemplateOnQueue: true,
+          userTouchedRetagLang: false,
+          retagLangAutoInitialized: false,
+          editingRenameFileId: null,
+          editingRenameDraft: "",
+          rule: defaultRule,
+          fileOverrides: {},
+          expandedChipGroups: {},
+          preview: null,
+          previewLoading: true,
+          submitting: false,
+          error: null,
+          excludedFileIds: {},
+          saveTemplateOpen: false,
+          saveTemplateName: "",
+          saveTemplateDescription: "",
+          saveTemplateBusy: false,
+          saveTemplateError: null,
+        };
+        this._scheduleMobileNavSync();
+        await Promise.all([
+          this.loadBatchTemplates(),
+          this.refreshBatchPreview(),
+        ]);
+      },
+
+      closeBatchModal() {
+        if (this._batchPreviewTimer) {
+          clearTimeout(this._batchPreviewTimer);
+          this._batchPreviewTimer = null;
+        }
+        this.batchModal = null;
+        this._scheduleMobileNavSync();
+      },
+
+      applyBatchTemplate(templateId) {
+        if (!this.batchModal) return;
+        const cleanId = String(templateId || "");
+        this.batchModal.selectedTemplateId = cleanId;
+        this.batchModal.updateTemplateOnQueue = true;
+        if (!cleanId) {
+          this.batchModal.templateBaselineRuleJson = "";
+          return;
+        }
+        const found = (this.batchTemplates || []).find(
+          (t) => t.id === cleanId
+        );
+        if (!found) {
+          this.batchModal.templateBaselineRuleJson = "";
+          return;
+        }
+        const cloned = Batch.cloneBatchRule(found.rule, this.userSettings);
+        this.batchModal.rule = cloned;
+        this.batchModal.templateBaselineRuleJson = Batch.serializeBatchRule(
+          cloned,
+          this.userSettings
+        );
+        this.batchModal.userTouchedRetagLang = true;
+        this.batchModal.fileOverrides = {};
+        this.scheduleBatchPreview();
+      },
+
+      onBatchRuleChange(changedOverrideKey = null, trackCategory = null) {
+        if (!this.batchModal) return;
+        if (changedOverrideKey) {
+          const items =
+            this.batchModal.preview && Array.isArray(this.batchModal.preview.items)
+              ? this.batchModal.preview.items
+              : [];
+          this.batchModal.fileOverrides = Batch.clearOverrideFieldForAllFiles(
+            this.batchModal.fileOverrides,
+            changedOverrideKey,
+            items,
+            trackCategory
+          );
+        }
+        this.scheduleBatchPreview();
+      },
+
+      onBatchRetagLanguageChange() {
+        if (!this.batchModal) return;
+        this.batchModal.userTouchedRetagLang = true;
+        this.onBatchRuleChange(C.BATCH.OVERRIDE_RETAG_UND);
+      },
+
+      scheduleBatchPreview() {
+        if (!this.batchModal) return;
+        if (this._batchPreviewTimer) {
+          clearTimeout(this._batchPreviewTimer);
+        }
+        this.batchModal.previewLoading = true;
+        this._batchPreviewTimer = setTimeout(() => {
+          this._batchPreviewTimer = null;
+          this.refreshBatchPreview();
+        }, C.BATCH.PREVIEW_DEBOUNCE_MS);
+      },
+
+      async refreshBatchPreview() {
+        if (!this.batchModal) return;
+        const seq = ++this._batchPreviewSeq;
+        this.batchModal.previewLoading = true;
+        this.batchModal.error = null;
+
+        const payload =
+          this.batchModal.scopeMode === "folder"
+            ? {
+                folder: this.batchModal.folder,
+                include_subfolders: Boolean(this.batchModal.includeSubfolders),
+                rule: this.batchModal.rule,
+                file_overrides: this.batchModal.fileOverrides || {},
+              }
+            : {
+                file_ids: this.batchModal.fileIds,
+                rule: this.batchModal.rule,
+                file_overrides: this.batchModal.fileOverrides || {},
+              };
+
+        let shouldFollowUpForRetagLang = false;
+        try {
+          const preview = await Api.previewBatchJobs(payload);
+          if (!this.batchModal || seq !== this._batchPreviewSeq) return;
+          this.batchModal.preview = preview;
+
+          // Auto-select majority detected audio language (or 'und' if none tagged) on first load
+          if (
+            !this.batchModal.retagLangAutoInitialized &&
+            !this.batchModal.userTouchedRetagLang &&
+            !this.batchModal.selectedTemplateId &&
+            preview &&
+            preview.inventory
+          ) {
+            this.batchModal.retagLangAutoInitialized = true;
+            const detectedMajority =
+              preview.inventory.detected_majority_audio_language ||
+              C.EDITOR.DEFAULT_LANGUAGE;
+            const prevLang =
+              this.batchModal.rule.track_filter.retag_und_target_language;
+            if (detectedMajority !== prevLang) {
+              this.batchModal.rule.track_filter.retag_und_target_language =
+                detectedMajority;
+              if (preview.inventory.untagged_audio_count > 0) {
+                shouldFollowUpForRetagLang = true;
+              }
+            }
+          }
+        } catch (err) {
+          if (!this.batchModal || seq !== this._batchPreviewSeq) return;
+          this.batchModal.error =
+            err.message || "Failed to generate dry-run preview.";
+        } finally {
+          if (this.batchModal && seq === this._batchPreviewSeq && !shouldFollowUpForRetagLang) {
+            this.batchModal.previewLoading = false;
+          }
+        }
+
+        if (shouldFollowUpForRetagLang && this.batchModal && seq === this._batchPreviewSeq) {
+          await this.refreshBatchPreview();
+        }
+      },
+
+      async submitSaveBatchTemplate() {
+        if (!this.batchModal || this.batchModal.saveTemplateBusy) return;
+        const name = String(this.batchModal.saveTemplateName || "").trim();
+        const description = String(
+          this.batchModal.saveTemplateDescription || ""
+        ).trim();
+        if (!name) {
+          this.batchModal.saveTemplateError = "Enter a template name.";
+          return;
+        }
+        this.batchModal.saveTemplateBusy = true;
+        this.batchModal.saveTemplateError = null;
+        try {
+          const created = await Api.createTemplate({
+            name,
+            description,
+            rule: this.batchModal.rule,
+          });
+          await this.loadBatchTemplates();
+          if (this.batchModal) {
+            this.batchModal.selectedTemplateId = created.id;
+            this.batchModal.templateBaselineRuleJson = Batch.serializeBatchRule(
+              created.rule,
+              this.userSettings
+            );
+            this.batchModal.updateTemplateOnQueue = true;
+            this.batchModal.saveTemplateOpen = false;
+            this.batchModal.saveTemplateName = "";
+            this.batchModal.saveTemplateDescription = "";
+          }
+          this.showToast(`Saved template "${created.name}".`, "success");
+        } catch (err) {
+          if (this.batchModal) {
+            this.batchModal.saveTemplateError =
+              err.message || "Failed to save template.";
+          }
+        } finally {
+          if (this.batchModal) {
+            this.batchModal.saveTemplateBusy = false;
+          }
+        }
+      },
+
+      async deleteActiveCustomTemplate() {
+        const active = this.batchActiveTemplate;
+        if (!active || !active.template_id) return;
+        try {
+          await Api.deleteTemplate(active.template_id);
+          await this.loadBatchTemplates();
+          if (this.batchModal) {
+            this.batchModal.selectedTemplateId = "";
+            this.batchModal.templateBaselineRuleJson = "";
+            this.batchModal.updateTemplateOnQueue = true;
+          }
+          this.showToast(`Deleted template "${active.name}".`, "info");
+        } catch (err) {
+          this.showToast(err.message || "Failed to delete template.", "error");
+        }
+      },
+
+      async submitBatchEnqueue() {
+        if (!this.batchModal || this.batchModal.submitting || this.batchHasCollisions) return;
+        const targetIds = this.batchSelectedEnqueueIds;
+        if (targetIds.length === 0) return;
+
+        this.batchModal.submitting = true;
+        this.batchModal.error = null;
+        let updatedTemplateName = null;
+        try {
+          const active = this.batchActiveTemplate;
+          if (
+            active &&
+            active.template_id &&
+            this.isBatchTemplateDirty &&
+            this.batchModal.updateTemplateOnQueue
+          ) {
+            await Api.updateTemplate(active.template_id, {
+              name: active.name,
+              description: active.description || "",
+              rule: this.batchModal.rule,
+            });
+            updatedTemplateName = active.name;
+          }
+
+          const previewItems =
+            this.batchModal.preview && Array.isArray(this.batchModal.preview.items)
+              ? this.batchModal.preview.items
+              : [];
+          const includedSet = new Set(targetIds);
+          const allScopeIds =
+            previewItems.length > 0
+              ? previewItems.map((item) => item.file_id)
+              : targetIds;
+          const excludedIds = allScopeIds.filter((id) => !includedSet.has(id));
+
+          const enqueuePayload = {
+            file_ids: allScopeIds,
+            rule: this.batchModal.rule,
+            file_overrides: this.batchModal.fileOverrides || {},
+          };
+          if (excludedIds.length > 0) {
+            enqueuePayload.excluded_file_ids = excludedIds;
+          }
+          const res = await Api.enqueueBatchJobs(enqueuePayload);
+          if (updatedTemplateName) {
+            await this.loadBatchTemplates();
+          }
+          this.closeBatchModal();
+          this.clearSelection();
+          await this.loadJobs();
+          this.loadLibrary({ preserveSelection: false });
+          this.loadDashboard();
+          this.openJobsDrawer();
+          const tplNote = updatedTemplateName
+            ? `Updated "${updatedTemplateName}" & queued `
+            : "Queued ";
+          this.showToast(
+            `${tplNote}${res.enqueued_count} batch ${res.enqueued_count === 1 ? "job" : "jobs"}${res.skipped_count > 0 ? ` (${res.skipped_count} skipped)` : ""}.`,
+            "success"
+          );
+        } catch (err) {
+          if (this.batchModal) {
+            this.batchModal.error =
+              err.message || "Failed to queue batch jobs.";
+          }
+        } finally {
+          if (this.batchModal) {
+            this.batchModal.submitting = false;
+          }
         }
       },
     };

@@ -832,3 +832,41 @@ html:not(.dark) .select-dark {
     animation: none !important;
   }
 }
+
+/* Touch Long-Press File Tiles: prevent native iOS/Android callout and text selection */
+.ui-touch-tile {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Precision Job Progress & Queue Pill + Table Action Column Tokens */
+:root {
+  --table-actions-col-w: 5.5rem;
+  --job-badge-min-h: 1.5rem;
+  --job-badge-min-w: 3rem;
+  --job-badge-pad-x: 0.5rem;
+}
+
+.ui-table-actions-col {
+  width: var(--table-actions-col-w);
+}
+
+.ui-job-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--job-badge-min-h);
+  min-width: var(--job-badge-min-w);
+  max-width: 100%;
+  flex-shrink: 0;
+  white-space: nowrap;
+  border-radius: 9999px;
+  border-width: 1px;
+  padding: 0 var(--job-badge-pad-x);
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
