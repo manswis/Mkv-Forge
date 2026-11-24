@@ -44,7 +44,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.23"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.24"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
@@ -59,7 +59,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.23"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.24"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -1946,15 +1946,86 @@
                 </table>
               </div>
 
-              <!-- Other Files (Non-MKV/MP4 files in Folder View, displayed cleanly below media files) -->
-              <div x-cloak x-show="showSubfolders && otherFiles.length > 0" class="space-y-2 pt-2">
+              <!-- Other Files (Non-MKV/MP4 files in Folder View — adapts to Grid & List layouts) -->
+              <div x-cloak x-show="showSubfolders && otherFiles.length > 0" class="space-y-2.5 pt-2">
                 <div class="flex items-center justify-between px-1">
                   <p class="text-xs font-medium text-ink-secondary">
                     Other Files
                   </p>
                   <span class="ui-tag ui-num font-mono text-xs" x-text="otherFiles.length"></span>
                 </div>
-                <div class="ui-list-group">
+
+                <!-- Grid View for Other Files (with Album Art / Cover Thumbnails) -->
+                <div x-show="isGridLayout"
+                  class="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  <template x-for="of in otherFiles" :key="`tile-other-${of.filepath}`">
+                    <article @contextmenu.prevent="openOtherFileContextMenu(of, $event)"
+                      class="group relative flex min-h-[152px] min-w-0 flex-col overflow-hidden rounded-ui-lg border border-subtle bg-surface shadow-panel transition duration-150 hover:border-default hover:shadow-elevated">
+                      <!-- Top-Right Context Menu Trigger -->
+                      <button type="button" @click.stop="openOtherFileContextMenu(of, $event)"
+                        :aria-label="`File actions for ${of.name}`" title="More actions"
+                        class="absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-ui-sm text-ink-muted transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path
+                            d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z">
+                          </path>
+                        </svg>
+                      </button>
+
+                      <button type="button" @click="openOtherFileNotice(of)"
+                        class="flex flex-1 min-w-0 flex-col items-center justify-center gap-2.5 px-3 pb-3.5 pt-5 text-center focus:outline-none">
+                        <div class="relative flex items-center justify-center">
+                          <div class="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center">
+                            <!-- Album Art / Embedded Cover / Image Thumbnail -->
+                            <template x-if="isGridLayout && shouldShowOtherFileThumb(of)">
+                              <img loading="lazy" decoding="async"
+                                :src="otherFileThumbnailUrl(of)" :alt="of.name"
+                                @error="markOtherThumbError(of)"
+                                class="relative h-[72px] w-[72px] shrink-0 rounded-ui-md border border-subtle bg-inset object-cover shadow-panel transition duration-150 group-hover:-translate-y-0.5" />
+                            </template>
+
+                            <!-- Fallback A: Audio File Icon (when no album art or cover art disabled) -->
+                            <svg x-show="!shouldShowOtherFileThumb(of) && isOtherAudioFile(of)"
+                              class="relative h-[72px] w-[72px] shrink-0 transition duration-150 group-hover:-translate-y-0.5"
+                              viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                              <rect x="8" y="8" width="48" height="48" rx="12" fill="#1B1E2B" stroke="#353B52"
+                                stroke-width="1.5" />
+                              <circle cx="32" cy="30" r="14" fill="#6366F1" fill-opacity="0.16" stroke="#818CF8"
+                                stroke-opacity="0.45" stroke-width="1.25" />
+                              <path
+                                d="M37 21v12.2a3.8 3.8 0 1 1-2-3.35V24.6l-7 1.75v8.85a3.8 3.8 0 1 1-2-3.35V23.2l11-2.2z"
+                                fill="#A5B4FC" />
+                            </svg>
+
+                            <!-- Fallback B: Generic Non-Audio File Document Icon -->
+                            <svg x-show="!shouldShowOtherFileThumb(of) && !isOtherAudioFile(of)"
+                              class="relative h-[72px] w-[72px] shrink-0 transition duration-150 group-hover:-translate-y-0.5"
+                              viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                              <path
+                                d="M14 10C14 7.79086 15.7909 6 18 6H38.5L50 17.5V54C50 56.2091 48.2091 58 46 58H18C15.7909 58 14 56.2091 14 54V10Z"
+                                fill="#1B1E2B" stroke="#353B52" stroke-width="1.5" />
+                              <path d="M38.5 6L50 17.5H41.5C39.8431 17.5 38.5 16.1569 38.5 14.5V6Z" fill="#2D3348" />
+                              <rect x="22" y="27" width="20" height="2.5" rx="1.25" fill="#64748B" />
+                              <rect x="22" y="34" width="14" height="2.5" rx="1.25" fill="#475569" />
+                            </svg>
+                          </div>
+                          <!-- Monochrome Format Tag -->
+                          <span
+                            class="ui-tag pointer-events-none absolute bottom-1 font-mono text-[11px] font-semibold uppercase tracking-wider"
+                            x-text="(of.ext || '').replace(/^\./, '') || 'FILE'"></span>
+                        </div>
+                        <span
+                          class="w-full min-w-0 truncate font-mono text-xs font-medium tracking-tight leading-snug text-ink-primary"
+                          :title="of.name" x-text="of.name"></span>
+                        <span class="ui-num font-mono text-[11px] text-ink-muted"
+                          x-text="Fmt.formatBytes(of.size_bytes)"></span>
+                      </button>
+                    </article>
+                  </template>
+                </div>
+
+                <!-- List View for Other Files -->
+                <div x-show="!isGridLayout" class="ui-list-group">
                   <template x-for="of in otherFiles" :key="`other-${of.filepath}`">
                     <div @contextmenu.prevent="openOtherFileContextMenu(of, $event)"
                       class="ui-row flex min-w-0 items-center justify-between gap-3 px-3.5 py-2.5">

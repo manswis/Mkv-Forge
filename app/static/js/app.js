@@ -601,6 +601,7 @@
       rescanningIds: {},
       duplicatingIds: {},
       thumbLoadErrors: {},
+      otherThumbLoadErrors: {},
       _searchTimer: null,
       _libraryRequestSeq: 0,
       _loadedLibraryFolderScope: null,
@@ -2136,6 +2137,51 @@
       markThumbError(fileId) {
         if (!fileId) return;
         this.thumbLoadErrors = { ...this.thumbLoadErrors, [fileId]: true };
+      },
+
+      _otherThumbKey(otherFile) {
+        if (!otherFile || !otherFile.filepath) return "";
+        const mtimeTag = Math.max(0, Math.floor(Number(otherFile.mtime) || 0));
+        return `${otherFile.filepath}:${mtimeTag}`;
+      },
+
+      isOtherAudioFile(otherFile) {
+        if (!otherFile) return false;
+        const ext = String(otherFile.ext || "").trim().toLowerCase();
+        const audioExts = (C.OTHER_FILES && C.OTHER_FILES.AUDIO_EXTENSIONS) || [];
+        return Boolean(ext && audioExts.includes(ext));
+      },
+
+      shouldShowOtherFileThumb(otherFile) {
+        if (!otherFile || !otherFile.filepath) return false;
+        if (!this.userSettings || this.userSettings.show_grid_thumbnails === false) {
+          return false;
+        }
+        const ext = String(otherFile.ext || "").trim().toLowerCase();
+        const thumbExts = (C.OTHER_FILES && C.OTHER_FILES.THUMBNAIL_EXTENSIONS) || [];
+        const isCandidate = Boolean(
+          otherFile.has_thumbnail_candidate || (ext && thumbExts.includes(ext))
+        );
+        if (!isCandidate) return false;
+        return !this.otherThumbLoadErrors[this._otherThumbKey(otherFile)];
+      },
+
+      otherFileThumbnailUrl(otherFile) {
+        if (!otherFile || !otherFile.filepath) return "";
+        const mtimeTag = Math.max(0, Math.floor(Number(otherFile.mtime) || 0));
+        return `${C.API.FILES}/other/thumbnail?filepath=${encodeURIComponent(
+          otherFile.filepath
+        )}&v=${mtimeTag}`;
+      },
+
+      markOtherThumbError(otherFile) {
+        const key =
+          typeof otherFile === "string" ? otherFile : this._otherThumbKey(otherFile);
+        if (!key) return;
+        this.otherThumbLoadErrors = {
+          ...this.otherThumbLoadErrors,
+          [key]: true,
+        };
       },
 
       // Per-file active/queued job lookup (used for per-file locks & inline progress)
@@ -4395,6 +4441,7 @@
         this.dashStorageLens = C.DASHBOARD_LENSES.STORAGE_DEFAULT;
         this.dashAudioLens = C.DASHBOARD_LENSES.AUDIO_DEFAULT;
         this.thumbLoadErrors = {};
+        this.otherThumbLoadErrors = {};
         this.searchQuery = "";
         this.appliedSearchQuery = "";
         this.activeJob = null;

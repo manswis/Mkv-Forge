@@ -292,8 +292,9 @@ class TestDesignSystemTokensAndPrimitives:
                 assert "text-white" not in line, f"Hardcoded text-white on bg-accent: {line.strip()}"
         assert "border border-strong bg-elevated px-3.5 py-2.5 text-xs shadow-elevated" in lib_block
 
-        # Regression guard: Other Files list renders only once (no duplicate outside scroll viewport)
-        assert lib_block.count('x-for="of in otherFiles"') == 1
+        # Regression guard: Other Files section renders only once inside scroll viewport (1 Grid + 1 List)
+        assert lib_block.count('x-show="showSubfolders && otherFiles.length > 0"') == 1
+        assert lib_block.count('x-for="of in otherFiles"') == 2
 
     def test_phase4_editor_inspector_virtual_rows_and_sticky_bar(self) -> None:
         html = (ROOT_DIR / "app" / "static" / "index.html").read_text(encoding="utf-8")

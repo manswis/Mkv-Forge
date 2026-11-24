@@ -190,12 +190,12 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p18.18" in html
-        assert "/static/js/constants.js?v=0.1.0-p18.23" in html
+        assert "/static/js/constants.js?v=0.1.0-p18.24" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
         assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
         assert "/static/js/editor.js?v=0.1.0-p18.23" in html
-        assert "/static/js/app.js?v=0.1.0-p18.23" in html
+        assert "/static/js/app.js?v=0.1.0-p18.24" in html
         assert "/static/js/batch.js?v=0.1.0-p18.23" in html
         assert html.index(
             "/static/js/nav_history.js") < html.index("/static/js/app.js")

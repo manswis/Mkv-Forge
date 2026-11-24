@@ -371,6 +371,41 @@ class AppConstants:
     IMAGE_ATTACHMENT_EXTENSIONS: frozenset[str] = frozenset(
         {".jpg", ".jpeg", ".png", ".webp", ".gif"}
     )
+    OTHER_FILE_AUDIO_ART_EXTENSIONS: frozenset[str] = frozenset(
+        {
+            ".opus",
+            ".mp3",
+            ".flac",
+            ".m4a",
+            ".mp4a",
+            ".ogg",
+            ".oga",
+            ".mka",
+            ".wma",
+            ".wav",
+            ".aif",
+            ".aiff",
+            ".wv",
+            ".ape",
+            ".alac",
+        }
+    )
+    OTHER_FILE_VIDEO_ART_EXTENSIONS: frozenset[str] = frozenset(
+        {".webm", ".mov", ".avi", ".ts", ".m4v"}
+    )
+    OTHER_FILE_THUMBNAIL_EXTENSIONS: frozenset[str] = (
+        IMAGE_ATTACHMENT_EXTENSIONS
+        | OTHER_FILE_AUDIO_ART_EXTENSIONS
+        | OTHER_FILE_VIDEO_ART_EXTENSIONS
+    )
+    OTHER_THUMBNAIL_HASH_LEN: int = 16
+    OTHER_THUMBNAIL_DIRECT_IMAGE_MAX_BYTES: int = 10 * 1024 * 1024
+    OTHER_THUMBNAIL_DOWNSCALE_THRESHOLD_BYTES: int = 256 * 1024
+    OTHER_THUMBNAIL_OGG_MAX_READ_BYTES: int = 4 * 1024 * 1024
+    OTHER_THUMBNAIL_OGG_MAX_PAGES: int = 1024
+    THUMBNAIL_NEGATIVE_MARKER_BYTES: bytes = b"NONE"
+    FLAC_PICTURE_TYPE_FRONT_COVER: int = 3
+    FLAC_BLOCK_TYPE_PICTURE: int = 6
     DEFAULT_SHOW_MEDIA_FILES_ONLY: bool = True
     DEFAULT_VISIBLE_MEDIA_EXTENSIONS: str = ".mkv, .mp4"
     MAX_VISIBLE_EXTENSIONS_LEN: int = 256

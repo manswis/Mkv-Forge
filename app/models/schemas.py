@@ -211,6 +211,7 @@ class OtherFileEntry(BaseModel):
     size_bytes: int
     mtime: float
     ext: str
+    has_thumbnail_candidate: bool = False
 
 
 class MediaFileListResponse(BaseModel):

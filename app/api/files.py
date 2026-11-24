@@ -32,7 +32,11 @@ from app.services.playback_profile import (
     evaluate_file_needs_conversion,
 )
 from app.services.probe_parser import parse_mkvmerge_json
-from app.services.thumbnail_service import get_or_extract_thumbnail
+from app.services.thumbnail_service import (
+    get_or_extract_other_file_thumbnail,
+    get_or_extract_thumbnail,
+    is_other_file_thumbnail_candidate,
+)
 from app.services.scanner import (
     LibraryScanner,
     ProbeError,
@@ -355,6 +359,7 @@ async def list_files(
                 size_bytes=entry.size_bytes,
                 mtime=entry.mtime,
                 ext=entry.ext,
+                has_thumbnail_candidate=is_other_file_thumbnail_candidate(entry.ext),
             )
             for entry in reconcile.other_files
         ]
@@ -447,6 +452,38 @@ async def list_files(
         other_files=other_files,
         folder_counts=folder_counts,
         folder_exists=folder_exists,
+    )
+
+
+@router.get("/other/thumbnail")
+async def get_other_file_thumbnail(
+    request: Request,
+    filepath: str = Query(..., min_length=1),
+) -> Response:
+    """Serve cached or lazily extracted album/cover art for non-indexed files in Folder View."""
+    try:
+        result = await get_or_extract_other_file_thumbnail(
+            filepath,
+            storage_dir=request.app.state.settings.storage_dir,
+            data_dir=request.app.state.settings.data_dir,
+        )
+    except PathSafetyError as exc:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    if result is None:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_NOT_FOUND,
+            detail="No album art or thumbnail available",
+        )
+    image_bytes, media_type = result
+    return Response(
+        content=image_bytes,
+        media_type=media_type,
+        headers={
+            "Cache-Control": AppConstants.THUMBNAIL_CACHE_CONTROL_HEADER,
+        },
     )
 
 
