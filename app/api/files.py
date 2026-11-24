@@ -6,6 +6,8 @@ import asyncio
 import json
 import logging
 import math
+import os
+import stat
 import time
 from pathlib import Path
 from typing import Any
@@ -45,7 +47,7 @@ from app.services.scanner import (
     probe_container_tags_with_ffprobe,
 )
 from app.services.watcher import LibraryWatcher
-from app.utils.paths import PathSafetyError, safe_resolve_path
+from app.utils.paths import PathSafetyError, safe_resolve_path, to_relative_storage_path
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 logger = logging.getLogger(__name__)
@@ -457,8 +459,10 @@ async def list_files(
     )
 
 
-def _is_blocked_download_filename(name: str) -> bool:
-    """Return True if a filename represents a hidden, partial, or internal MKV Forge temp file."""
+def _is_blocked_download_path(canonical_rel: str, name: str) -> bool:
+    """Return True if any path segment is hidden or filename is a partial/internal temp file."""
+    if any(part.startswith(".") for part in Path(canonical_rel).parts):
+        return True
     lower = name.lower()
     if not lower or lower.startswith("."):
         return True
@@ -474,7 +478,7 @@ def _validate_download_path_sync(
     storage_dir: Path,
     job_repo: JobRepository | None = None,
     check_active_job: bool = False,
-) -> Path:
+) -> tuple[Path, os.stat_result]:
     """Resolve and validate a downloadable regular file strictly inside `storage_dir`."""
     try:
         abs_path = safe_resolve_path(rel_filepath, storage_dir)
@@ -484,14 +488,15 @@ def _validate_download_path_sync(
             detail=str(exc),
         ) from exc
 
-    if _is_blocked_download_filename(abs_path.name):
+    canonical_rel = to_relative_storage_path(abs_path, storage_dir)
+    if _is_blocked_download_path(canonical_rel, abs_path.name):
         raise HTTPException(
             status_code=AppConstants.HTTP_FORBIDDEN,
             detail="Temporary or hidden files cannot be downloaded.",
         )
 
     if check_active_job and job_repo is not None:
-        active_job = job_repo.get_active_job_for_filepath(rel_filepath)
+        active_job = job_repo.get_active_job_for_filepath(canonical_rel)
         if active_job is not None:
             raise HTTPException(
                 status_code=AppConstants.HTTP_CONFLICT,
@@ -501,23 +506,40 @@ def _validate_download_path_sync(
                 ),
             )
 
-    if abs_path.is_dir():
+    try:
+        st = abs_path.stat()
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_NOT_FOUND,
+            detail="File not found on disk.",
+        ) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=AppConstants.HTTP_NOT_FOUND,
+            detail="File is not accessible on disk.",
+        ) from exc
+
+    if stat.S_ISDIR(st.st_mode):
         raise HTTPException(
             status_code=AppConstants.HTTP_BAD_REQUEST,
             detail="Directories cannot be downloaded directly.",
         )
-    if not abs_path.is_file():
+    if not stat.S_ISREG(st.st_mode):
         raise HTTPException(
-            status_code=AppConstants.HTTP_NOT_FOUND,
-            detail="File not found on disk.",
+            status_code=AppConstants.HTTP_BAD_REQUEST,
+            detail="Only regular files can be downloaded.",
         )
-    return abs_path
+    return abs_path, st
 
 
-def _build_download_file_response(abs_path: Path) -> FileResponse:
+def _build_download_file_response(
+    abs_path: Path,
+    stat_result: os.stat_result,
+) -> FileResponse:
     """Build a range-capable, proxy-friendly attachment FileResponse with RFC 5987 filename."""
     return FileResponse(
         path=abs_path,
+        stat_result=stat_result,
         filename=abs_path.name,
         content_disposition_type="attachment",
         headers={
@@ -533,14 +555,14 @@ async def download_other_file(
     filepath: str = Query(..., min_length=1),
 ) -> FileResponse:
     """Stream a non-indexed file as an attachment with HTTP Range support and proxy buffering disabled."""
-    abs_path = await asyncio.to_thread(
+    abs_path, st = await asyncio.to_thread(
         _validate_download_path_sync,
         filepath,
         storage_dir=request.app.state.settings.storage_dir,
         job_repo=getattr(request.app.state, "job_repo", None),
         check_active_job=True,
     )
-    return _build_download_file_response(abs_path)
+    return _build_download_file_response(abs_path, st)
 
 
 @router.get("/other/thumbnail")
@@ -604,14 +626,14 @@ async def download_media_file(request: Request, file_id: int) -> FileResponse:
             status_code=AppConstants.HTTP_CONFLICT,
             detail="File is currently being indexed — try downloading again in a moment.",
         )
-    abs_path = await asyncio.to_thread(
+    abs_path, st = await asyncio.to_thread(
         _validate_download_path_sync,
         str(row["filepath"]),
         storage_dir=request.app.state.settings.storage_dir,
         job_repo=getattr(request.app.state, "job_repo", None),
         check_active_job=True,
     )
-    return _build_download_file_response(abs_path)
+    return _build_download_file_response(abs_path, st)
 
 
 @router.get("/{file_id}/thumbnail")
