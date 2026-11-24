@@ -345,23 +345,41 @@ def build_converted_audio_title(
     return " • ".join(pieces)
 
 
-def resolve_default_bitrate_for_codec(target_codec: str, channels: int) -> str | None:
-    """Return a valid default bitrate for `target_codec` and `channels`."""
+def resolve_default_bitrate_for_codec(
+    target_codec: str,
+    channels: int,
+    quality: str = AppConstants.DEFAULT_AUDIO_QUALITY,
+) -> str | None:
+    """Return a valid default bitrate for `target_codec`, `channels`, and `quality` tier.
+
+    Handles full channel range (`1.0` mono through `7.1` surround) and clamps channel
+    counts to the codec's maximum supported channel ceiling (e.g. `5.1` for E-AC-3/AC-3).
+    """
     if target_codec in AppConstants.LOSSLESS_TARGET_CODECS:
         return None
-    defaults_by_codec: dict[str, dict[int, str]] = {
-        "eac3": {1: "128k", 2: "256k", 6: "640k"},
-        "ac3": {1: "128k", 2: "256k", 6: "448k"},
-        "aac": {1: "128k", 2: "256k", 6: "448k", 8: "640k"},
-        "opus": {1: "96k", 2: "192k", 6: "320k", 8: "448k"},
-    }
-    by_ch = defaults_by_codec.get(target_codec, {})
-    if channels in by_ch:
-        return by_ch[channels]
-    if channels >= 6 and 6 in by_ch:
-        return by_ch[6]
-    if channels >= 2 and 2 in by_ch:
-        return by_ch[2]
+    tier = (
+        quality
+        if quality in AppConstants.ALLOWED_AUDIO_QUALITIES
+        else AppConstants.DEFAULT_AUDIO_QUALITY
+    )
+    max_ch = AppConstants.AUDIO_CODEC_MAX_CHANNELS.get(
+        target_codec, AppConstants.MAX_DOLBY_CHANNELS
+    )
+    raw_ch = int(channels) if channels is not None else 0
+    effective_ch = raw_ch if raw_ch > 0 else AppConstants.MAX_DOLBY_CHANNELS
+    clamped_ch = max(
+        AppConstants.MIN_AUDIO_CHANNELS,
+        min(effective_ch, max_ch),
+    )
+    by_ch = AppConstants.AUDIO_QUALITY_BITRATE_MATRIX.get(target_codec, {})
+    if clamped_ch in by_ch:
+        return by_ch[clamped_ch].get(tier) or AppConstants.DEFAULT_BITRATE
+    defined_keys = sorted(by_ch.keys(), reverse=True)
+    for key in defined_keys:
+        if key <= clamped_ch:
+            return by_ch[key].get(tier) or AppConstants.DEFAULT_BITRATE
+    if defined_keys:
+        return by_ch[defined_keys[-1]].get(tier) or AppConstants.DEFAULT_BITRATE
     return AppConstants.DEFAULT_BITRATE
 
 
@@ -542,6 +560,7 @@ def compile_batch_rule_for_file(
     active_job_filepaths: set[str] | None = None,
     user_preferred_language: str = AppConstants.DEFAULT_PREFERRED_LANGUAGE,
     smart_fill_track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
+    default_audio_quality: str = AppConstants.DEFAULT_AUDIO_QUALITY,
     file_override: BatchFileOverride | None = None,
     seq_index: int = AppConstants.BATCH_RENAME_START_DEFAULT,
     pad_digits: int = AppConstants.BATCH_RENAME_PAD_DIGITS_2,
@@ -685,7 +704,9 @@ def compile_batch_rule_for_file(
         else:
             if not raw_rate or raw_rate not in allowed_rates:
                 raw_rate = resolve_default_bitrate_for_codec(
-                    rule.audio.target_codec, planned_out_channels
+                    rule.audio.target_codec,
+                    planned_out_channels,
+                    quality=default_audio_quality,
                 )
             planned_resolved_rate = resolve_effective_bitrate(
                 rule.audio.target_codec, raw_rate, planned_out_channels
@@ -1750,6 +1771,7 @@ def compile_batch_plans(
     storage_root: Path,
     user_preferred_language: str = AppConstants.DEFAULT_PREFERRED_LANGUAGE,
     smart_fill_track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
+    default_audio_quality: str = AppConstants.DEFAULT_AUDIO_QUALITY,
     file_overrides: dict[int, BatchFileOverride] | None = None,
     excluded_file_ids: set[int] | None = None,
 ) -> list[BatchFilePlan]:
@@ -1780,6 +1802,7 @@ def compile_batch_plans(
             active_job_filepaths=active_job_filepaths,
             user_preferred_language=user_preferred_language,
             smart_fill_track_format=smart_fill_track_format,
+            default_audio_quality=default_audio_quality,
             file_override=overrides_map.get(int(row["id"])),
             seq_index=rule.rename.start_number + idx,
             pad_digits=pad_digits,
@@ -1799,6 +1822,7 @@ def build_batch_preview_response(
     storage_root: Path,
     user_preferred_language: str = AppConstants.DEFAULT_PREFERRED_LANGUAGE,
     smart_fill_track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
+    default_audio_quality: str = AppConstants.DEFAULT_AUDIO_QUALITY,
     file_overrides: dict[int, BatchFileOverride] | None = None,
 ) -> BatchPreviewResponse:
     """Compile all selected rows (natural-sorted, with overrides & collision checks) into `BatchPreviewResponse`."""
@@ -1810,6 +1834,7 @@ def build_batch_preview_response(
         storage_root=storage_root,
         user_preferred_language=user_preferred_language,
         smart_fill_track_format=smart_fill_track_format,
+        default_audio_quality=default_audio_quality,
         file_overrides=file_overrides,
     )
 

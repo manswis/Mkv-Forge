@@ -42,6 +42,47 @@ class UserSettingsService:
         self._state_repo = state_repo
         self._auth_repo = auth_repo
 
+    @staticmethod
+    def _migrate_legacy_audio_dict(raw: dict[str, Any]) -> dict[str, Any]:
+        """Seamlessly migrate legacy `default_dolby_*` settings into generic audio defaults."""
+        migrated = dict(raw)
+        if "default_audio_codec" not in migrated and "default_dolby_codec" in migrated:
+            legacy_codec = str(migrated.get("default_dolby_codec") or "").strip().lower()
+            if legacy_codec == AppConstants.TARGET_CODEC_AC3:
+                migrated["default_audio_codec"] = AppConstants.TARGET_CODEC_AC3
+            else:
+                migrated["default_audio_codec"] = AppConstants.AUDIO_CODEC_AUTO
+
+        if "default_audio_quality" not in migrated and "default_dolby_bitrate" in migrated:
+            legacy_br = str(migrated.get("default_dolby_bitrate") or "").strip().lower()
+            migrated["default_audio_quality"] = AppConstants.LEGACY_DOLBY_BITRATE_TO_QUALITY.get(
+                legacy_br,
+                AppConstants.DEFAULT_AUDIO_QUALITY,
+            )
+        return migrated
+
+    @staticmethod
+    def _normalize_audio_default_updates(updates: dict[str, Any]) -> None:
+        """Keep new `default_audio_*` fields and legacy `default_dolby_*` aliases synchronized."""
+        if "default_audio_codec" in updates:
+            codec = updates["default_audio_codec"]
+            if codec in (AppConstants.TARGET_CODEC_EAC3, AppConstants.TARGET_CODEC_AC3):
+                updates.setdefault("default_dolby_codec", codec)
+        elif "default_dolby_codec" in updates:
+            updates["default_audio_codec"] = updates["default_dolby_codec"]
+
+        if "default_audio_quality" in updates:
+            quality = updates["default_audio_quality"]
+            mapped_br = AppConstants.AUDIO_QUALITY_TO_LEGACY_DOLBY_BITRATE.get(quality)
+            if mapped_br:
+                updates.setdefault("default_dolby_bitrate", mapped_br)
+        elif "default_dolby_bitrate" in updates:
+            legacy_br = updates["default_dolby_bitrate"]
+            updates["default_audio_quality"] = AppConstants.LEGACY_DOLBY_BITRATE_TO_QUALITY.get(
+                legacy_br,
+                AppConstants.DEFAULT_AUDIO_QUALITY,
+            )
+
     def _load_system_dict(self) -> dict[str, Any]:
         raw = self._state_repo.get(AppConstants.STATE_KEY_USER_SETTINGS)
         if not raw:
@@ -54,8 +95,9 @@ class UserSettingsService:
         if not isinstance(parsed, dict):
             return UserSettings().model_dump()
 
+        migrated = self._migrate_legacy_audio_dict(parsed)
         known_fields = UserSettings.model_fields.keys()
-        filtered = {k: v for k, v in parsed.items() if k in known_fields}
+        filtered = {k: v for k, v in migrated.items() if k in known_fields}
         try:
             return UserSettings.model_validate(filtered).model_dump()
         except ValidationError:
@@ -72,9 +114,10 @@ class UserSettingsService:
             return {}
         if not isinstance(parsed, dict):
             return {}
+        migrated = self._migrate_legacy_audio_dict(parsed)
         return {
             k: v
-            for k, v in parsed.items()
+            for k, v in migrated.items()
             if k in AppConstants.USER_SETTING_KEYS
         }
 
@@ -135,6 +178,7 @@ class UserSettingsService:
                 str(updates["visible_media_extensions"])
             )
         self._normalize_playback_updates(updates)
+        self._normalize_audio_default_updates(updates)
         system_dict = self._load_system_dict()
 
         if user_id is None or self._auth_repo is None:

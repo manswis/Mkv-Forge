@@ -4162,6 +4162,68 @@
         return this.updateUserSettings({ language: normalized });
       },
 
+      get effectiveAudioQuality() {
+        return Ed.resolveDefaultAudioQuality(this.userSettings);
+      },
+
+      get resolvedDefaultAudioCodec() {
+        return Ed.resolveDefaultAudioCodec(
+          this.userSettings,
+          this.activePlaybackProfile
+        );
+      },
+
+      get isDefaultAudioCodecLossless() {
+        return Boolean(Ed.getCodecMeta(this.resolvedDefaultAudioCodec).isLossless);
+      },
+
+      get defaultAudioCodecHelperText() {
+        const mode =
+          (this.userSettings && this.userSettings.default_audio_codec) ||
+          C.EDITOR.AUDIO_CODEC_AUTO;
+        const resolvedMeta = Ed.getCodecMeta(this.resolvedDefaultAudioCodec);
+        const resolvedLabel = resolvedMeta.displayLabel || resolvedMeta.label;
+        if (mode === C.EDITOR.AUDIO_CODEC_AUTO) {
+          const profile = this.activePlaybackProfile;
+          if (profile && profile.preset && profile.preset !== "neutral") {
+            const presetObj = PP && typeof PP.getPresetById === "function"
+              ? PP.getPresetById(profile.preset)
+              : null;
+            const profileLabel = presetObj
+              ? presetObj.shortLabel
+              : `Custom (${PP && typeof PP.formatChannelCapLabel === "function" ? PP.formatChannelCapLabel(profile.maxChannels) : "5.1"})`;
+            return `Follows ${profileLabel} Playback Profile → ${resolvedLabel}.`;
+          }
+          return `Playback Profile is Neutral — defaults to ${resolvedLabel}.`;
+        }
+        return `Always defaults to ${resolvedLabel} in File Editor & Batch Studio (overrides Playback Profile).`;
+      },
+
+      get audioQualityReadout() {
+        return Ed.formatQualityBitrateReadout(
+          this.resolvedDefaultAudioCodec,
+          this.effectiveAudioQuality
+        );
+      },
+
+      setDefaultAudioCodec(codec) {
+        const patch = { default_audio_codec: codec };
+        if (codec === C.EDITOR.CODEC_EAC3 || codec === C.EDITOR.CODEC_AC3) {
+          patch.default_dolby_codec = codec;
+        }
+        return this.updateUserSettings(patch);
+      },
+
+      setDefaultAudioQuality(tier) {
+        if (this.isDefaultAudioCodecLossless) return;
+        const legacyMap = C.EDITOR.QUALITY_TO_LEGACY_BITRATE || {};
+        const patch = { default_audio_quality: tier };
+        if (legacyMap[tier]) {
+          patch.default_dolby_bitrate = legacyMap[tier];
+        }
+        return this.updateUserSettings(patch);
+      },
+
       get smartFillFormatPreview() {
         const fmt =
           (this.userSettings && this.userSettings.smart_fill_track_format) ||
@@ -4730,15 +4792,13 @@
       _resolveDefaultBitrateForDraft(targetCodec, resolvedChannels) {
         const cfg = Ed.getBitrateConfigFor(targetCodec, resolvedChannels);
         if (!cfg.options || cfg.options.length === 0) return null;
-        const isDolby51 =
-          (targetCodec === C.EDITOR.CODEC_EAC3 ||
-            targetCodec === C.EDITOR.CODEC_AC3) &&
-          resolvedChannels === C.EDITOR.MAX_DOLBY_CHANNELS;
-        if (
-          isDolby51 &&
-          cfg.options.includes(this.userSettings.default_dolby_bitrate)
-        ) {
-          return this.userSettings.default_dolby_bitrate;
+        const tierBitrate = Ed.resolveQualityBitrate(
+          targetCodec,
+          resolvedChannels,
+          this.effectiveAudioQuality
+        );
+        if (tierBitrate && cfg.options.includes(tierBitrate)) {
+          return tierBitrate;
         }
         return cfg.defaultBitrate;
       },
@@ -4800,14 +4860,16 @@
         }
         const firstAudio = this.editorAudioTracks[0];
         if (!firstAudio) return;
-        const preferredDolby =
-          this.userSettings &&
-          this.userSettings.default_dolby_codec === C.EDITOR.CODEC_AC3
-            ? C.EDITOR.CODEC_AC3
-            : C.EDITOR.CODEC_EAC3;
+        let preferredCodec = this.resolvedDefaultAudioCodec;
+        if (
+          Ed.getCodecMeta(preferredCodec).requiresLosslessSource &&
+          !Ed.isLosslessAudioTrack(firstAudio)
+        ) {
+          preferredCodec = C.EDITOR.CODEC_EAC3;
+        }
         this.openAddAudioChoice(
           {
-            codec: preferredDolby,
+            codec: preferredCodec,
             targetChannels: null,
             preferredSourceTrackId: firstAudio.id,
             eligibleTracks: this.editorAudioTracks,
@@ -4860,14 +4922,13 @@
                   this.addAudioDraft.targetChannels
                 ).blocked
             );
-            const defaultDolby =
-              this.userSettings &&
-              this.userSettings.default_dolby_codec === C.EDITOR.CODEC_AC3
-                ? C.EDITOR.CODEC_AC3
-                : C.EDITOR.CODEC_EAC3;
+            let defaultCodec = this.resolvedDefaultAudioCodec;
+            if (Ed.getCodecMeta(defaultCodec).requiresLosslessSource) {
+              defaultCodec = C.EDITOR.CODEC_EAC3;
+            }
             this.addAudioDraft.targetCodec = fallback
               ? fallback.codec
-              : defaultDolby;
+              : defaultCodec;
           }
           const srcCh = Number(src.audio_channels || C.EDITOR.MAX_DOLBY_CHANNELS);
           const maxCh = Math.min(
@@ -6945,13 +7006,23 @@
 
       onBatchTargetCodecChange() {
         if (!this.batchModal || !this.batchModal.rule || !this.batchModal.rule.audio) return;
-        Batch.normalizeAudioRuleForTargetCodec(this.batchModal.rule.audio);
+        const audioRule = this.batchModal.rule.audio;
+        const nextBitrate = Ed.resolveQualityBitrate(
+          audioRule.target_codec,
+          audioRule.target_channels || C.EDITOR.MAX_DOLBY_CHANNELS,
+          this.effectiveAudioQuality
+        );
+        audioRule.bitrate = nextBitrate;
+        Batch.normalizeAudioRuleForTargetCodec(audioRule, this.userSettings);
         this.onBatchRuleChange(C.BATCH.OVERRIDE_AUDIO_CONVERT);
       },
 
       onBatchMatchConditionChange() {
         if (!this.batchModal || !this.batchModal.rule || !this.batchModal.rule.audio) return;
-        Batch.normalizeAudioRuleForTargetCodec(this.batchModal.rule.audio);
+        Batch.normalizeAudioRuleForTargetCodec(
+          this.batchModal.rule.audio,
+          this.userSettings
+        );
         this.onBatchRuleChange(C.BATCH.OVERRIDE_AUDIO_CONVERT);
       },
 

@@ -85,11 +85,14 @@
     Object.freeze({ value: 8, label: "7.1 Home Theater", hint: "7.1 / Atmos / DTS:X beds" }),
   ]);
 
-  // Preset/Profile default target codecs are strictly limited to eac3, ac3, aac.
+  // Custom profile preferred conversion targets support all 5 output codecs.
+  const ALLOWED_PREFERRED_CODECS = Object.freeze(["eac3", "ac3", "aac", "opus", "flac"]);
   const PREFERRED_TARGET_OPTIONS = Object.freeze([
     Object.freeze({ codec: "eac3", label: "E-AC-3", hint: "Dolby Digital Plus" }),
     Object.freeze({ codec: "ac3", label: "AC-3", hint: "Dolby Digital (Legacy/Optical)" }),
     Object.freeze({ codec: "aac", label: "AAC", hint: "Universal Stereo / Surround" }),
+    Object.freeze({ codec: "opus", label: "Opus", hint: "Modern Efficient (up to 7.1)" }),
+    Object.freeze({ codec: "flac", label: "FLAC", hint: "Lossless PCM (from lossless sources)" }),
   ]);
 
   function getPresetById(presetId) {
@@ -119,7 +122,7 @@
         maxChannels: [2, 6, 8].includes(Number(src.playback_max_channels))
           ? Number(src.playback_max_channels)
           : 6,
-        preferredCodec: ["eac3", "ac3", "aac"].includes(src.playback_preferred_codec)
+        preferredCodec: ALLOWED_PREFERRED_CODECS.includes(src.playback_preferred_codec)
           ? src.playback_preferred_codec
           : "eac3",
         customOpen: true,
@@ -224,7 +227,7 @@
       playback_max_channels: [2, 6, 8].includes(Number(draft.maxChannels))
         ? Number(draft.maxChannels)
         : 6,
-      playback_preferred_codec: ["eac3", "ac3", "aac"].includes(draft.preferredCodec)
+      playback_preferred_codec: ALLOWED_PREFERRED_CODECS.includes(draft.preferredCodec)
         ? draft.preferredCodec
         : "eac3",
     };

@@ -460,6 +460,12 @@ class UserSettings(BaseModel):
 
     # Processing & Editor Defaults
     default_output_mode: Literal["keep_both", "replace", "save_as"] = AppConstants.DEFAULT_SETTINGS_OUTPUT_MODE  # type: ignore[assignment]
+    default_audio_codec: Literal["auto", "eac3", "ac3", "aac", "opus", "flac"] = (
+        AppConstants.DEFAULT_AUDIO_CODEC  # type: ignore[assignment]
+    )
+    default_audio_quality: Literal["high", "balanced", "compact"] = (
+        AppConstants.DEFAULT_AUDIO_QUALITY  # type: ignore[assignment]
+    )
     default_dolby_codec: Literal["eac3", "ac3"] = AppConstants.DEFAULT_SETTINGS_DOLBY_CODEC  # type: ignore[assignment]
     default_dolby_bitrate: Literal["640k", "448k", "384k"] = AppConstants.DEFAULT_SETTINGS_DOLBY_BITRATE  # type: ignore[assignment]
     default_strip_global_tags: bool = AppConstants.DEFAULT_STRIP_GLOBAL_TAGS
@@ -503,7 +509,7 @@ class UserSettings(BaseModel):
     ] = AppConstants.DEFAULT_PLAYBACK_PROFILE_PRESET  # type: ignore[assignment]
     playback_supported_codecs: list[str] = Field(default_factory=list)
     playback_max_channels: Literal[2, 6, 8] = AppConstants.DEFAULT_PLAYBACK_MAX_CHANNELS  # type: ignore[assignment]
-    playback_preferred_codec: Literal["eac3", "ac3", "aac"] = AppConstants.DEFAULT_PLAYBACK_PREFERRED_CODEC  # type: ignore[assignment]
+    playback_preferred_codec: Literal["eac3", "ac3", "aac", "opus", "flac"] = AppConstants.DEFAULT_PLAYBACK_PREFERRED_CODEC  # type: ignore[assignment]
 
 
 class UserSettingsUpdate(BaseModel):
@@ -530,6 +536,8 @@ class UserSettingsUpdate(BaseModel):
     default_folder_layout: Literal["list", "grid"] | None = None
     page_limit: Literal[25, 50, 100] | None = None
     default_output_mode: Literal["keep_both", "replace", "save_as"] | None = None
+    default_audio_codec: Literal["auto", "eac3", "ac3", "aac", "opus", "flac"] | None = None
+    default_audio_quality: Literal["high", "balanced", "compact"] | None = None
     default_dolby_codec: Literal["eac3", "ac3"] | None = None
     default_dolby_bitrate: Literal["640k", "448k", "384k"] | None = None
     default_strip_global_tags: bool | None = None
@@ -560,7 +568,7 @@ class UserSettingsUpdate(BaseModel):
     ) = None
     playback_supported_codecs: list[str] | None = None
     playback_max_channels: Literal[2, 6, 8] | None = None
-    playback_preferred_codec: Literal["eac3", "ac3", "aac"] | None = None
+    playback_preferred_codec: Literal["eac3", "ac3", "aac", "opus", "flac"] | None = None
 
 
 class ProcessingRuntimeInfo(BaseModel):

@@ -338,6 +338,8 @@ class AppConstants:
             "default_folder_layout",
             "page_limit",
             "default_output_mode",
+            "default_audio_codec",
+            "default_audio_quality",
             "default_dolby_codec",
             "default_dolby_bitrate",
             "default_strip_global_tags",
@@ -377,6 +379,28 @@ class AppConstants:
     DEFAULT_SETTINGS_PAGE_LIMIT: int = 50
     ALLOWED_SETTINGS_PAGE_LIMITS: frozenset[int] = frozenset({25, 50, 100})
     DEFAULT_SETTINGS_OUTPUT_MODE: str = "keep_both"
+    AUDIO_CODEC_AUTO: str = "auto"
+    DEFAULT_AUDIO_CODEC: str = "auto"
+    ALLOWED_DEFAULT_AUDIO_CODECS: frozenset[str] = frozenset(
+        {"auto", "eac3", "ac3", "aac", "opus", "flac"}
+    )
+    AUDIO_QUALITY_HIGH: str = "high"
+    AUDIO_QUALITY_BALANCED: str = "balanced"
+    AUDIO_QUALITY_COMPACT: str = "compact"
+    DEFAULT_AUDIO_QUALITY: str = "high"
+    ALLOWED_AUDIO_QUALITIES: frozenset[str] = frozenset(
+        {"high", "balanced", "compact"}
+    )
+    LEGACY_DOLBY_BITRATE_TO_QUALITY: Mapping[str, str] = {
+        "640k": "high",
+        "448k": "balanced",
+        "384k": "compact",
+    }
+    AUDIO_QUALITY_TO_LEGACY_DOLBY_BITRATE: Mapping[str, str] = {
+        "high": "640k",
+        "balanced": "448k",
+        "compact": "384k",
+    }
     DEFAULT_SETTINGS_DOLBY_CODEC: str = "eac3"
     DEFAULT_SETTINGS_DOLBY_BITRATE: str = "640k"
     ALLOWED_DOLBY_BITRATES: frozenset[str] = frozenset({"640k", "448k", "384k"})
@@ -466,7 +490,7 @@ class AppConstants:
     ALLOWED_PLAYBACK_CODEC_KEYS: frozenset[str] = frozenset(PLAYBACK_CODEC_KEYS)
     ALLOWED_PLAYBACK_MAX_CHANNELS: frozenset[int] = frozenset({2, 6, 8})
     ALLOWED_PLAYBACK_PREFERRED_CODECS: frozenset[str] = frozenset(
-        {"eac3", "ac3", "aac"}
+        {"eac3", "ac3", "aac", "opus", "flac"}
     )
     DEFAULT_PLAYBACK_PROFILE_PRESET: str = "neutral"
     DEFAULT_PLAYBACK_MAX_CHANNELS: int = 6
@@ -551,6 +575,42 @@ class AppConstants:
             {"64k", "96k", "128k", "160k", "192k", "256k", "320k", "384k", "448k", "512k"}
         ),
         "flac": frozenset(),
+    }
+    # Full-channel quality-tier bitrate matrix (codec -> channel bucket -> quality tier -> bitrate)
+    # Every value is strictly within AUDIO_CODEC_ALLOWED_BITRATES and obeys codec channel/mono caps.
+    AUDIO_QUALITY_BITRATE_MATRIX: Mapping[str, Mapping[int, Mapping[str, str]]] = {
+        "eac3": {
+            1: {"high": "192k", "balanced": "128k", "compact": "96k"},
+            2: {"high": "256k", "balanced": "192k", "compact": "128k"},
+            3: {"high": "448k", "balanced": "384k", "compact": "256k"},
+            4: {"high": "448k", "balanced": "384k", "compact": "256k"},
+            6: {"high": "640k", "balanced": "448k", "compact": "384k"},
+        },
+        "ac3": {
+            1: {"high": "192k", "balanced": "128k", "compact": "96k"},
+            2: {"high": "256k", "balanced": "192k", "compact": "128k"},
+            3: {"high": "448k", "balanced": "384k", "compact": "256k"},
+            4: {"high": "448k", "balanced": "384k", "compact": "256k"},
+            6: {"high": "640k", "balanced": "448k", "compact": "384k"},
+        },
+        "aac": {
+            1: {"high": "192k", "balanced": "128k", "compact": "96k"},
+            2: {"high": "256k", "balanced": "192k", "compact": "128k"},
+            3: {"high": "384k", "balanced": "320k", "compact": "256k"},
+            4: {"high": "384k", "balanced": "320k", "compact": "256k"},
+            6: {"high": "448k", "balanced": "384k", "compact": "256k"},
+            7: {"high": "512k", "balanced": "448k", "compact": "320k"},
+            8: {"high": "640k", "balanced": "512k", "compact": "384k"},
+        },
+        "opus": {
+            1: {"high": "128k", "balanced": "96k", "compact": "64k"},
+            2: {"high": "192k", "balanced": "128k", "compact": "96k"},
+            3: {"high": "320k", "balanced": "256k", "compact": "192k"},
+            4: {"high": "320k", "balanced": "256k", "compact": "192k"},
+            6: {"high": "320k", "balanced": "256k", "compact": "192k"},
+            7: {"high": "384k", "balanced": "320k", "compact": "256k"},
+            8: {"high": "448k", "balanced": "320k", "compact": "256k"},
+        },
     }
     FLAC_ESTIMATED_SAMPLE_RATE: int = 48_000
     FLAC_ESTIMATED_BYTES_PER_SAMPLE: int = 3

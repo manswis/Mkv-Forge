@@ -201,6 +201,7 @@ async def preview_batch_jobs(
         storage_root=storage_dir,
         user_preferred_language=user_prefs.preferred_language,
         smart_fill_track_format=user_prefs.smart_fill_track_format,
+        default_audio_quality=user_prefs.default_audio_quality,
         file_overrides=payload.file_overrides,
     )
 
@@ -254,6 +255,7 @@ async def enqueue_batch_jobs(
         storage_root=storage_dir,
         user_preferred_language=user_prefs.preferred_language,
         smart_fill_track_format=user_prefs.smart_fill_track_format,
+        default_audio_quality=user_prefs.default_audio_quality,
         file_overrides=payload.file_overrides,
         excluded_file_ids=excluded_set,
     )

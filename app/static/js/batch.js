@@ -46,19 +46,72 @@
     RETAG_UND_LABEL: "Keep untagged (und)",
   };
 
+  function _resolveBatchDefaultCodec(prefs) {
+    const Ed = global.MKVForgeEditor;
+    if (Ed && typeof Ed.resolveDefaultAudioCodec === "function") {
+      return Ed.resolveDefaultAudioCodec(prefs);
+    }
+    const validTargets = EDITOR.ALL_TARGET_CODECS || ["eac3", "ac3", "aac", "opus", "flac"];
+    const explicit = String(prefs.default_audio_codec || "").trim().toLowerCase();
+    if (validTargets.includes(explicit)) return explicit;
+    if (
+      prefs.playback_profile_preset &&
+      prefs.playback_profile_preset !== "neutral" &&
+      validTargets.includes(prefs.playback_preferred_codec)
+    ) {
+      return prefs.playback_preferred_codec;
+    }
+    if (!explicit && prefs.default_dolby_codec === EDITOR.CODEC_AC3) {
+      return EDITOR.CODEC_AC3;
+    }
+    return EDITOR.CODEC_EAC3;
+  }
+
+  function _resolveBatchDefaultBitrate(prefs, targetCodec) {
+    const Ed = global.MKVForgeEditor;
+    if (
+      Ed &&
+      typeof Ed.resolveDefaultAudioQuality === "function" &&
+      typeof Ed.resolveQualityBitrate === "function"
+    ) {
+      const quality = Ed.resolveDefaultAudioQuality(prefs);
+      return Ed.resolveQualityBitrate(
+        targetCodec,
+        EDITOR.MAX_DOLBY_CHANNELS || 6,
+        quality
+      );
+    }
+    if (targetCodec === EDITOR.CODEC_FLAC) return null;
+    const legacyMap = EDITOR.LEGACY_BITRATE_TO_QUALITY || {
+      "640k": "high",
+      "448k": "balanced",
+      "384k": "compact",
+    };
+    const rawTier = String(prefs.default_audio_quality || "").trim().toLowerCase();
+    const rawLegacy = String(prefs.default_dolby_bitrate || "").trim().toLowerCase();
+    const tier =
+      rawTier === "balanced" || rawTier === "compact"
+        ? rawTier
+        : rawTier === "high" && rawLegacy && rawLegacy !== "640k" && legacyMap[rawLegacy]
+          ? legacyMap[rawLegacy]
+          : legacyMap[rawLegacy] || "high";
+    const matrix = (EDITOR.QUALITY_BITRATE_MATRIX || {})[targetCodec] || {};
+    const chBucket = matrix[EDITOR.MAX_DOLBY_CHANNELS || 6];
+    if (chBucket && chBucket[tier]) return chBucket[tier];
+    return Array.isArray(EDITOR.BITRATES) && EDITOR.BITRATES.includes(prefs.default_dolby_bitrate)
+      ? prefs.default_dolby_bitrate
+      : EDITOR.DEFAULT_BITRATE || "640k";
+  }
+
   function createDefaultBatchRule(userSettings = null) {
     const prefs = userSettings && typeof userSettings === "object" ? userSettings : {};
     const prefLang =
       String(prefs.preferred_language || EDITOR.DEFAULT_PREFERRED_LANGUAGE || "eng").trim() || "eng";
     const defaultUndLang = EDITOR.DEFAULT_LANGUAGE || "und";
-    const defaultCodec =
-      prefs.default_dolby_codec === EDITOR.CODEC_AC3
-        ? EDITOR.CODEC_AC3
-        : EDITOR.CODEC_EAC3;
-    const defaultBitrate =
-      Array.isArray(EDITOR.BITRATES) && EDITOR.BITRATES.includes(prefs.default_dolby_bitrate)
-        ? prefs.default_dolby_bitrate
-        : EDITOR.DEFAULT_BITRATE || "640k";
+    const defaultCodec = _resolveBatchDefaultCodec(prefs);
+    const defaultBitrate = _resolveBatchDefaultBitrate(prefs, defaultCodec);
+    const isDolbyDefault =
+      defaultCodec === EDITOR.CODEC_EAC3 || defaultCodec === EDITOR.CODEC_AC3;
     const defaultOutputMode =
       prefs.default_output_mode === EDITOR.OUTPUT_REPLACE
         ? EDITOR.OUTPUT_REPLACE
@@ -80,11 +133,13 @@
         enabled: true,
         source_language_mode: BATCH.AUDIO_LANG_MODE_PREFERRED,
         custom_source_language: prefLang,
-        match_condition: BATCH.MATCH_INCOMPATIBLE_OR_NON_DOLBY,
+        match_condition: isDolbyDefault
+          ? BATCH.MATCH_INCOMPATIBLE_OR_NON_DOLBY
+          : BATCH.MATCH_ANY_NON_TARGET,
         target_codec: defaultCodec,
         target_channels: null,
         bitrate: defaultBitrate,
-        accept_existing_dolby: true,
+        accept_existing_dolby: isDolbyDefault,
         set_as_default: true,
         drop_source_track: false,
       },
@@ -430,7 +485,7 @@
       : ["640k", "448k", "384k", "256k", "192k"];
   }
 
-  function normalizeAudioRuleForTargetCodec(audioRule) {
+  function normalizeAudioRuleForTargetCodec(audioRule, userSettings = null) {
     if (!audioRule || typeof audioRule !== "object") return;
     const codec = String(audioRule.target_codec || "eac3").toLowerCase();
     const options = getAudioApplyToOptions(codec);
@@ -444,8 +499,18 @@
       opus: "320k",
       flac: null,
     };
+    const qualityPreferred =
+      userSettings && typeof userSettings === "object"
+        ? _resolveBatchDefaultBitrate(userSettings, codec)
+        : null;
     if (allowedBitrates.length === 0) {
       audioRule.bitrate = null;
+    } else if (
+      qualityPreferred &&
+      allowedBitrates.includes(qualityPreferred) &&
+      !allowedBitrates.includes(audioRule.bitrate)
+    ) {
+      audioRule.bitrate = qualityPreferred;
     } else if (!allowedBitrates.includes(audioRule.bitrate)) {
       audioRule.bitrate = defaultsByCodec[codec] || allowedBitrates[0];
     }

@@ -578,8 +578,9 @@ class TestDesignSystemTokensAndPrimitives:
         audio_sec_block = html[audio_sec_start:out_sec_start]
         assert (
             audio_sec_block.index("Preferred Track Language")
-            < audio_sec_block.index("Default Dolby Codec")
-            < audio_sec_block.index("Default Dolby Bitrate")
+            < audio_sec_block.index("Default Target Codec")
+            < audio_sec_block.index("Default Audio Quality")
+            < audio_sec_block.index("Smart Fill Track Format")
         )
 
         # 4. Output, Metadata & Safety is split into two labeled cards

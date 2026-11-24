@@ -106,6 +106,119 @@
     };
   }
 
+  function resolveDefaultAudioQuality(userSettings = null) {
+    const prefs = userSettings && typeof userSettings === "object" ? userSettings : {};
+    const validTiers = [
+      EDITOR.AUDIO_QUALITY_HIGH || "high",
+      EDITOR.AUDIO_QUALITY_BALANCED || "balanced",
+      EDITOR.AUDIO_QUALITY_COMPACT || "compact",
+    ];
+    const legacyMap = EDITOR.LEGACY_BITRATE_TO_QUALITY || {
+      "640k": "high",
+      "448k": "balanced",
+      "384k": "compact",
+    };
+    const rawTier = String(prefs.default_audio_quality || "").trim().toLowerCase();
+    const rawLegacy = String(prefs.default_dolby_bitrate || "").trim().toLowerCase();
+    if (validTiers.includes(rawTier)) {
+      // Honor direct legacy default_dolby_bitrate mutations when quality is still default 'high'
+      if (
+        rawTier === (EDITOR.AUDIO_QUALITY_HIGH || "high") &&
+        rawLegacy &&
+        rawLegacy !== "640k" &&
+        legacyMap[rawLegacy]
+      ) {
+        return legacyMap[rawLegacy];
+      }
+      return rawTier;
+    }
+    if (rawLegacy && legacyMap[rawLegacy]) {
+      return legacyMap[rawLegacy];
+    }
+    return EDITOR.AUDIO_QUALITY_HIGH || "high";
+  }
+
+  function resolveDefaultAudioCodec(userSettings = null, playbackProfile = null) {
+    const prefs = userSettings && typeof userSettings === "object" ? userSettings : {};
+    const validTargets = EDITOR.ALL_TARGET_CODECS || ["eac3", "ac3", "aac", "opus", "flac"];
+    const explicit = String(prefs.default_audio_codec || "").trim().toLowerCase();
+    if (validTargets.includes(explicit)) {
+      return explicit;
+    }
+    const profilePreset =
+      (playbackProfile && playbackProfile.preset) || prefs.playback_profile_preset || "neutral";
+    const profileCodec = String(
+      (playbackProfile && playbackProfile.preferredCodec) ||
+        prefs.playback_preferred_codec ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+    if (profilePreset && profilePreset !== "neutral" && validTargets.includes(profileCodec)) {
+      return profileCodec;
+    }
+    if (!explicit && prefs.default_dolby_codec === EDITOR.CODEC_AC3) {
+      return EDITOR.CODEC_AC3;
+    }
+    return EDITOR.CODEC_EAC3;
+  }
+
+  function resolveQualityBitrate(targetCodec, resolvedChannels, qualityTier = "high") {
+    const meta = getCodecMeta(targetCodec);
+    if (meta.isLossless) {
+      return null;
+    }
+    const tier = [
+      EDITOR.AUDIO_QUALITY_HIGH || "high",
+      EDITOR.AUDIO_QUALITY_BALANCED || "balanced",
+      EDITOR.AUDIO_QUALITY_COMPACT || "compact",
+    ].includes(qualityTier)
+      ? qualityTier
+      : EDITOR.AUDIO_QUALITY_HIGH || "high";
+
+    const matrix = (EDITOR.QUALITY_BITRATE_MATRIX || {})[meta.codec] || {};
+    const maxForCodec = Number(meta.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+    const parsedCh = Number(resolvedChannels || EDITOR.MAX_DOLBY_CHANNELS);
+    const clampedCh = Math.max(
+      1,
+      Math.min(Number.isFinite(parsedCh) && parsedCh > 0 ? Math.round(parsedCh) : EDITOR.MAX_DOLBY_CHANNELS, maxForCodec)
+    );
+    if (matrix[clampedCh] && matrix[clampedCh][tier]) {
+      return matrix[clampedCh][tier];
+    }
+    const keys = Object.keys(matrix)
+      .map((k) => Number(k))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => b - a);
+    const nearest = keys.find((k) => k <= clampedCh) ?? keys[keys.length - 1];
+    if (nearest !== undefined && matrix[nearest] && matrix[nearest][tier]) {
+      return matrix[nearest][tier];
+    }
+    return getBitrateConfigFor(meta.codec, clampedCh).defaultBitrate;
+  }
+
+  function formatQualityBitrateReadout(targetCodec, qualityTier = "high") {
+    const meta = getCodecMeta(targetCodec);
+    const codecLabel = meta.displayLabel || meta.label || String(targetCodec || "E-AC-3").toUpperCase();
+    if (meta.isLossless) {
+      return `${codecLabel} (1.0 – 7.1): Lossless PCM · Bitrate N/A`;
+    }
+    const maxCh = Number(meta.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+    const slots = [
+      { ch: 1, label: "1.0" },
+      { ch: 2, label: "2.0" },
+      { ch: 6, label: "5.1" },
+    ];
+    if (maxCh >= 8) {
+      slots.push({ ch: 8, label: "7.1" });
+    }
+    const parts = slots.map(
+      (s) => `${s.label} ${resolveQualityBitrate(meta.codec, s.ch, qualityTier)}`
+    );
+    const capNote = maxCh <= EDITOR.MAX_DOLBY_CHANNELS ? " (max 5.1)" : "";
+    return `${codecLabel}: ${parts.join(" · ")}${capNote}`;
+  }
+
   function getAvailableTargetCodecs(sourceTrack) {
     const lossless = isLosslessAudioTrack(sourceTrack);
     const ordered = EDITOR.ALL_TARGET_CODECS || ["eac3", "ac3", "aac", "opus", "flac"];
@@ -424,53 +537,55 @@
       );
     }
 
-    // If household Playback Profile is configured, promote its preferred target codec & channel ceiling;
-    // otherwise honor the user's Default Dolby Codec preference when set to AC-3.
+    // Promote preferred target codec:
+    // 1. Explicit Default Target Codec (when not 'auto') wins as 'Default'
+    // 2. Otherwise ('auto'), configured Playback Profile wins as 'Your System' (supports all 5 codecs)
+    // 3. Otherwise (neutral profile), legacy default_dolby_codec === 'ac3' promotes AC-3 as 'Default'
+    const validTargets = EDITOR.ALL_TARGET_CODECS || ["eac3", "ac3", "aac", "opus", "flac"];
+    const explicitDefaultCodec =
+      prefs && validTargets.includes(prefs.default_audio_codec)
+        ? prefs.default_audio_codec
+        : null;
     const hasConfiguredProfile = Boolean(
       playbackProfile &&
         playbackProfile.preset &&
         playbackProfile.preset !== "neutral" &&
-        ["eac3", "ac3", "aac"].includes(playbackProfile.preferredCodec)
+        validTargets.includes(playbackProfile.preferredCodec)
     );
-    if (hasConfiguredProfile) {
+
+    const promoteCodec = (prefCodec, prefTargetCh, badgeLabel) => {
+      const check = isConversionCombinationBlocked(primaryTrack, prefCodec, prefTargetCh);
+      if (check.blocked) return;
+      const existingIdx = specs.findIndex(
+        (s) => s.codec === prefCodec && (s.targetChannels ?? null) === prefTargetCh
+      );
+      if (existingIdx >= 0) {
+        const [matched] = specs.splice(existingIdx, 1);
+        specs.unshift({ ...matched, badge: badgeLabel });
+      } else {
+        specs.unshift({
+          codec: prefCodec,
+          targetChannels: prefTargetCh,
+          badge: badgeLabel,
+        });
+        if (specs.length > 3) specs.pop();
+      }
+    };
+
+    if (explicitDefaultCodec) {
+      const prefMaxCh = hasConfiguredProfile
+        ? Number(playbackProfile.maxChannels || EDITOR.MAX_AUDIO_CHANNELS)
+        : Number(getCodecMeta(explicitDefaultCodec).maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
+      const prefTargetCh =
+        hasConfiguredProfile && srcChannels > prefMaxCh ? prefMaxCh : null;
+      promoteCodec(explicitDefaultCodec, prefTargetCh, "Default");
+    } else if (hasConfiguredProfile) {
       const prefCodec = playbackProfile.preferredCodec;
       const prefMaxCh = Number(playbackProfile.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
       const prefTargetCh = srcChannels > prefMaxCh ? prefMaxCh : null;
-      const check = isConversionCombinationBlocked(primaryTrack, prefCodec, prefTargetCh);
-      if (!check.blocked) {
-        const existingIdx = specs.findIndex(
-          (s) => s.codec === prefCodec && (s.targetChannels ?? null) === prefTargetCh
-        );
-        if (existingIdx >= 0) {
-          const [matched] = specs.splice(existingIdx, 1);
-          specs.unshift({ ...matched, badge: "Your System" });
-        } else {
-          specs.unshift({
-            codec: prefCodec,
-            targetChannels: prefTargetCh,
-            badge: "Your System",
-          });
-          if (specs.length > 3) specs.pop();
-        }
-      }
+      promoteCodec(prefCodec, prefTargetCh, "Your System");
     } else if (prefs && prefs.default_dolby_codec === EDITOR.CODEC_AC3) {
-      const check = isConversionCombinationBlocked(primaryTrack, EDITOR.CODEC_AC3, null);
-      if (!check.blocked) {
-        const existingIdx = specs.findIndex(
-          (s) => s.codec === EDITOR.CODEC_AC3 && (s.targetChannels ?? null) === null
-        );
-        if (existingIdx >= 0) {
-          const [matched] = specs.splice(existingIdx, 1);
-          specs.unshift({ ...matched, badge: "Default" });
-        } else {
-          specs.unshift({
-            codec: EDITOR.CODEC_AC3,
-            targetChannels: null,
-            badge: "Default",
-          });
-          if (specs.length > 3) specs.pop();
-        }
-      }
+      promoteCodec(EDITOR.CODEC_AC3, null, "Default");
     }
 
     return specs.map((spec) => {
@@ -708,13 +823,13 @@
     const defaultOutputMode = validOutputModes.includes(prefs.default_output_mode)
       ? prefs.default_output_mode
       : EDITOR.OUTPUT_KEEP_BOTH;
-    const defaultDolbyCodec =
-      prefs.default_dolby_codec === EDITOR.CODEC_AC3
-        ? EDITOR.CODEC_AC3
-        : EDITOR.CODEC_EAC3;
-    const defaultDolbyBitrate = EDITOR.BITRATES.includes(prefs.default_dolby_bitrate)
-      ? prefs.default_dolby_bitrate
-      : EDITOR.DEFAULT_BITRATE;
+    const defaultDolbyCodec = resolveDefaultAudioCodec(prefs);
+    const defaultQuality = resolveDefaultAudioQuality(prefs);
+    const defaultDolbyBitrate = resolveQualityBitrate(
+      defaultDolbyCodec,
+      EDITOR.MAX_DOLBY_CHANNELS,
+      defaultQuality
+    );
 
     const removeAllMetadata = prefs.default_remove_all_metadata !== false;
 
@@ -1537,6 +1652,10 @@
     getCodecMeta,
     resolveTargetChannels,
     getBitrateConfigFor,
+    resolveDefaultAudioCodec,
+    resolveDefaultAudioQuality,
+    resolveQualityBitrate,
+    formatQualityBitrateReadout,
     getAvailableTargetCodecs,
     getAvailableChannelOptions,
     isConversionCombinationBlocked,

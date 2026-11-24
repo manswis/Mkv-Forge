@@ -44,22 +44,22 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.15"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
   <script defer src="/static/js/api.js?v=0.1.0-p18.2"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/editor.js?v=0.1.0-p18.22"></script>
+  <script defer src="/static/js/editor.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/charts.js?v=0.1.0-p17.7"></script>
   <script defer src="/static/js/library_return.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/playback_profile.js?v=0.1.0-p15.1"></script>
+  <script defer src="/static/js/playback_profile.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
-  <script defer src="/static/js/batch.js?v=0.1.0-p18.22"></script>
+  <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.22"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -4074,8 +4074,8 @@
                           </span>
                           <div class="min-w-0">
                             <p class="text-xs font-semibold text-ink-primary">Audio &amp; Track Defaults</p>
-                            <p class="truncate text-xs text-ink-secondary">Preferred track language, default Dolby codec
-                              &amp; bitrate</p>
+                            <p class="truncate text-xs text-ink-secondary">Preferred language, target codec, quality
+                              tier &amp; Smart Fill</p>
                           </div>
                         </div>
                         <svg class="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150"
@@ -4089,8 +4089,8 @@
                         :class="[activeSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.AUDIO_TRACKS ? 'block' : 'hidden']">
                         <div class="hidden md:block">
                           <h2 class="ui-section-title">Audio &amp; Track Defaults</h2>
-                          <p class="ui-meta mt-0.5">Preferred track language and fallback Dolby format/bitrate when
-                            adding tracks.</p>
+                          <p class="ui-meta mt-0.5">Preferred track language, default conversion codec, audio quality
+                            tier, and Smart Fill naming style.</p>
                         </div>
 
                         <div
@@ -4112,45 +4112,58 @@
                             </select>
                           </div>
 
-                          <!-- Default Dolby Codec -->
-                          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                            <div class="min-w-0">
-                              <p class="text-xs font-medium text-ink-primary">Default Dolby Codec</p>
-                              <p class="mt-0.5 text-xs text-ink-muted">Target surround format (EAC3 or AC3).</p>
+                          <!-- Default Target Codec -->
+                          <div class="space-y-2 px-4 py-3">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-medium text-ink-primary">Default Target Codec</p>
+                                <p class="mt-0.5 text-xs text-ink-muted">Pre-selected format when adding audio in File
+                                  Editor &amp; Batch Studio.</p>
+                              </div>
+                              <select :value="userSettings.default_audio_codec"
+                                @change="setDefaultAudioCodec($event.target.value)"
+                                aria-label="Default target codec"
+                                class="ui-select select-dark w-full sm:w-auto min-w-0">
+                                <template x-for="opt in C.SETTINGS_OPTIONS.DEFAULT_AUDIO_CODECS" :key="`dac-${opt.id}`">
+                                  <option :value="opt.id" :selected="userSettings.default_audio_codec === opt.id"
+                                    x-text="opt.label"></option>
+                                </template>
+                              </select>
                             </div>
-                            <div class="ui-segmented shrink-0">
-                              <button type="button"
-                                :aria-pressed="userSettings.default_dolby_codec === C.EDITOR.CODEC_EAC3 ? 'true' : 'false'"
-                                @click="updateUserSettings({ default_dolby_codec: C.EDITOR.CODEC_EAC3 })"
-                                class="ui-segmented-item font-mono"
-                                :class="userSettings.default_dolby_codec === C.EDITOR.CODEC_EAC3 ? 'ui-segmented-item-active' : ''">
-                                EAC3
-                              </button>
-                              <button type="button"
-                                :aria-pressed="userSettings.default_dolby_codec === C.EDITOR.CODEC_AC3 ? 'true' : 'false'"
-                                @click="updateUserSettings({ default_dolby_codec: C.EDITOR.CODEC_AC3 })"
-                                class="ui-segmented-item font-mono"
-                                :class="userSettings.default_dolby_codec === C.EDITOR.CODEC_AC3 ? 'ui-segmented-item-active' : ''">
-                                AC3
-                              </button>
-                            </div>
+                            <p class="text-xs text-ink-secondary" x-text="defaultAudioCodecHelperText"></p>
                           </div>
 
-                          <!-- Default Dolby Bitrate -->
-                          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                            <div class="min-w-0">
-                              <p class="text-xs font-medium text-ink-primary">Default Dolby Bitrate</p>
-                              <p class="mt-0.5 text-xs text-ink-muted">Default bitrate for EAC3 / AC3 surround encodes.
-                              </p>
+                          <!-- Default Audio Quality -->
+                          <div class="space-y-2.5 px-4 py-3.5">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                              <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                  <p class="text-xs font-medium text-ink-primary">Default Audio Quality</p>
+                                  <span x-show="isDefaultAudioCodecLossless"
+                                    class="ui-badge ui-badge-ok font-mono">
+                                    Lossless · Bitrate N/A
+                                  </span>
+                                </div>
+                                <p class="mt-0.5 text-xs text-ink-muted"
+                                  x-text="isDefaultAudioCodecLossless ? 'FLAC is always lossless PCM — quality tier applies only when encoding to a lossy codec.' : 'Automatically chooses codec- and channel-appropriate bitrates (1.0 through 7.1).'"></p>
+                              </div>
+                              <div class="ui-segmented shrink-0 flex flex-wrap"
+                                :class="isDefaultAudioCodecLossless ? 'opacity-50' : ''">
+                                <template x-for="tier in C.SETTINGS_OPTIONS.AUDIO_QUALITY_TIERS" :key="`daq-${tier.id}`">
+                                  <button type="button"
+                                    :disabled="isDefaultAudioCodecLossless"
+                                    :aria-disabled="isDefaultAudioCodecLossless ? 'true' : 'false'"
+                                    :aria-pressed="!isDefaultAudioCodecLossless && effectiveAudioQuality === tier.id ? 'true' : 'false'"
+                                    @click="setDefaultAudioQuality(tier.id)"
+                                    class="ui-segmented-item"
+                                    :class="[!isDefaultAudioCodecLossless && effectiveAudioQuality === tier.id ? 'ui-segmented-item-active' : '', isDefaultAudioCodecLossless ? 'cursor-not-allowed' : '']"
+                                    x-text="tier.label"></button>
+                                </template>
+                              </div>
                             </div>
-                            <select :value="userSettings.default_dolby_bitrate"
-                              @change="updateUserSettings({ default_dolby_bitrate: $event.target.value })"
-                              aria-label="Default Dolby bitrate" class="ui-select select-dark ui-num w-auto font-mono">
-                              <template x-for="br in C.SETTINGS_OPTIONS.DOLBY_BITRATES" :key="`dbr-${br}`">
-                                <option :value="br" :selected="userSettings.default_dolby_bitrate === br" x-text="br">
-                                </option>
-                              </template>
-                            </select>
+                            <div
+                              class="rounded-ui-sm border border-subtle bg-inset px-3 py-2 text-xs font-mono text-ink-secondary break-words"
+                              x-text="audioQualityReadout"></div>
                           </div>
 
                           <!-- Smart Fill Track Format -->
@@ -7102,7 +7115,7 @@
                   </div>
                   <div>
                     <p class="text-xs font-medium text-ink-secondary">Preferred Target</p>
-                    <div class="ui-segmented mt-1 flex w-full">
+                    <div class="ui-segmented mt-1 flex w-full flex-wrap">
                       <template x-for="tgt in PP.PREFERRED_TARGET_OPTIONS" :key="`ob-tgt-${tgt.codec}`">
                         <button type="button"
                           :aria-pressed="onboardingProfileDraft.preferredCodec === tgt.codec ? 'true' : 'false'"

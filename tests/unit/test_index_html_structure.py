@@ -190,13 +190,15 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p18.18" in html
-        assert "/static/js/constants.js?v=0.1.0-p18.15" in html
+        assert "/static/js/constants.js?v=0.1.0-p18.23" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
-        assert "/static/js/editor.js?v=0.1.0-p18.22" in html
-        assert "/static/js/app.js?v=0.1.0-p18.22" in html
-        assert "/static/js/batch.js?v=0.1.0-p18.22" in html
-        assert html.index("/static/js/nav_history.js") < html.index("/static/js/app.js")
+        assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
+        assert "/static/js/editor.js?v=0.1.0-p18.23" in html
+        assert "/static/js/app.js?v=0.1.0-p18.23" in html
+        assert "/static/js/batch.js?v=0.1.0-p18.23" in html
+        assert html.index(
+            "/static/js/nav_history.js") < html.index("/static/js/app.js")
         assert "/static/js/charts.js?v=0.1.0-p17.7" in html
         assert html.index(
             "/static/js/test_media.js") < html.index("/static/js/app.js")
@@ -302,8 +304,10 @@ class TestIndexHtmlStructure:
         assert "this.openFileInfoModal(file);" in app_js
 
         # Hybrid Touch + Desktop Grid Selection landmarks (Toolbar Select/Done + 400ms Long-Press + pointer-events fix)
-        input_css = (INDEX_HTML_PATH.parents[2] / "frontend" / "input.css").read_text(encoding="utf-8")
-        css_text = (INDEX_HTML_PATH.parent / "css" / "app.css").read_text(encoding="utf-8")
+        input_css = (
+            INDEX_HTML_PATH.parents[2] / "frontend" / "input.css").read_text(encoding="utf-8")
+        css_text = (INDEX_HTML_PATH.parent / "css" /
+                    "app.css").read_text(encoding="utf-8")
         assert ".ui-touch-tile" in input_css
         assert "-webkit-touch-callout: none;" in input_css
         assert ".ui-job-badge" in input_css and ".ui-job-badge" in css_text
@@ -336,7 +340,8 @@ class TestIndexHtmlStructure:
 
     def test_batch_studio_user_templates_retag_dropdown_and_selectable_chips(self) -> None:
         html = _read_index_html()
-        constants_js = (INDEX_HTML_PATH.parent / "js" / "constants.js").read_text(encoding="utf-8")
+        constants_js = (INDEX_HTML_PATH.parent / "js" /
+                        "constants.js").read_text(encoding="utf-8")
 
         # User-owned templates only + pre-checked Update Template on Queue checkbox + non-overlapping responsive bar
         tpl_bar_start = html.index("User Templates Bar")
@@ -362,7 +367,8 @@ class TestIndexHtmlStructure:
 
         # Compact 3-Tab Rules Panel (Audio | Metadata & Subs | Output & Rename) + Save As + Inline Rename
         tab_panel_start = html.index('aria-label="Batch rule categories"')
-        tab_strip_end = html.index("<!-- Tab 1: Smart Audio Conversion -->", tab_panel_start)
+        tab_strip_end = html.index(
+            "<!-- Tab 1: Smart Audio Conversion -->", tab_panel_start)
         tab_strip_html = html[tab_panel_start:tab_strip_end]
         assert "flex-nowrap" in tab_strip_html
         assert "overflow-x-auto" in tab_strip_html
@@ -376,7 +382,8 @@ class TestIndexHtmlStructure:
         assert "selectBatchTab(C.BATCH.TAB_METADATA, $el)" in tab_strip_html
         assert "selectBatchTab(C.BATCH.TAB_OUTPUT, $el)" in tab_strip_html
 
-        preview_start = html.index("Live Per-File Dry-Run Preview Matrix", tab_panel_start)
+        preview_start = html.index(
+            "Live Per-File Dry-Run Preview Matrix", tab_panel_start)
         tab_panel_html = html[tab_panel_start:preview_start]
         assert tab_panel_html.count(">Subtitles:</label>") == 1
         assert "C.BATCH.TAB_AUDIO" in tab_panel_html
@@ -402,7 +409,7 @@ class TestIndexHtmlStructure:
 
         # Folder Picker renders at z-[60] (strictly above z-50 batchModal)
         fp_idx = html.index('x-show="folderPickerOpen && folderTree"')
-        assert "z-[60]" in html[fp_idx : fp_idx + 180]
+        assert "z-[60]" in html[fp_idx: fp_idx + 180]
 
         # Selectable per-file chips + inline rename + collision guard in Dry-Run Preview
         assert "toggleBatchFileChip(item.file_id, chip)" in html
@@ -415,7 +422,8 @@ class TestIndexHtmlStructure:
         preview_html = html[preview_start:]
         assert "C.BATCH.CHIP_CAT_VIDEO" in preview_html
         assert "C.BATCH.CHIP_CAT_AUDIO" in preview_html
-        assert preview_html.index("C.BATCH.CHIP_CAT_VIDEO") < preview_html.index("C.BATCH.CHIP_CAT_AUDIO")
+        assert preview_html.index("C.BATCH.CHIP_CAT_VIDEO") < preview_html.index(
+            "C.BATCH.CHIP_CAT_AUDIO")
         assert "C.BATCH.CHIP_CAT_SUBTITLE" in preview_html
         assert "C.BATCH.CHIP_CAT_TAG" in preview_html
 
@@ -426,11 +434,12 @@ class TestIndexHtmlStructure:
         ms_start = html.index("Multi-Select Bulk Action Bar")
         ms_end = html.index("<!-- Library Error -->", ms_start)
         ms_html = html[ms_start:ms_end]
-        assert ms_html.index("toggleSelectAllPage()") < ms_html.index("clearSelection()") < ms_html.index("openBatchModalForSelection()") < ms_html.index("openDeleteSelectedFilesModal()")
+        assert ms_html.index("toggleSelectAllPage()") < ms_html.index("clearSelection()") < ms_html.index(
+            "openBatchModalForSelection()") < ms_html.index("openDeleteSelectedFilesModal()")
         assert "order-2 ml-auto" in ms_html
         assert "lg:order-3" in ms_html
 
         # Clickable job folder path appears across all 3 history surfaces (Dashboard, Jobs Page, Live Jobs Drawer)
         assert html.count('openJobFolder(') == 3
-        assert html.count('Fmt.resolveJobFolder(') == 9  # title + aria-label + x-text x 3 surfaces
-
+        # title + aria-label + x-text x 3 surfaces
+        assert html.count('Fmt.resolveJobFolder(') == 9
