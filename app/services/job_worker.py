@@ -17,12 +17,18 @@ from app.db.repositories import JobRepository, MediaFileRepository
 from app.models.schemas import JobConfig
 from app.services.folder_sync import FolderReconcileCache
 from app.services.mkv_runner import JobCancelledError, execute_two_stage_pipeline
+from app.services.processing_policy import (
+    ProcessingRuntimePolicy,
+    list_managed_scratch_dirs,
+    resolve_processing_policy,
+)
 from app.services.scanner import LibraryScanner
 from app.services.sse_broker import JobSSEBroker
 from app.services.upload_service import (
     UploadService,
     extract_upload_ids_from_tracks,
 )
+from app.services.user_settings import UserSettingsService
 from app.utils.paths import (
     extract_folder,
     is_mkvforge_temp_file,
@@ -257,6 +263,7 @@ class JobWorker:
         broker: JobSSEBroker,
         upload_service: UploadService | None = None,
         folder_cache: FolderReconcileCache | None = None,
+        user_settings_service: UserSettingsService | None = None,
         cancel_grace_sec: float = AppConstants.SUBPROCESS_CANCEL_GRACE_SEC,
     ) -> None:
         self._settings = settings
@@ -266,6 +273,7 @@ class JobWorker:
         self._broker = broker
         self._upload_service = upload_service or UploadService(settings)
         self._folder_cache = folder_cache
+        self._user_settings_service = user_settings_service
         self._cancel_grace_sec = cancel_grace_sec
 
         self._wake_event = asyncio.Event()
@@ -298,8 +306,15 @@ class JobWorker:
             return []
         return extract_upload_ids_from_tracks(cfg.external_tracks)
 
+    def _resolve_processing_policy(self) -> ProcessingRuntimePolicy:
+        """Load current system settings and compute per-job CPU/I/O & scratch policy."""
+        if self._user_settings_service is None:
+            return ProcessingRuntimePolicy()
+        effective = self._user_settings_service.get(user_id=None)
+        return resolve_processing_policy(effective, settings=self._settings)
+
     async def recover_from_crash(self) -> tuple[int, int]:
-        """Fail stale `running` jobs, sweep `*.mkvforge.*` temps, and sweep orphan uploads."""
+        """Fail stale `running` jobs, sweep `*.mkvforge.*` temps (storage + scratch), and sweep orphan uploads."""
         stale_jobs = await asyncio.to_thread(
             self._job_repo.fail_stale_running_jobs,
             AppConstants.CRASH_RECOVERY_ERROR_MESSAGE,
@@ -308,6 +323,11 @@ class JobWorker:
             sweep_orphaned_temp_files,
             self._settings.storage_dir,
         )
+        for scratch_dir in list_managed_scratch_dirs(self._settings):
+            removed_temps += await asyncio.to_thread(
+                sweep_orphaned_temp_files,
+                scratch_dir,
+            )
         queued_rows = await asyncio.to_thread(self._job_repo.list_queued)
         active_upload_ids: set[str] = set()
         for row in queued_rows:
@@ -551,6 +571,9 @@ class JobWorker:
             source_path = await asyncio.to_thread(
                 safe_resolve_path, rel_filepath, self._settings.storage_dir
             )
+            processing_policy = await asyncio.to_thread(
+                self._resolve_processing_policy
+            )
 
             result = await execute_two_stage_pipeline(
                 source_path,
@@ -561,6 +584,7 @@ class JobWorker:
                 scanner=self._scanner,
                 upload_service=self._upload_service,
                 folder_cache=self._folder_cache,
+                processing_policy=processing_policy,
                 on_stage=_on_stage,
                 on_progress=_on_progress,
                 on_log=_on_log,

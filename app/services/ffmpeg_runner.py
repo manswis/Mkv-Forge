@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app.config import AppConstants
+from app.services.processing_policy import (
+    build_nice_preexec_fn,
+    wrap_command_with_io_priority,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +215,7 @@ def build_ffmpeg_command(
     sample_rate: int | None = None,
     requested_channels: int | None = None,
     source_codec: str | None = None,
+    threads: int | None = None,
 ) -> list[str]:
     """Build deterministic Stage 1 FFmpeg argv list (zero shell interpolation)."""
     if audio_index < 0:
@@ -238,6 +243,14 @@ def build_ffmpeg_command(
         AppConstants.TOOL_FFMPEG,
         "-y",
     ]
+    capped_threads: str | None = (
+        str(int(threads))
+        if threads is not None and threads >= AppConstants.MIN_FFMPEG_THREADS
+        else None
+    )
+    if capped_threads is not None:
+        # Cap input decoding and internal audio filtergraph threads
+        argv.extend(["-threads", capped_threads, "-filter_threads", capped_threads])
     # Disable Dolby Dynamic Range Compression on decode for AC-3 / E-AC-3 sources
     canonical_src = canonicalize_audio_codec(source_codec)
     if canonical_src in (
@@ -260,6 +273,9 @@ def build_ffmpeg_command(
             encoder_name,
         ]
     )
+    if capped_threads is not None:
+        # Cap output audio encoder threads (FFmpeg `-threads` is per-input/per-output)
+        argv.extend(["-threads", capped_threads])
     if not is_lossless_target and bitrate:
         argv.extend(["-b:a", bitrate])
 
@@ -438,6 +454,9 @@ async def run_ffmpeg_transcode(
     duration_us: int = 0,
     expected_codec: str | None = None,
     expected_channels: int | None = None,
+    threads: int | None = None,
+    nice_increment: int = 0,
+    use_ionice_idle: bool = False,
     on_progress: ProgressCallback | None = None,
     on_log: LogCallback | None = None,
     on_process_started: ProcessCallback | None = None,
@@ -496,13 +515,23 @@ async def run_ffmpeg_transcode(
         requested_channels=resolved_channels,
         sample_rate=probe_info.sample_rate,
         source_codec=probe_info.codec_name,
+        threads=threads,
     )
+    launch_cmd = wrap_command_with_io_priority(
+        cmd, use_ionice_idle=use_ionice_idle
+    )
+    preexec_fn = build_nice_preexec_fn(nice_increment)
+    exec_kwargs: dict[str, Any] = {
+        "stdout": asyncio.subprocess.PIPE,
+        "stderr": asyncio.subprocess.PIPE,
+    }
+    if preexec_fn is not None:
+        exec_kwargs["preexec_fn"] = preexec_fn
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            *launch_cmd,
+            **exec_kwargs,
         )
     except FileNotFoundError as exc:
         raise FFmpegError("ffmpeg executable not found in PATH") from exc

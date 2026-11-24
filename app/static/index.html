@@ -43,23 +43,23 @@
       } catch (_e) { }
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.17" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.14"></script>
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.15"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
-  <script defer src="/static/js/api.js?v=0.1.0-p18.1"></script>
+  <script defer src="/static/js/api.js?v=0.1.0-p18.2"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/editor.js?v=0.1.0-p15.1"></script>
+  <script defer src="/static/js/editor.js?v=0.1.0-p18.22"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/charts.js?v=0.1.0-p17.7"></script>
   <script defer src="/static/js/library_return.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/playback_profile.js?v=0.1.0-p15.1"></script>
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
-  <script defer src="/static/js/batch.js?v=0.1.0-p18.12"></script>
+  <script defer src="/static/js/batch.js?v=0.1.0-p18.22"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.20"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.22"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -2544,7 +2544,7 @@
                               </div>
                               <div x-show="row.track.enabled && !row.isDroppedByAudioFix" class="flex justify-end">
                                 <button type="button" @click="sanitizeTrackMetadata(row.track)"
-                                  :disabled="row.track.track_name === Ed.formatTrackBadge(row.track)"
+                                  :disabled="row.track.track_name === formatTrackBadgeForUser(row.track)"
                                   :aria-label="`Smart fill track ${row.track.id} name`"
                                   class="py-0.5 text-xs font-medium text-accent transition hover:underline focus:outline-none disabled:cursor-default disabled:text-ink-muted disabled:no-underline">
                                   Smart fill
@@ -3110,6 +3110,12 @@
                                 viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                 <path
                                   d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z">
+                                </path>
+                              </svg>
+                              <svg x-show="sec.id === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE" class="h-3.5 w-3.5"
+                                viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                  d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z">
                                 </path>
                               </svg>
                               <svg x-show="sec.id === C.SETTINGS_SECTIONS.MAINTENANCE" class="h-3.5 w-3.5"
@@ -4146,6 +4152,53 @@
                               </template>
                             </select>
                           </div>
+
+                          <!-- Smart Fill Track Format -->
+                          <div class="space-y-3 px-4 py-3.5">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-medium text-ink-primary">Smart Fill Track Format</p>
+                                <p class="mt-0.5 text-xs text-ink-muted">Naming style used by Smart Fill in the File
+                                  Editor and Batch Studio.</p>
+                              </div>
+                              <select :value="userSettings.smart_fill_track_format"
+                                @change="updateUserSettings({ smart_fill_track_format: $event.target.value })"
+                                aria-label="Smart fill track format"
+                                class="ui-select select-dark w-full sm:w-auto min-w-0">
+                                <template x-for="opt in C.SETTINGS_OPTIONS.SMART_FILL_FORMATS" :key="`sff-${opt.id}`">
+                                  <option :value="opt.id"
+                                    :selected="userSettings.smart_fill_track_format === opt.id" x-text="opt.label">
+                                  </option>
+                                </template>
+                              </select>
+                            </div>
+                            <div
+                              class="rounded-ui-sm border border-subtle bg-inset px-3 py-2.5 text-xs space-y-1.5">
+                              <p class="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Live Preview</p>
+                              <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                <div class="flex min-w-0 items-center justify-between gap-2">
+                                  <span class="shrink-0 text-ink-muted">Audio</span>
+                                  <span class="min-w-0 truncate font-mono text-ink-primary"
+                                    x-text="smartFillFormatPreview.audio"></span>
+                                </div>
+                                <div class="flex min-w-0 items-center justify-between gap-2">
+                                  <span class="shrink-0 text-ink-muted">Converted</span>
+                                  <span class="min-w-0 truncate font-mono text-accent"
+                                    x-text="smartFillFormatPreview.converted"></span>
+                                </div>
+                                <div class="flex min-w-0 items-center justify-between gap-2">
+                                  <span class="shrink-0 text-ink-muted">Video</span>
+                                  <span class="min-w-0 truncate font-mono text-ink-primary"
+                                    x-text="smartFillFormatPreview.video"></span>
+                                </div>
+                                <div class="flex min-w-0 items-center justify-between gap-2">
+                                  <span class="shrink-0 text-ink-muted">Subtitle</span>
+                                  <span class="min-w-0 truncate font-mono text-ink-primary"
+                                    x-text="smartFillFormatPreview.subtitle"></span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -4299,9 +4352,126 @@
                   <!-- CATEGORY 3: STORAGE & SYSTEM                              -->
                   <!-- ========================================================= -->
                   <div class="space-y-2.5"
-                    :class="(activeSettingsSection === C.SETTINGS_SECTIONS.MAINTENANCE || activeSettingsSection === C.SETTINGS_SECTIONS.AUTO_CLEANUP) ? 'md:block' : 'md:hidden'">
+                    :class="(activeSettingsSection === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE || activeSettingsSection === C.SETTINGS_SECTIONS.MAINTENANCE || activeSettingsSection === C.SETTINGS_SECTIONS.AUTO_CLEANUP) ? 'md:block' : 'md:hidden'">
                     <p class="px-1 text-xs font-semibold uppercase tracking-wider text-ink-muted">Storage &amp; System
                     </p>
+
+                    <!-- Section 4a: Processing & Performance -->
+                    <div class="ui-panel overflow-hidden"
+                      :class="activeSettingsSection === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE ? 'md:block' : 'md:hidden'">
+                      <button type="button"
+                        @click="toggleMobileSettingsSection(C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE)"
+                        :aria-expanded="mobileSettingsSection === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE ? 'true' : 'false'"
+                        class="ui-row flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left md:hidden">
+                        <div class="flex min-w-0 items-center gap-3">
+                          <span
+                            class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-accent">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path
+                                d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z">
+                              </path>
+                            </svg>
+                          </span>
+                          <div class="min-w-0">
+                            <p class="text-xs font-semibold text-ink-primary">Processing &amp; Performance</p>
+                            <p class="truncate text-xs text-ink-secondary">FFmpeg CPU/I/O priority &amp; Stage 1 scratch
+                              directory</p>
+                          </div>
+                        </div>
+                        <svg class="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150"
+                          :class="mobileSettingsSection === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE ? 'rotate-180 text-accent' : ''"
+                          viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"></path>
+                        </svg>
+                      </button>
+
+                      <div class="border-t border-subtle p-3 space-y-4 sm:p-4 md:border-t-0 md:p-5 md:space-y-5"
+                        :class="[activeSettingsSection === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE ? 'md:block' : 'md:hidden', mobileSettingsSection === C.SETTINGS_SECTIONS.PROCESSING_PERFORMANCE ? 'block' : 'hidden']">
+                        <div class="hidden md:block">
+                          <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 class="ui-section-title">Processing &amp; Performance</h2>
+                            <span x-show="processingRuntime"
+                              class="ui-tag font-mono text-xs"
+                              x-text="processingRuntime ? `${processingRuntime.cpu_count} CPU ${processingRuntime.cpu_count === 1 ? 'core' : 'cores'}${processingRuntime.ionice_available ? ' · ionice ready' : ''}` : ''"></span>
+                          </div>
+                          <p class="ui-meta mt-0.5">Control server-wide CPU/I/O throttling and Stage 1 scratch storage
+                            so remuxing never stutters active Plex or Jellyfin streams.</p>
+                        </div>
+
+                        <!-- Card 1: FFmpeg CPU & I/O Priority -->
+                        <div class="space-y-2">
+                          <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p class="text-xs font-semibold text-ink-primary">FFmpeg &amp; Remux CPU / I/O Priority</p>
+                              <p class="mt-0.5 text-xs text-ink-muted">Applies to the next job started by the worker
+                                (system-wide).</p>
+                            </div>
+                          </div>
+                          <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <template x-for="mode in C.SETTINGS_OPTIONS.PROCESSING_PRIORITY_MODES"
+                              :key="`prio-${mode.id}`">
+                              <button type="button"
+                                @click="updateUserSettings({ processing_priority_mode: mode.id })"
+                                :aria-pressed="userSettings.processing_priority_mode === mode.id ? 'true' : 'false'"
+                                class="flex flex-col items-start gap-1.5 rounded-ui-md border p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                                :class="userSettings.processing_priority_mode === mode.id ? 'border-accent bg-accent/10 text-ink-primary' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:bg-[var(--color-hover-fill)]'">
+                                <div class="flex w-full items-center justify-between gap-2">
+                                  <span class="text-xs font-semibold text-ink-primary" x-text="mode.label"></span>
+                                  <span x-show="userSettings.processing_priority_mode === mode.id"
+                                    class="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden="true"></span>
+                                </div>
+                                <p class="text-[11px] leading-relaxed text-ink-muted" x-text="mode.description"></p>
+                                <span x-show="processingRuntime"
+                                  class="ui-tag mt-auto font-mono text-[11px]"
+                                  x-text="mode.id === 'auto' ? 'All cores · normal' : (mode.id === 'half_cores' ? `${processingRuntime ? processingRuntime.half_cores_threads : 1} threads · nice +10` : `${processingRuntime ? processingRuntime.low_priority_threads : 1} threads · nice +15${processingRuntime && processingRuntime.ionice_available ? ' · ionice' : ''}`)"></span>
+                              </button>
+                            </template>
+                          </div>
+                        </div>
+
+                        <!-- Card 2: Stage 1 Scratch Directory -->
+                        <div class="space-y-2">
+                          <div>
+                            <p class="text-xs font-semibold text-ink-primary">Stage 1 Scratch Directory</p>
+                            <p class="mt-0.5 text-xs text-ink-muted">Optional fast SSD or <code
+                                class="font-mono">/tmp</code> location for FFmpeg's intermediate audio file. Stage 2
+                              always writes the final MKV temp file on <code class="font-mono">/storage</code> for
+                              instant atomic renames.</p>
+                          </div>
+                          <div
+                            class="ui-list-group rounded-ui-md border border-subtle overflow-hidden">
+                            <template
+                              x-for="opt in C.SETTINGS_OPTIONS.STAGE1_SCRATCH_MODES.filter((o) => o.id !== 'custom' || (processingRuntime && processingRuntime.custom_scratch_path))"
+                              :key="`scratch-${opt.id}`">
+                              <button type="button"
+                                @click="updateUserSettings({ stage1_scratch_mode: opt.id })"
+                                :aria-pressed="userSettings.stage1_scratch_mode === opt.id ? 'true' : 'false'"
+                                class="ui-row flex w-full flex-wrap items-start justify-between gap-2 px-3.5 py-3 text-left transition"
+                                :class="userSettings.stage1_scratch_mode === opt.id ? 'bg-accent/[0.08]' : ''">
+                                <div class="min-w-0 flex-1 space-y-0.5">
+                                  <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-xs font-medium text-ink-primary" x-text="opt.label"></span>
+                                    <span x-show="userSettings.stage1_scratch_mode === opt.id"
+                                      class="ui-status ui-status-ok text-[11px]">Active</span>
+                                  </div>
+                                  <p class="text-xs text-ink-muted" x-text="opt.description"></p>
+                                  <p x-show="opt.id !== 'source' && processingRuntime"
+                                    class="truncate font-mono text-[11px] text-ink-secondary"
+                                    x-text="opt.id === 'tmp' ? (processingRuntime && processingRuntime.tmp_scratch_path) : (opt.id === 'data' ? (processingRuntime && processingRuntime.data_scratch_path) : (processingRuntime && processingRuntime.custom_scratch_path))">
+                                  </p>
+                                </div>
+                              </button>
+                            </template>
+                          </div>
+                          <p x-show="!processingRuntime || !processingRuntime.custom_scratch_path"
+                            class="text-[11px] text-ink-muted">
+                            Tip: Mount a dedicated SSD volume and set <code
+                              class="font-mono">MKVFORGE_SCRATCH_DIR=/scratch</code> in Docker to unlock a custom mount
+                            option.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
                     <!-- Section 4: Storage & DB Cleanup -->
                     <div class="ui-panel overflow-hidden"

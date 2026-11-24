@@ -23,6 +23,11 @@ from app.services.ffmpeg_runner import (
 from app.services.folder_sync import FolderReconcileCache
 from app.services.mkv_builder import build_mkvmerge_command
 from app.services.preflight import TargetFileCollisionError, run_preflight_checks
+from app.services.processing_policy import (
+    ProcessingRuntimePolicy,
+    build_nice_preexec_fn,
+    wrap_command_with_io_priority,
+)
 from app.services.scanner import LibraryScanner
 from app.services.upload_service import (
     UploadService,
@@ -133,6 +138,8 @@ async def run_mkvmerge_remux(
     *,
     temp_audio_path: Path | None = None,
     resolved_external_tracks: list[tuple[ExternalTrackConfig, Path]] | None = None,
+    nice_increment: int = 0,
+    use_ionice_idle: bool = False,
     on_progress: ProgressCallback | None = None,
     on_log: LogCallback | None = None,
     on_process_started: ProcessCallback | None = None,
@@ -148,12 +155,21 @@ async def run_mkvmerge_remux(
         temp_audio_path=temp_audio_path,
         resolved_external_tracks=resolved_external_tracks,
     )
+    launch_argv = wrap_command_with_io_priority(
+        argv, use_ionice_idle=use_ionice_idle
+    )
+    preexec_fn = build_nice_preexec_fn(nice_increment)
+    exec_kwargs: dict[str, object] = {
+        "stdout": asyncio.subprocess.PIPE,
+        "stderr": asyncio.subprocess.PIPE,
+    }
+    if preexec_fn is not None:
+        exec_kwargs["preexec_fn"] = preexec_fn
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            *argv,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            *launch_argv,
+            **exec_kwargs,  # type: ignore[arg-type]
         )
     except FileNotFoundError as exc:
         raise MkvMergeError("mkvmerge executable not found in PATH") from exc
@@ -352,6 +368,7 @@ async def execute_two_stage_pipeline(
     scanner: LibraryScanner | None = None,
     upload_service: UploadService | None = None,
     folder_cache: FolderReconcileCache | None = None,
+    processing_policy: ProcessingRuntimePolicy | None = None,
     on_stage: StageCallback | None = None,
     on_progress: ProgressCallback | None = None,
     on_log: LogCallback | None = None,
@@ -366,6 +383,7 @@ async def execute_two_stage_pipeline(
     job-owned staged uploads, and `<output_tmp_path>` whenever finalization does
     not move it into place.
     """
+    policy = processing_policy or ProcessingRuntimePolicy()
     job_upload_ids = extract_upload_ids_from_tracks(config.external_tracks)
     temp_audio_path: Path | None = None
     output_tmp_path: Path | None = None
@@ -381,6 +399,7 @@ async def execute_two_stage_pipeline(
             config,
             duration_us=duration_us,
             storage_root=storage_root,
+            scratch_dir=policy.scratch_dir,
         )
 
         resolved_external_tracks: list[tuple[ExternalTrackConfig, Path]] = []
@@ -408,7 +427,15 @@ async def execute_two_stage_pipeline(
                 check_cancelled()
             audio_cfg = config.audio_conversion
             temp_ext = AppConstants.TEMP_AUDIO_EXT_MAP[audio_cfg.target_codec]
-            temp_audio_path = build_temp_audio_path(source_path, temp_ext)
+            if policy.scratch_dir is not None:
+                await asyncio.to_thread(
+                    policy.scratch_dir.mkdir, parents=True, exist_ok=True
+                )
+            temp_audio_path = build_temp_audio_path(
+                source_path,
+                temp_ext,
+                scratch_dir=policy.scratch_dir,
+            )
             if on_stage is not None:
                 on_stage(
                     "transcode",
@@ -425,6 +452,9 @@ async def execute_two_stage_pipeline(
                     duration_us=duration_us,
                     expected_codec=audio_cfg.source_codec,
                     expected_channels=audio_cfg.source_channels,
+                    threads=policy.ffmpeg_threads,
+                    nice_increment=policy.nice_increment,
+                    use_ionice_idle=policy.use_ionice_idle,
                     on_progress=on_progress,
                     on_log=on_log,
                     on_process_started=on_process_started,
@@ -454,6 +484,8 @@ async def execute_two_stage_pipeline(
                 config,
                 temp_audio_path=temp_audio_path,
                 resolved_external_tracks=resolved_external_tracks,
+                nice_increment=policy.nice_increment,
+                use_ionice_idle=policy.use_ionice_idle,
                 on_progress=on_progress,
                 on_log=on_log,
                 on_process_started=on_process_started,

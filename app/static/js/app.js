@@ -436,6 +436,7 @@
 
       // Persistent user settings (hydrated from /api/settings & /api/dashboard)
       userSettings: { ...C.DEFAULT_USER_SETTINGS },
+      processingRuntime: null,
       settingsSaving: false,
       settingsModalOpen: false,
       activeSettingsSection: C.SETTINGS_SECTIONS.APPEARANCE,
@@ -1017,6 +1018,7 @@
           this.loadLibrary();
         } else if (this.route === C.ROUTES.SETTINGS) {
           this.loadUserSettings();
+          this.loadProcessingRuntime();
           this.loadMaintenanceStatus();
           if (this.isLocalAuthEnabled && this.authAuthenticated) {
             this.loadAuthUsers();
@@ -2532,7 +2534,8 @@
       get editorRecommendedAudioOptions() {
         return Ed.getRecommendedAddAudioOptions(
           this.editor,
-          this.activePlaybackProfile
+          this.activePlaybackProfile,
+          this.userSettings
         ).map((opt) => ({
           ...opt,
           defaultBitrate: this._resolveDefaultBitrateForDraft(
@@ -2772,6 +2775,7 @@
         this._scheduleMobileNavSync();
         this.authError = null;
         this.loadUserSettings();
+        this.loadProcessingRuntime();
         this.loadMaintenanceStatus();
         if (this.isLocalAuthEnabled && this.authAuthenticated) {
           this.loadAuthUsers();
@@ -3264,6 +3268,7 @@
           this.loadJobs();
         } else if (this.route === C.ROUTES.SETTINGS) {
           this.loadUserSettings();
+          this.loadProcessingRuntime();
           this.loadMaintenanceStatus();
           if (this.isLocalAuthEnabled && this.authAuthenticated) {
             this.loadAuthUsers();
@@ -4157,6 +4162,31 @@
         return this.updateUserSettings({ language: normalized });
       },
 
+      get smartFillFormatPreview() {
+        const fmt =
+          (this.userSettings && this.userSettings.smart_fill_track_format) ||
+          C.DEFAULT_USER_SETTINGS.smart_fill_track_format;
+        return typeof Ed.getSmartFillPreview === "function"
+          ? Ed.getSmartFillPreview(fmt)
+          : { audio: "", video: "", subtitle: "", converted: "" };
+      },
+
+      formatTrackBadgeForUser(track) {
+        const fmt =
+          (this.userSettings && this.userSettings.smart_fill_track_format) ||
+          C.DEFAULT_USER_SETTINGS.smart_fill_track_format;
+        return Ed.formatTrackBadge(track, fmt);
+      },
+
+      async loadProcessingRuntime() {
+        if (typeof Api.getSettingsRuntime !== "function") return;
+        try {
+          this.processingRuntime = await Api.getSettingsRuntime();
+        } catch (_err) {
+          // Optional host diagnostics; keep safe fallback
+        }
+      },
+
       async loadUserSettings() {
         try {
           const settings = await Api.getSettings();
@@ -4750,7 +4780,8 @@
             sourceLang,
             option.codec,
             resolvedChannels,
-            preferredBitrate
+            preferredBitrate,
+            this.userSettings && this.userSettings.smart_fill_track_format
           ),
           titleManuallyEdited: false,
           setAsDefault: true,
@@ -4769,9 +4800,14 @@
         }
         const firstAudio = this.editorAudioTracks[0];
         if (!firstAudio) return;
+        const preferredDolby =
+          this.userSettings &&
+          this.userSettings.default_dolby_codec === C.EDITOR.CODEC_AC3
+            ? C.EDITOR.CODEC_AC3
+            : C.EDITOR.CODEC_EAC3;
         this.openAddAudioChoice(
           {
-            codec: C.EDITOR.CODEC_EAC3,
+            codec: preferredDolby,
             targetChannels: null,
             preferredSourceTrackId: firstAudio.id,
             eligibleTracks: this.editorAudioTracks,
@@ -4803,7 +4839,8 @@
           this.addAudioDraft.language,
           this.addAudioDraft.targetCodec,
           resolvedCh,
-          this.addAudioDraft.bitrate
+          this.addAudioDraft.bitrate,
+          this.userSettings && this.userSettings.smart_fill_track_format
         );
       },
 
@@ -4823,9 +4860,14 @@
                   this.addAudioDraft.targetChannels
                 ).blocked
             );
+            const defaultDolby =
+              this.userSettings &&
+              this.userSettings.default_dolby_codec === C.EDITOR.CODEC_AC3
+                ? C.EDITOR.CODEC_AC3
+                : C.EDITOR.CODEC_EAC3;
             this.addAudioDraft.targetCodec = fallback
               ? fallback.codec
-              : C.EDITOR.CODEC_EAC3;
+              : defaultDolby;
           }
           const srcCh = Number(src.audio_channels || C.EDITOR.MAX_DOLBY_CHANNELS);
           const maxCh = Math.min(
@@ -4929,7 +4971,8 @@
           this.editor.audioFix.language,
           this.editor.audioFix.targetCodec,
           resolvedCh,
-          this.editor.audioFix.bitrate
+          this.editor.audioFix.bitrate,
+          this.userSettings && this.userSettings.smart_fill_track_format
         );
       },
 
@@ -6382,7 +6425,7 @@
 
       sanitizeTrackMetadata(track) {
         if (!track || !track.enabled) return;
-        track.track_name = Ed.formatTrackBadge(track);
+        track.track_name = this.formatTrackBadgeForUser(track);
       },
 
       get allTracksSanitized() {
@@ -6390,7 +6433,7 @@
         const activeTracks = this.editor.tracks.filter((t) => t && t.enabled);
         const sourceDone =
           activeTracks.length > 0 &&
-          activeTracks.every((t) => t.track_name === Ed.formatTrackBadge(t));
+          activeTracks.every((t) => t.track_name === this.formatTrackBadgeForUser(t));
         const addedDone =
           !this.editor.audioFix ||
           !this.editor.audioFix.enabled ||
@@ -6402,7 +6445,7 @@
         if (!this.editor || !Array.isArray(this.editor.tracks)) return;
         this.editor.tracks.forEach((track) => {
           if (track && track.enabled) {
-            track.track_name = Ed.formatTrackBadge(track);
+            track.track_name = this.formatTrackBadgeForUser(track);
           }
         });
         if (this.editor.audioFix && this.editor.audioFix.enabled) {

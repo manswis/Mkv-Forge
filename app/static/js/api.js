@@ -378,6 +378,7 @@
         method: "DELETE",
       }),
     getSettings: () => requestJson(API.SETTINGS),
+    getSettingsRuntime: () => requestJson(API.SETTINGS_RUNTIME),
     updateSettings: (patch) =>
       requestJson(API.SETTINGS, {
         method: "PATCH",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -210,8 +211,9 @@ def check_disk_space(
     target_codec: str = AppConstants.TARGET_CODEC_EAC3,
     channels: int | None = None,
     target_dir: Path | None = None,
+    scratch_dir: Path | None = None,
 ) -> DiskSpaceCheckResult:
-    """Verify free disk space in the target directory meets the safety threshold."""
+    """Verify free disk space in target (and optional Stage 1 scratch) mount."""
     if not source_path.is_file():
         raise PreflightError(f"Source file does not exist: {source_path}")
 
@@ -224,20 +226,44 @@ def check_disk_space(
         target_codec=target_codec,
         channels=channels,
     )
-    probe_dir = _nearest_existing_dir(target_dir or source_path.parent)
-    free_bytes = shutil.disk_usage(probe_dir).free
+    probe_target = _nearest_existing_dir(target_dir or source_path.parent)
+    free_bytes = shutil.disk_usage(probe_target).free
 
-    if free_bytes < required_bytes:
+    # When Stage 1 audio uses a dedicated scratch directory, validate space on that mount
+    # and account for same-device vs cross-device allocations accurately.
+    target_required = required_bytes
+    if scratch_dir is not None and audio_conversion_enabled:
+        probe_scratch = _nearest_existing_dir(scratch_dir)
+        scratch_required = estimated_audio + AppConstants.DISK_SPACE_BUFFER_BYTES
+        scratch_free = shutil.disk_usage(probe_scratch).free
+        if scratch_free < scratch_required:
+            free_mib = scratch_free / AppConstants.BYTES_PER_MIB
+            req_mib = scratch_required / AppConstants.BYTES_PER_MIB
+            raise InsufficientDiskSpaceError(
+                f"Insufficient scratch disk space in {probe_scratch}: "
+                f"{free_mib:.1f} MiB free, {req_mib:.1f} MiB required"
+            )
+        try:
+            same_device = probe_scratch.stat().st_dev == probe_target.stat().st_dev
+        except OSError:
+            same_device = False
+        if not same_device:
+            target_required = (
+                int(input_size * AppConstants.DISK_SPACE_SIZE_MULTIPLIER)
+                + AppConstants.DISK_SPACE_BUFFER_BYTES
+            )
+
+    if free_bytes < target_required:
         free_mib = free_bytes / AppConstants.BYTES_PER_MIB
-        req_mib = required_bytes / AppConstants.BYTES_PER_MIB
+        req_mib = target_required / AppConstants.BYTES_PER_MIB
         raise InsufficientDiskSpaceError(
-            f"Insufficient disk space in {probe_dir}: "
+            f"Insufficient disk space in {probe_target}: "
             f"{free_mib:.1f} MiB free, {req_mib:.1f} MiB required"
         )
 
     return DiskSpaceCheckResult(
         free_bytes=free_bytes,
-        required_bytes=required_bytes,
+        required_bytes=target_required,
         input_size_bytes=input_size,
         estimated_audio_bytes=estimated_audio,
     )
@@ -249,6 +275,7 @@ def run_preflight_checks(
     *,
     duration_us: int = 0,
     storage_root: Path | None = None,
+    scratch_dir: Path | None = None,
 ) -> DiskSpaceCheckResult:
     """Execute all pre-flight guards before launching Stage 1 or Stage 2."""
     if not source_path.is_file():
@@ -296,4 +323,5 @@ def run_preflight_checks(
             or config.audio_conversion.source_channels
         ),
         target_dir=target_dir,
+        scratch_dir=scratch_dir,
     )

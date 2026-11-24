@@ -83,6 +83,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     job_broker = JobSSEBroker()
     upload_service = UploadService(settings=resolved_settings)
+    user_settings_service = UserSettingsService(
+        state_repo=state_repo,
+        auth_repo=auth_repo,
+    )
     job_worker = JobWorker(
         settings=resolved_settings,
         media_repo=media_repo,
@@ -91,13 +95,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         broker=job_broker,
         upload_service=upload_service,
         folder_cache=folder_reconcile_cache,
+        user_settings_service=user_settings_service,
     )
     library_broker = LibraryEventBroker(
         on_change=folder_reconcile_cache.invalidate_for_filepath
-    )
-    user_settings_service = UserSettingsService(
-        state_repo=state_repo,
-        auth_repo=auth_repo,
     )
     file_ops = FileOpsService(
         settings=resolved_settings,

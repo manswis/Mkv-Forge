@@ -72,7 +72,7 @@
         title_action: removeMetadata ? BATCH.TITLE_ACTION_CLEAR : BATCH.TITLE_ACTION_KEEP,
         strip_global_tags: removeMetadata || Boolean(prefs.default_strip_global_tags),
         strip_track_tags: removeMetadata,
-        strip_attachments: true,
+        strip_attachments: removeMetadata,
         strip_chapters: false,
         smart_fill_track_names: true,
       },

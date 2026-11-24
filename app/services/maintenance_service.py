@@ -29,6 +29,7 @@ from app.models.schemas import (
     MaintenanceStatusResponse,
 )
 from app.services.library_events import LibraryEventBroker
+from app.services.processing_policy import list_managed_scratch_dirs
 from app.services.scanner import LibraryScanner
 from app.services.user_settings import UserSettingsService
 from app.utils.paths import PathSafetyError, safe_resolve_path
@@ -170,24 +171,33 @@ class MaintenanceService:
         return found
 
     def _find_stray_temp_files(self) -> list[tuple[Path, int]]:
-        """Walk storage_dir for leftover `*.mkvforge.*` temp files."""
-        storage_dir = self._settings.storage_dir
-        if not storage_dir.is_dir():
-            return []
+        """Walk storage_dir and managed scratch dirs for leftover `*.mkvforge.*` temp files."""
+        roots: list[Path] = [
+            self._settings.storage_dir,
+            *list_managed_scratch_dirs(self._settings),
+        ]
         found: list[tuple[Path, int]] = []
-        for root, dirs, files in os.walk(storage_dir):
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            for name in files:
-                if AppConstants.TEMP_MARKER not in name:
-                    continue
-                candidate = Path(root) / name
-                try:
-                    if candidate.is_symlink():
+        seen: set[str] = set()
+        for base_dir in roots:
+            if not base_dir.is_dir():
+                continue
+            for root, dirs, files in os.walk(base_dir):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                for name in files:
+                    if AppConstants.TEMP_MARKER not in name:
                         continue
-                    size = int(candidate.stat().st_size)
-                except OSError:
-                    continue
-                found.append((candidate, size))
+                    candidate = Path(root) / name
+                    key = str(candidate)
+                    if key in seen:
+                        continue
+                    try:
+                        if candidate.is_symlink():
+                            continue
+                        size = int(candidate.stat().st_size)
+                    except OSError:
+                        continue
+                    seen.add(key)
+                    found.append((candidate, size))
         return found
 
     def _db_file_sizes(self) -> tuple[int, int]:

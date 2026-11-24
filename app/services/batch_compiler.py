@@ -232,12 +232,59 @@ def format_channel_label(channels: int | None) -> str:
     return "5.1"
 
 
+def _language_display_name(raw_lang: str | None) -> str:
+    """Return human-readable language name (e.g. 'English') or uppercase code when unknown."""
+    code = (raw_lang or "").strip().lower()
+    if not code or code == AppConstants.DEFAULT_LANGUAGE:
+        return ""
+    label = AppConstants.LANGUAGE_DISPLAY_LABELS.get(code)
+    if label:
+        return label.split(" (", 1)[0].strip()
+    return code.upper()
+
+
 def format_smart_track_badge(
     track: ParsedTrackInfo,
     *,
     effective_language: str | None = None,
+    track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
 ) -> str:
-    """Build the clean 'Smart fill' track name matching the single-file Editor (`Video • HEVC • ...`)."""
+    """Build the clean 'Smart fill' track name matching the selected user preset."""
+    fmt = (
+        track_format
+        if track_format in AppConstants.ALLOWED_SMART_FILL_TRACK_FORMATS
+        else AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT
+    )
+    codec = track.codec or "Unknown"
+    lang = (effective_language if effective_language is not None else track.language) or ""
+    lang_clean = lang.strip()
+    has_lang = bool(lang_clean and lang_clean.lower() != AppConstants.DEFAULT_LANGUAGE)
+    lang_name = _language_display_name(lang_clean) if has_lang else ""
+
+    if fmt == AppConstants.SMART_FILL_FORMAT_COMPACT:
+        if track.type == "audio":
+            return (
+                f"{codec} {format_channel_label(track.audio_channels)}"
+                if track.audio_channels
+                else codec
+            )
+        if track.type == "video":
+            return f"{codec} {track.pixel_dimensions}" if track.pixel_dimensions else codec
+        return f"{lang_name} {codec}".strip() if lang_name else codec
+
+    if fmt == AppConstants.SMART_FILL_FORMAT_LANG_CODEC:
+        if track.type == "audio":
+            spec = (
+                f"{codec} {format_channel_label(track.audio_channels)}"
+                if track.audio_channels
+                else codec
+            )
+            return f"{lang_name} · {spec}" if lang_name else spec
+        if track.type == "video":
+            return f"{codec} · {track.pixel_dimensions}" if track.pixel_dimensions else codec
+        return f"{lang_name} · {codec}" if lang_name else codec
+
+    # Default ('detailed'): exact original format (`Audio • EAC3 • 5.1 • eng`)
     type_label = (
         "Video"
         if track.type == "video"
@@ -245,14 +292,12 @@ def format_smart_track_badge(
         if track.type == "audio"
         else "Sub"
     )
-    pieces: list[str] = [type_label, track.codec or "Unknown"]
+    pieces: list[str] = [type_label, codec]
     if track.type == "audio" and track.audio_channels:
         pieces.append(format_channel_label(track.audio_channels))
     elif track.type == "video" and track.pixel_dimensions:
         pieces.append(track.pixel_dimensions)
-    lang = (effective_language if effective_language is not None else track.language) or ""
-    lang_clean = lang.strip()
-    if lang_clean and lang_clean.lower() != AppConstants.DEFAULT_LANGUAGE:
+    if has_lang:
         pieces.append(lang_clean)
     return " • ".join(pieces)
 
@@ -263,8 +308,14 @@ def build_converted_audio_title(
     target_channels: int,
     bitrate: str | None,
     language: str,
+    track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
 ) -> str:
-    """Build the default track title for a newly converted audio track (`EAC3 5.1 • 640k • eng • muxed`)."""
+    """Build the default track title for a newly converted audio track per preset."""
+    fmt = (
+        track_format
+        if track_format in AppConstants.ALLOWED_SMART_FILL_TRACK_FORMATS
+        else AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT
+    )
     codec_labels = {
         "eac3": "EAC3",
         "ac3": "AC3",
@@ -274,11 +325,21 @@ def build_converted_audio_title(
     }
     label = codec_labels.get(target_codec, target_codec.upper())
     ch_label = format_channel_label(target_channels)
-    pieces = [f"{label} {ch_label}"]
+    spec = f"{label} {ch_label}"
+    norm_lang = (language or "").strip().lower()
+    has_lang = bool(norm_lang and norm_lang != AppConstants.DEFAULT_LANGUAGE)
+
+    if fmt == AppConstants.SMART_FILL_FORMAT_COMPACT:
+        return spec
+
+    if fmt == AppConstants.SMART_FILL_FORMAT_LANG_CODEC:
+        lang_name = _language_display_name(norm_lang) if has_lang else ""
+        return f"{lang_name} · {spec}" if lang_name else spec
+
+    pieces = [spec]
     if target_codec not in AppConstants.LOSSLESS_TARGET_CODECS and bitrate:
         pieces.append(bitrate)
-    norm_lang = (language or "").strip().lower()
-    if norm_lang and norm_lang != AppConstants.DEFAULT_LANGUAGE:
+    if has_lang:
         pieces.append(norm_lang)
     pieces.append("muxed")
     return " • ".join(pieces)
@@ -480,6 +541,7 @@ def compile_batch_rule_for_file(
     *,
     active_job_filepaths: set[str] | None = None,
     user_preferred_language: str = AppConstants.DEFAULT_PREFERRED_LANGUAGE,
+    smart_fill_track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
     file_override: BatchFileOverride | None = None,
     seq_index: int = AppConstants.BATCH_RENAME_START_DEFAULT,
     pad_digits: int = AppConstants.BATCH_RENAME_PAD_DIGITS_2,
@@ -775,6 +837,7 @@ def compile_batch_rule_for_file(
             target_channels=planned_out_channels,
             bitrate=planned_resolved_rate,
             language=out_lang,
+            track_format=smart_fill_track_format,
         )
         audio_conversion_cfg = AudioConversionConfig(
             enabled=True,
@@ -905,7 +968,11 @@ def compile_batch_rule_for_file(
 
         orig_name = t.track_name or ""
         if effective_smart_fill and enabled:
-            new_name: str | None = format_smart_track_badge(t, effective_language=new_lang)
+            new_name: str | None = format_smart_track_badge(
+                t,
+                effective_language=new_lang,
+                track_format=smart_fill_track_format,
+            )
         else:
             new_name = orig_name if orig_name else None
 
@@ -1682,6 +1749,7 @@ def compile_batch_plans(
     active_job_filepaths: set[str],
     storage_root: Path,
     user_preferred_language: str = AppConstants.DEFAULT_PREFERRED_LANGUAGE,
+    smart_fill_track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
     file_overrides: dict[int, BatchFileOverride] | None = None,
     excluded_file_ids: set[int] | None = None,
 ) -> list[BatchFilePlan]:
@@ -1711,6 +1779,7 @@ def compile_batch_plans(
             rule,
             active_job_filepaths=active_job_filepaths,
             user_preferred_language=user_preferred_language,
+            smart_fill_track_format=smart_fill_track_format,
             file_override=overrides_map.get(int(row["id"])),
             seq_index=rule.rename.start_number + idx,
             pad_digits=pad_digits,
@@ -1729,6 +1798,7 @@ def build_batch_preview_response(
     active_job_filepaths: set[str],
     storage_root: Path,
     user_preferred_language: str = AppConstants.DEFAULT_PREFERRED_LANGUAGE,
+    smart_fill_track_format: str = AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT,
     file_overrides: dict[int, BatchFileOverride] | None = None,
 ) -> BatchPreviewResponse:
     """Compile all selected rows (natural-sorted, with overrides & collision checks) into `BatchPreviewResponse`."""
@@ -1739,6 +1809,7 @@ def build_batch_preview_response(
         active_job_filepaths=active_job_filepaths,
         storage_root=storage_root,
         user_preferred_language=user_preferred_language,
+        smart_fill_track_format=smart_fill_track_format,
         file_overrides=file_overrides,
     )
 

@@ -189,12 +189,13 @@ class TestIndexHtmlStructure:
         input_css = (
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
-        assert "/static/css/app.css?v=0.1.0-p18.17" in html
-        assert "/static/js/constants.js?v=0.1.0-p18.14" in html
+        assert "/static/css/app.css?v=0.1.0-p18.18" in html
+        assert "/static/js/constants.js?v=0.1.0-p18.15" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
-        assert "/static/js/app.js?v=0.1.0-p18.20" in html
-        assert "/static/js/batch.js?v=0.1.0-p18.12" in html
+        assert "/static/js/editor.js?v=0.1.0-p18.22" in html
+        assert "/static/js/app.js?v=0.1.0-p18.22" in html
+        assert "/static/js/batch.js?v=0.1.0-p18.22" in html
         assert html.index("/static/js/nav_history.js") < html.index("/static/js/app.js")
         assert "/static/js/charts.js?v=0.1.0-p17.7" in html
         assert html.index(

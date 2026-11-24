@@ -298,19 +298,84 @@
     return options;
   }
 
-  function getRecommendedAddAudioOptions(editorState, playbackProfile = null) {
+  const COMMENTARY_TRACK_RE = /\b(commentary|comments|audio\s*description|visually\s*impaired|descriptive|director(?:'s)?|cast|crew|isolated\s*score|narration|ad|vi|sdh)\b/i;
+
+  function _normalizeLanguageCode(rawLang) {
+    const cleaned = String(rawLang || "").trim().toLowerCase();
+    if (!cleaned || cleaned === "und" || cleaned === "null" || cleaned === "unknown" || cleaned === "none") {
+      return EDITOR.DEFAULT_LANGUAGE;
+    }
+    const aliases = {
+      en: "eng",
+      hi: "hin",
+      bn: "ben",
+      ja: "jpn",
+      es: "spa",
+      fr: "fra",
+      fre: "fra",
+      de: "deu",
+      ger: "deu",
+      ko: "kor",
+      zh: "zho",
+      chi: "zho",
+      it: "ita",
+      ru: "rus",
+      pt: "por",
+      ta: "tam",
+      te: "tel",
+    };
+    return aliases[cleaned] || cleaned;
+  }
+
+  function _isCommentaryTrack(track) {
+    const name = track && (track.original_track_name || track.track_name || "");
+    return Boolean(name && COMMENTARY_TRACK_RE.test(String(name)));
+  }
+
+  function _pickPrimaryBaseAudioTrack(audioTracks, preferredLanguage = null) {
+    const prefNorm = _normalizeLanguageCode(preferredLanguage);
+    const hasPrefLang = Boolean(prefNorm && prefNorm !== EDITOR.DEFAULT_LANGUAGE);
+
+    const pickFromPool = (pool) =>
+      pool.find((t) => t.default_track && isAac51Track(t)) ||
+      pool.find((t) => t.default_track && Number(t.audio_channels || 0) >= EDITOR.MAX_DOLBY_CHANNELS) ||
+      pool.find((t) => isAac51Track(t)) ||
+      pool.find((t) => Number(t.audio_channels || 0) >= EDITOR.MAX_DOLBY_CHANNELS) ||
+      pool.find((t) => t.default_track) ||
+      pool[0];
+
+    if (hasPrefLang) {
+      const mainPrefTracks = audioTracks.filter(
+        (t) =>
+          !_isCommentaryTrack(t) &&
+          _normalizeLanguageCode(t.language) === prefNorm
+      );
+      if (mainPrefTracks.length > 0) {
+        return pickFromPool(mainPrefTracks);
+      }
+    }
+
+    const nonCommentary = audioTracks.filter((t) => !_isCommentaryTrack(t));
+    if (nonCommentary.length > 0) {
+      return pickFromPool(nonCommentary);
+    }
+    return pickFromPool(audioTracks);
+  }
+
+  function getRecommendedAddAudioOptions(
+    editorState,
+    playbackProfile = null,
+    userSettings = null
+  ) {
     if (!editorState) return [];
     const audioTracks = editorState.tracks.filter((t) => t.type === "audio");
     if (audioTracks.length === 0) return [];
 
-    // Pick primary base track: default AAC 5.1 -> default surround -> any AAC 5.1 -> any surround -> default -> first
-    const primaryTrack =
-      audioTracks.find((t) => t.default_track && isAac51Track(t)) ||
-      audioTracks.find((t) => t.default_track && Number(t.audio_channels || 0) >= 6) ||
-      audioTracks.find((t) => isAac51Track(t)) ||
-      audioTracks.find((t) => Number(t.audio_channels || 0) >= 6) ||
-      audioTracks.find((t) => t.default_track) ||
-      audioTracks[0];
+    const prefs = userSettings && typeof userSettings === "object" ? userSettings : null;
+    const primaryTrack = _pickPrimaryBaseAudioTrack(
+      audioTracks,
+      prefs ? prefs.preferred_language : null
+    );
 
     const srcChannels = Number(primaryTrack.audio_channels || 0) || EDITOR.MAX_DOLBY_CHANNELS;
     const canonical = canonicalizeAudioCodec(primaryTrack.codec, primaryTrack.codec_id);
@@ -359,13 +424,15 @@
       );
     }
 
-    // If household Playback Profile is configured, promote its preferred target codec & channel ceiling
-    if (
+    // If household Playback Profile is configured, promote its preferred target codec & channel ceiling;
+    // otherwise honor the user's Default Dolby Codec preference when set to AC-3.
+    const hasConfiguredProfile = Boolean(
       playbackProfile &&
-      playbackProfile.preset &&
-      playbackProfile.preset !== "neutral" &&
-      ["eac3", "ac3", "aac"].includes(playbackProfile.preferredCodec)
-    ) {
+        playbackProfile.preset &&
+        playbackProfile.preset !== "neutral" &&
+        ["eac3", "ac3", "aac"].includes(playbackProfile.preferredCodec)
+    );
+    if (hasConfiguredProfile) {
       const prefCodec = playbackProfile.preferredCodec;
       const prefMaxCh = Number(playbackProfile.maxChannels || EDITOR.MAX_DOLBY_CHANNELS);
       const prefTargetCh = srcChannels > prefMaxCh ? prefMaxCh : null;
@@ -382,6 +449,24 @@
             codec: prefCodec,
             targetChannels: prefTargetCh,
             badge: "Your System",
+          });
+          if (specs.length > 3) specs.pop();
+        }
+      }
+    } else if (prefs && prefs.default_dolby_codec === EDITOR.CODEC_AC3) {
+      const check = isConversionCombinationBlocked(primaryTrack, EDITOR.CODEC_AC3, null);
+      if (!check.blocked) {
+        const existingIdx = specs.findIndex(
+          (s) => s.codec === EDITOR.CODEC_AC3 && (s.targetChannels ?? null) === null
+        );
+        if (existingIdx >= 0) {
+          const [matched] = specs.splice(existingIdx, 1);
+          specs.unshift({ ...matched, badge: "Default" });
+        } else {
+          specs.unshift({
+            codec: EDITOR.CODEC_AC3,
+            targetChannels: null,
+            badge: "Default",
           });
           if (specs.length > 3) specs.pop();
         }
@@ -410,12 +495,46 @@
     });
   }
 
-  function buildDefaultAudioTitle(langCode, targetCodec, targetChannels, bitrate) {
+  function resolveSmartFillFormat(rawFormat) {
+    const cleaned = String(rawFormat || "").trim().toLowerCase();
+    if (cleaned === "compact" || cleaned === "lang_codec" || cleaned === "detailed") {
+      return cleaned;
+    }
+    return "detailed";
+  }
+
+  function resolveLanguageDisplayName(langCode) {
+    const code = String(langCode || "").trim().toLowerCase();
+    if (!code || code === EDITOR.DEFAULT_LANGUAGE) return "";
+    const mapped =
+      EDITOR.LANGUAGE_DISPLAY_NAMES && EDITOR.LANGUAGE_DISPLAY_NAMES[code];
+    return mapped || code.toUpperCase();
+  }
+
+  function buildDefaultAudioTitle(
+    langCode,
+    targetCodec,
+    targetChannels,
+    bitrate,
+    format = "detailed"
+  ) {
+    const fmt = resolveSmartFillFormat(format);
     const normalizedLang = String(langCode || EDITOR.DEFAULT_LANGUAGE).toLowerCase();
     const meta = getCodecMeta(targetCodec);
     const resolvedCh = resolveTargetChannels(targetChannels, targetCodec, targetChannels);
     const layout = formatChannelLabel(resolvedCh);
-    const pieces = [`${meta.label} ${layout}`];
+    const spec = `${meta.label} ${layout}`;
+    const hasLang = Boolean(normalizedLang && normalizedLang !== EDITOR.DEFAULT_LANGUAGE);
+
+    if (fmt === "compact") {
+      return spec;
+    }
+    if (fmt === "lang_codec") {
+      const langName = hasLang ? resolveLanguageDisplayName(normalizedLang) : "";
+      return langName ? `${langName} · ${spec}` : spec;
+    }
+
+    const pieces = [spec];
     if (!meta.isLossless) {
       const resolvedBitrate = String(
         bitrate || getBitrateConfigFor(targetCodec, resolvedCh).defaultBitrate || ""
@@ -424,7 +543,7 @@
         pieces.push(resolvedBitrate);
       }
     }
-    if (normalizedLang && normalizedLang !== EDITOR.DEFAULT_LANGUAGE) {
+    if (hasLang) {
       pieces.push(normalizedLang);
     }
     pieces.push("muxed");
@@ -662,9 +781,9 @@
     return {
       containerTitle: removeAllMetadata ? "" : initialTitle,
       originalContainerTitle: initialTitle,
-      stripGlobalTags: removeAllMetadata
-        ? Boolean(hasGlobalTagsPresent || prefs.default_strip_global_tags)
-        : false,
+      stripGlobalTags: Boolean(
+        prefs.default_strip_global_tags || (removeAllMetadata && hasGlobalTagsPresent)
+      ),
       stripTrackTags: removeAllMetadata ? hasTrackTagsPresent : false,
       stripAttachments: removeAllMetadata ? hasAttachmentsPresent : false,
       stripChapters: false,
@@ -1201,23 +1320,76 @@
     return parts.length > 0 ? parts.join(" • ") : "Update track metadata / order";
   }
 
-  function formatTrackBadge(track) {
+  function formatTrackBadge(track, format = "detailed") {
+    const fmt = resolveSmartFillFormat(format);
+    const codec = (track && track.codec) || "Unknown";
+    const langCode = String((track && track.language) || "").trim();
+    const hasLang = Boolean(
+      langCode && langCode.toLowerCase() !== EDITOR.DEFAULT_LANGUAGE
+    );
+    const langName = hasLang ? resolveLanguageDisplayName(langCode) : "";
+
+    if (fmt === "compact") {
+      if (track && track.type === "audio") {
+        return track.audio_channels
+          ? `${codec} ${formatChannelLabel(track.audio_channels)}`
+          : codec;
+      }
+      if (track && track.type === "video") {
+        return track.pixel_dimensions ? `${codec} ${track.pixel_dimensions}` : codec;
+      }
+      return langName ? `${langName} ${codec}` : codec;
+    }
+
+    if (fmt === "lang_codec") {
+      if (track && track.type === "audio") {
+        const spec = track.audio_channels
+          ? `${codec} ${formatChannelLabel(track.audio_channels)}`
+          : codec;
+        return langName ? `${langName} · ${spec}` : spec;
+      }
+      if (track && track.type === "video") {
+        return track.pixel_dimensions ? `${codec} · ${track.pixel_dimensions}` : codec;
+      }
+      return langName ? `${langName} · ${codec}` : codec;
+    }
+
+    // Default ('detailed'): exact original format (`Audio • EAC3 • 5.1 • eng`)
     const typeLabel =
-      track.type === "video"
+      track && track.type === "video"
         ? "Video"
-        : track.type === "audio"
+        : track && track.type === "audio"
           ? "Audio"
           : "Sub";
-    const pieces = [typeLabel, track.codec || "Unknown"];
-    if (track.type === "audio" && track.audio_channels) {
+    const pieces = [typeLabel, codec];
+    if (track && track.type === "audio" && track.audio_channels) {
       pieces.push(formatChannelLabel(track.audio_channels));
-    } else if (track.type === "video" && track.pixel_dimensions) {
+    } else if (track && track.type === "video" && track.pixel_dimensions) {
       pieces.push(track.pixel_dimensions);
     }
-    if (track.language && track.language !== EDITOR.DEFAULT_LANGUAGE) {
-      pieces.push(track.language);
+    if (hasLang) {
+      pieces.push(langCode);
     }
     return pieces.join(" • ");
+  }
+
+  function getSmartFillPreview(format = "detailed") {
+    const fmt = resolveSmartFillFormat(format);
+    return {
+      audio: formatTrackBadge(
+        { type: "audio", codec: "EAC3", audio_channels: 6, language: "eng" },
+        fmt
+      ),
+      video: formatTrackBadge(
+        { type: "video", codec: "HEVC", pixel_dimensions: "1920x1080", language: "und" },
+        fmt
+      ),
+      subtitle: formatTrackBadge(
+        { type: "subtitles", codec: "SRT", language: "eng" },
+        fmt
+      ),
+      converted: buildDefaultAudioTitle("eng", "eac3", 6, "640k", fmt),
+    };
   }
 
   function buildJobRequestPayload(editorState, fileDetail) {
@@ -1395,6 +1567,7 @@
     hasPendingChanges,
     buildPendingSummary,
     formatTrackBadge,
+    getSmartFillPreview,
     buildJobRequestPayload,
   });
 })(window);

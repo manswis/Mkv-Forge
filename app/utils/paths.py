@@ -90,11 +90,26 @@ def build_temp_remux_path(source_path: Path) -> Path:
     return source_path.parent / filename
 
 
-def build_temp_audio_path(source_path: Path, codec_ext: str) -> Path:
-    """Return same-directory temp audio path for Stage 1 FFmpeg transcode."""
+def build_temp_audio_path(
+    source_path: Path,
+    codec_ext: str,
+    *,
+    scratch_dir: Path | None = None,
+) -> Path:
+    """Return temp audio path for Stage 1 FFmpeg transcode (source dir or scratch dir)."""
     cleaned = codec_ext.strip().lstrip(".").lower()
     if not cleaned or not cleaned.isalnum():
         raise ValueError(f"Invalid audio codec extension: {codec_ext!r}")
+    if scratch_dir is not None:
+        import hashlib
+
+        digest = hashlib.sha256(str(source_path).encode("utf-8")).hexdigest()[
+            : AppConstants.SCRATCH_PATH_HASH_LEN
+        ]
+        return (
+            scratch_dir
+            / f"{source_path.name}.{digest}{AppConstants.TEMP_MARKER}{cleaned}"
+        )
     return source_path.parent / f"{source_path.name}{AppConstants.TEMP_MARKER}{cleaned}"
 
 

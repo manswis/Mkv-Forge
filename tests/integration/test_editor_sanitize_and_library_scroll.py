@@ -81,12 +81,12 @@ class TestEditorSanitizeMetadata:
 
         assert "Smart fill" in html
         assert '@click="sanitizeTrackMetadata(row.track)"' in html
-        assert ':disabled="row.track.track_name === Ed.formatTrackBadge(row.track)"' in html
+        assert ':disabled="row.track.track_name === formatTrackBadgeForUser(row.track)"' in html
 
         app_js = (_PROJECT_ROOT / "app/static/js/app.js").read_text(encoding="utf-8")
         assert "sanitizeTrackMetadata(track)" in app_js
         assert "if (!track || !track.enabled) return;" in app_js
-        assert "track.track_name = Ed.formatTrackBadge(track);" in app_js
+        assert "track.track_name = this.formatTrackBadgeForUser(track);" in app_js
 
 
 class TestLibraryScrollViewportAndPagination:

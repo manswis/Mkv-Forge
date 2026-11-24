@@ -28,6 +28,7 @@ class AppConstants:
 
     ENV_STORAGE_DIR: str = "MKVFORGE_STORAGE_DIR"
     ENV_DATA_DIR: str = "MKVFORGE_DATA_DIR"
+    ENV_SCRATCH_DIR: str = "MKVFORGE_SCRATCH_DIR"
     ENV_HEALTH_TIMEOUT_SEC: str = "MKVFORGE_HEALTH_TIMEOUT_SEC"
     ENV_SCAN_TIMEOUT_SEC: str = "MKVFORGE_SCAN_TIMEOUT_SEC"
     ENV_LOG_LEVEL: str = "MKVFORGE_LOG_LEVEL"
@@ -319,6 +320,8 @@ class AppConstants:
             "playback_supported_codecs",
             "playback_max_channels",
             "playback_preferred_codec",
+            "processing_priority_mode",
+            "stage1_scratch_mode",
         }
     )
     USER_SETTING_KEYS: frozenset[str] = frozenset(
@@ -342,6 +345,7 @@ class AppConstants:
             "confirm_cancel_job",
             "confirm_delete_file",
             "preferred_language",
+            "smart_fill_track_format",
         }
     )
     DEFAULT_THEME_MODE: str = "dark"
@@ -389,6 +393,42 @@ class AppConstants:
     DEFAULT_AUTO_CLEANUP_TEMP: bool = True
     DEFAULT_AUTO_CLEANUP_JOBS: bool = True
     DEFAULT_AUTO_CLEANUP_OPTIMIZE_DB: bool = True
+
+    # Smart Fill Track Format presets (Per-User; 'detailed' preserves original behavior)
+    SMART_FILL_FORMAT_DETAILED: str = "detailed"
+    SMART_FILL_FORMAT_COMPACT: str = "compact"
+    SMART_FILL_FORMAT_LANG_CODEC: str = "lang_codec"
+    DEFAULT_SMART_FILL_TRACK_FORMAT: str = "detailed"
+    ALLOWED_SMART_FILL_TRACK_FORMATS: frozenset[str] = frozenset(
+        {"detailed", "compact", "lang_codec"}
+    )
+
+    # Processing CPU / I/O Priority & Stage 1 Scratch Directory (System-Wide)
+    PROCESSING_PRIORITY_AUTO: str = "auto"
+    PROCESSING_PRIORITY_HALF_CORES: str = "half_cores"
+    PROCESSING_PRIORITY_LOW: str = "low_priority"
+    DEFAULT_PROCESSING_PRIORITY_MODE: str = "auto"
+    ALLOWED_PROCESSING_PRIORITY_MODES: frozenset[str] = frozenset(
+        {"auto", "half_cores", "low_priority"}
+    )
+    HALF_CORES_NICE_INCREMENT: int = 10
+    LOW_PRIORITY_NICE_INCREMENT: int = 15
+    LOW_PRIORITY_MAX_THREADS: int = 2
+    MIN_FFMPEG_THREADS: int = 1
+    IONICE_TOOL: str = "ionice"
+    IONICE_IDLE_CLASS_ARGS: tuple[str, ...] = ("-t", "-c", "3")
+
+    STAGE1_SCRATCH_SOURCE: str = "source"
+    STAGE1_SCRATCH_TMP: str = "tmp"
+    STAGE1_SCRATCH_DATA: str = "data"
+    STAGE1_SCRATCH_CUSTOM: str = "custom"
+    DEFAULT_STAGE1_SCRATCH_MODE: str = "source"
+    ALLOWED_STAGE1_SCRATCH_MODES: frozenset[str] = frozenset(
+        {"source", "tmp", "data", "custom"}
+    )
+    SCRATCH_SUBDIR_NAME: str = "scratch"
+    TMP_SCRATCH_DIR_NAME: str = "mkvforge_scratch"
+    SCRATCH_PATH_HASH_LEN: int = 8
 
     # Phase 15 Global Playback Profile & 3-Step Onboarding constants
     PLAYBACK_PRESET_NEUTRAL: str = "neutral"
@@ -836,6 +876,7 @@ class Settings:
     scan_interval_min: int = AppConstants.DEFAULT_SCAN_INTERVAL_MIN
     max_sub_upload_mb: int = AppConstants.DEFAULT_MAX_SUB_UPLOAD_MB
     max_audio_upload_mb: int = AppConstants.DEFAULT_MAX_AUDIO_UPLOAD_MB
+    scratch_dir: Path | None = None
 
     @property
     def db_path(self) -> Path:
@@ -846,6 +887,11 @@ class Settings:
     def uploads_dir(self) -> Path:
         """Path to the staged uploads directory inside data_dir."""
         return self.data_dir / AppConstants.UPLOADS_SUBDIR_NAME
+
+    @property
+    def data_scratch_dir(self) -> Path:
+        """Path to the managed Stage 1 scratch directory inside data_dir."""
+        return self.data_dir / AppConstants.SCRATCH_SUBDIR_NAME
 
 
 def resolve_app_version(env: Mapping[str, str] | None = None) -> str:
@@ -1002,5 +1048,10 @@ def load_settings(
             AppConstants.DEFAULT_MAX_AUDIO_UPLOAD_MB,
             AppConstants.MIN_MAX_AUDIO_UPLOAD_MB,
             AppConstants.MAX_MAX_AUDIO_UPLOAD_MB,
+        ),
+        scratch_dir=(
+            Path(raw_scratch).expanduser()
+            if (raw_scratch := (source.get(AppConstants.ENV_SCRATCH_DIR) or "").strip())
+            else None
         ),
     )

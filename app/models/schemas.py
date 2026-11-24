@@ -471,6 +471,17 @@ class UserSettings(BaseModel):
         min_length=2,
         max_length=16,
     )
+    smart_fill_track_format: Literal["detailed", "compact", "lang_codec"] = (
+        AppConstants.DEFAULT_SMART_FILL_TRACK_FORMAT  # type: ignore[assignment]
+    )
+
+    # Processing & Performance (System-Wide in app_state)
+    processing_priority_mode: Literal["auto", "half_cores", "low_priority"] = (
+        AppConstants.DEFAULT_PROCESSING_PRIORITY_MODE  # type: ignore[assignment]
+    )
+    stage1_scratch_mode: Literal["source", "tmp", "data", "custom"] = (
+        AppConstants.DEFAULT_STAGE1_SCRATCH_MODE  # type: ignore[assignment]
+    )
 
     # Scheduled Auto-Cleanup
     auto_cleanup_enabled: bool = AppConstants.DEFAULT_AUTO_CLEANUP_ENABLED
@@ -526,6 +537,9 @@ class UserSettingsUpdate(BaseModel):
     confirm_cancel_job: bool | None = None
     confirm_delete_file: bool | None = None
     preferred_language: str | None = Field(default=None, min_length=2, max_length=16)
+    smart_fill_track_format: Literal["detailed", "compact", "lang_codec"] | None = None
+    processing_priority_mode: Literal["auto", "half_cores", "low_priority"] | None = None
+    stage1_scratch_mode: Literal["source", "tmp", "data", "custom"] | None = None
     auto_cleanup_enabled: bool | None = None
     auto_cleanup_interval_days: Literal[1, 7, 30] | None = None
     job_history_retention_days: Literal[0, 7, 30, 90] | None = None
@@ -547,6 +561,20 @@ class UserSettingsUpdate(BaseModel):
     playback_supported_codecs: list[str] | None = None
     playback_max_channels: Literal[2, 6, 8] | None = None
     playback_preferred_codec: Literal["eac3", "ac3", "aac"] | None = None
+
+
+class ProcessingRuntimeInfo(BaseModel):
+    """Read-only host capabilities and resolved scratch paths for Settings UI."""
+
+    model_config = ConfigDict(frozen=True)
+
+    cpu_count: int = 1
+    half_cores_threads: int = 1
+    low_priority_threads: int = 1
+    ionice_available: bool = False
+    tmp_scratch_path: str
+    data_scratch_path: str
+    custom_scratch_path: str | None = None
 
 
 class MaintenanceStatusResponse(BaseModel):

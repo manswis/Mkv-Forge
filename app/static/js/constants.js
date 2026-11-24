@@ -24,6 +24,7 @@ window.MKVForgeConstants = Object.freeze({
     AUTH: "/api/auth",
     DASHBOARD: "/api/dashboard",
     SETTINGS: "/api/settings",
+    SETTINGS_RUNTIME: "/api/settings/runtime",
     MAINTENANCE: "/api/maintenance",
     MAINTENANCE_FACTORY_RESET: "/api/maintenance/factory-reset",
     FILES: "/api/files",
@@ -85,6 +86,9 @@ window.MKVForgeConstants = Object.freeze({
     confirm_cancel_job: true,
     confirm_delete_file: true,
     preferred_language: "eng",
+    smart_fill_track_format: "detailed",
+    processing_priority_mode: "auto",
+    stage1_scratch_mode: "source",
     auto_cleanup_enabled: true,
     auto_cleanup_interval_days: 7,
     job_history_retention_days: 30,
@@ -135,6 +139,7 @@ window.MKVForgeConstants = Object.freeze({
     PLAYBACK_PROFILE: "playback_profile",
     AUDIO_TRACKS: "audio_tracks",
     OUTPUT_METADATA: "output_metadata",
+    PROCESSING_PERFORMANCE: "processing_performance",
     MAINTENANCE: "maintenance",
     AUTO_CLEANUP: "auto_cleanup",
     ABOUT: "about",
@@ -194,6 +199,12 @@ window.MKVForgeConstants = Object.freeze({
       title: "Storage & System",
       sections: Object.freeze([
         Object.freeze({
+          id: "processing_performance",
+          title: "Processing & Performance",
+          subtitle: "FFmpeg CPU/I/O priority & Stage 1 scratch directory",
+          badgeClass: "border-subtle bg-inset text-accent",
+        }),
+        Object.freeze({
           id: "maintenance",
           title: "Storage & DB Cleanup",
           subtitle: "SQLite vacuum, temp files & one-tap cleanup",
@@ -234,6 +245,65 @@ window.MKVForgeConstants = Object.freeze({
       { days: 7, label: "7 days" },
       { days: 30, label: "30 days" },
       { days: 90, label: "90 days" },
+    ]),
+    SMART_FILL_FORMATS: Object.freeze([
+      Object.freeze({
+        id: "detailed",
+        label: "Detailed (Default)",
+        description: "Full type, codec, channels, bitrate & language tags",
+      }),
+      Object.freeze({
+        id: "lang_codec",
+        label: "Language · Codec",
+        description: "Clean player-friendly label (e.g., English · EAC3 5.1)",
+      }),
+      Object.freeze({
+        id: "compact",
+        label: "Compact",
+        description: "Short codec & layout only (e.g., EAC3 5.1)",
+      }),
+    ]),
+    PROCESSING_PRIORITY_MODES: Object.freeze([
+      Object.freeze({
+        id: "auto",
+        label: "Auto (Default)",
+        shortLabel: "Auto",
+        description: "Full CPU speed with normal OS scheduling priority.",
+      }),
+      Object.freeze({
+        id: "half_cores",
+        label: "Half Cores + Nice",
+        shortLabel: "Half Cores",
+        description: "Caps FFmpeg to half your CPU cores and runs FFmpeg & mkvmerge at nice +10.",
+      }),
+      Object.freeze({
+        id: "low_priority",
+        label: "Low Priority (Stream Safe)",
+        shortLabel: "Low Priority",
+        description: "Caps FFmpeg to 2 cores max with nice +15 and idle I/O scheduling so Plex/Jellyfin stay smooth.",
+      }),
+    ]),
+    STAGE1_SCRATCH_MODES: Object.freeze([
+      Object.freeze({
+        id: "source",
+        label: "Source Folder (Default)",
+        description: "Write intermediate Stage 1 audio next to the source file on /storage.",
+      }),
+      Object.freeze({
+        id: "tmp",
+        label: "Container /tmp",
+        description: "Use container temp storage for Stage 1 audio to reduce HDD seek contention.",
+      }),
+      Object.freeze({
+        id: "data",
+        label: "App Data Scratch",
+        description: "Use <DATA_DIR>/scratch (typically fast SSD alongside SQLite).",
+      }),
+      Object.freeze({
+        id: "custom",
+        label: "Custom Scratch Mount",
+        description: "Use the directory configured via MKVFORGE_SCRATCH_DIR.",
+      }),
     ]),
   }),
 
