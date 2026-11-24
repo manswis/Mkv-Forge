@@ -96,6 +96,79 @@
     return body;
   }
 
+  async function preflightDownload(url) {
+    let controller = null;
+    let timeoutId = null;
+    let timedOut = false;
+    const fetchOptions = {
+      method: "HEAD",
+      cache: "no-store",
+    };
+
+    if (typeof AbortController === "function") {
+      controller = new AbortController();
+      fetchOptions.signal = controller.signal;
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, TIMINGS_MS.REQUEST_TIMEOUT);
+    }
+
+    let response;
+    try {
+      response = await fetch(url, fetchOptions);
+    } catch (err) {
+      if (err && err.name === "AbortError") {
+        if (timedOut) {
+          throw new ApiError("Download check timed out. Please try again.", 0, "timeout");
+        }
+        throw new ApiError("Download cancelled", 0, "aborted");
+      }
+      throw err;
+    } finally {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+      let detail;
+      if (response.status === 401) {
+        detail = "Session expired. Please sign in again.";
+      } else if (response.status === 409) {
+        detail = "File is currently busy or being processed — try again once it completes.";
+      } else if (response.status === 404) {
+        detail = "File is no longer available on disk.";
+      } else if (response.status === 403) {
+        detail = "Temporary or hidden files cannot be downloaded.";
+      } else if (response.status === 400) {
+        detail = "Invalid file path for download.";
+      } else {
+        detail = `Download failed (${response.status})`;
+      }
+      const err = new ApiError(detail, response.status, detail);
+      if (
+        response.status === 401 &&
+        typeof url === "string" &&
+        !url.startsWith(AUTH_ENDPOINTS_PREFIX) &&
+        typeof _unauthorizedHandler === "function"
+      ) {
+        try {
+          _unauthorizedHandler(err, url);
+        } catch (_handlerErr) {
+          // Never mask original ApiError
+        }
+      }
+      throw err;
+    }
+    return {
+      ok: true,
+      status: response.status,
+      contentLength:
+        response.headers && typeof response.headers.get === "function"
+          ? response.headers.get("content-length")
+          : null,
+    };
+  }
+
   function buildFilesQuery(params) {
     const qs = new URLSearchParams();
     if (params.q && params.q.trim()) qs.set("q", params.q.trim());
@@ -244,6 +317,10 @@
     setUnauthorizedHandler,
     getHealth: () => requestJson(API.HEALTH),
     getDashboard: () => requestJson(API.DASHBOARD),
+    getFileDownloadUrl: (fileId) => `${API.FILES}/${fileId}/download`,
+    getOtherFileDownloadUrl: (filepath) =>
+      `${API.FILES}/other/download?filepath=${encodeURIComponent(String(filepath || ""))}`,
+    preflightDownload,
     listFiles: (params = {}, options = {}) =>
       requestJson(buildFilesQuery(params), options),
     listFolders: (path = "/", options = {}) => {

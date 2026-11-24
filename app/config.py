@@ -368,6 +368,9 @@ class AppConstants:
     THUMBNAIL_EXTRACT_TIMEOUT_SEC: float = 8.0
     THUMBNAIL_MAX_DIMENSION_PX: int = 256
     THUMBNAIL_CACHE_CONTROL_HEADER: str = "public, max-age=31536000, immutable"
+    DOWNLOAD_ACCEL_BUFFERING_HEADER: str = "X-Accel-Buffering"
+    DOWNLOAD_ACCEL_BUFFERING_VALUE: str = "no"
+    DOWNLOAD_CACHE_CONTROL_HEADER: str = "no-store"
     IMAGE_ATTACHMENT_EXTENSIONS: frozenset[str] = frozenset(
         {".jpg", ".jpeg", ".png", ".webp", ".gif"}
     )

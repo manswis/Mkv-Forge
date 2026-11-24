@@ -190,12 +190,13 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p18.18" in html
-        assert "/static/js/constants.js?v=0.1.0-p18.24" in html
+        assert "/static/js/constants.js?v=0.1.0-p18.25" in html
+        assert "/static/js/api.js?v=0.1.0-p18.25" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
         assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
         assert "/static/js/editor.js?v=0.1.0-p18.23" in html
-        assert "/static/js/app.js?v=0.1.0-p18.24" in html
+        assert "/static/js/app.js?v=0.1.0-p18.25" in html
         assert "/static/js/batch.js?v=0.1.0-p18.23" in html
         assert html.index(
             "/static/js/nav_history.js") < html.index("/static/js/app.js")
@@ -327,16 +328,37 @@ class TestIndexHtmlStructure:
         assert "Open in Editor →" in html
         assert "openEditor(target)" in html
 
-        # File context menu retains Info and adds Process -> openEditor
-        menu_start = html.index('role="menu"')
-        menu_end = html.index("<!-- Rename -->", menu_start)
+        # File context menu 3-group Finder/HIG ordering:
+        # Group 1 (Open & Read): Process -> Info -> Download
+        # Group 2 (Organize & Maintain): Rename -> Move -> Duplicate -> Refresh
+        # Group 3 (Destructive): Delete
+        menu_start = html.index('aria-label="Item actions"')
+        menu_end = html.index("<!-- File Info / Full Media Metadata Modal", menu_start)
         file_menu_slice = html[menu_start:menu_end]
-        info_pos = file_menu_slice.index("runContextMenuAction('info')")
         process_pos = file_menu_slice.index("runContextMenuAction('process')")
-        assert info_pos < process_pos
-        assert "<span>Info</span>" in file_menu_slice
+        info_pos = file_menu_slice.index("runContextMenuAction('info')")
+        download_pos = file_menu_slice.index("runContextMenuAction('download')")
+        rename_pos = file_menu_slice.index("runContextMenuAction('rename')")
+        move_pos = file_menu_slice.index("runContextMenuAction('move')")
+        duplicate_pos = file_menu_slice.index("runContextMenuAction('duplicate')")
+        rescan_pos = file_menu_slice.index("runContextMenuAction('rescan')")
+        delete_pos = file_menu_slice.index("runContextMenuAction('delete')")
+        assert (
+            process_pos
+            < info_pos
+            < download_pos
+            < rename_pos
+            < move_pos
+            < duplicate_pos
+            < rescan_pos
+            < delete_pos
+        )
+        assert file_menu_slice.count('class="ui-menu-divider"') == 2
         assert "<span>Process</span>" in file_menu_slice
+        assert "<span>Info</span>" in file_menu_slice
+        assert "<span>Download</span>" in file_menu_slice
         assert 'if (action === "process")' in app_js
+        assert 'if (action === "download")' in app_js
 
     def test_batch_studio_user_templates_retag_dropdown_and_selectable_chips(self) -> None:
         html = _read_index_html()

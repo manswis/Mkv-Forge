@@ -44,11 +44,11 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.24"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.25"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
-  <script defer src="/static/js/api.js?v=0.1.0-p18.2"></script>
+  <script defer src="/static/js/api.js?v=0.1.0-p18.25"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
@@ -59,7 +59,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.24"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.25"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -6417,21 +6417,8 @@
           </span>
         </button>
 
-        <!-- File-only Info (read-only metadata inspection; disabled while scanning) -->
-        <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
-          @click="runContextMenuAction('info')" :disabled="isContextMenuFileScanning" class="ui-menu-item">
-          <span class="flex items-center gap-2.5">
-            <svg class="h-4 w-4 shrink-0 text-[var(--color-status-info)]" viewBox="0 0 24 24" fill="currentColor"
-              aria-hidden="true">
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z">
-              </path>
-            </svg>
-            <span>Info</span>
-          </span>
-        </button>
-
-        <!-- File-only Process (opens MKV Editor; disabled while busy, scanning, or scan-error) -->
+        <!-- Group 1: Primary Open & Read Actions -->
+        <!-- File-only Process (primary action — opens MKV Editor) -->
         <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
           @click="runContextMenuAction('process')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning || isContextMenuFileScanError"
@@ -6446,33 +6433,30 @@
           </span>
         </button>
 
-        <!-- File-only Refresh / Re-scan (allowed on 'error' rows to retry!) -->
+        <!-- File-only Info (read-only metadata inspection; disabled while scanning) -->
         <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
-          @click="runContextMenuAction('rescan')"
-          :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isRescanning(contextMenu.file.id))"
-          class="ui-menu-item">
+          @click="runContextMenuAction('info')" :disabled="isContextMenuFileScanning" class="ui-menu-item">
           <span class="flex items-center gap-2.5">
-            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg class="h-4 w-4 shrink-0 text-[var(--color-status-info)]" viewBox="0 0 24 24" fill="currentColor"
+              aria-hidden="true">
               <path
-                d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z">
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z">
               </path>
             </svg>
-            <span x-text="isContextMenuFileScanError ? '↻ Re-scan' : 'Refresh'"></span>
+            <span>Info</span>
           </span>
         </button>
 
-        <!-- File-only Duplicate -->
-        <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
-          @click="runContextMenuAction('duplicate')"
-          :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isDuplicating(contextMenu.file.id))"
-          class="ui-menu-item">
+        <!-- Download (Media Files & Other Files — native range-resumable download with HEAD preflight) -->
+        <button type="button" role="menuitem"
+          x-show="contextMenu && (contextMenu.kind === 'file' || contextMenu.kind === 'other_file')"
+          @click="runContextMenuAction('download')"
+          :disabled="isContextMenuFileBusy || isContextMenuFileScanning" class="ui-menu-item">
           <span class="flex items-center gap-2.5">
             <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path
-                d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z">
-              </path>
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path>
             </svg>
-            <span>Duplicate</span>
+            <span>Download</span>
           </span>
         </button>
 
@@ -6489,6 +6473,9 @@
           </span>
         </button>
 
+        <div class="ui-menu-divider"></div>
+
+        <!-- Group 2: Organize & Maintain -->
         <!-- Rename -->
         <button type="button" role="menuitem" @click="runContextMenuAction('rename')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning" class="ui-menu-item">
@@ -6515,8 +6502,39 @@
           </span>
         </button>
 
+        <!-- File-only Duplicate -->
+        <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
+          @click="runContextMenuAction('duplicate')"
+          :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isDuplicating(contextMenu.file.id))"
+          class="ui-menu-item">
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z">
+              </path>
+            </svg>
+            <span>Duplicate</span>
+          </span>
+        </button>
+
+        <!-- File-only Refresh / Re-scan (allowed on 'error' rows to retry!) -->
+        <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
+          @click="runContextMenuAction('rescan')"
+          :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isRescanning(contextMenu.file.id))"
+          class="ui-menu-item">
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z">
+              </path>
+            </svg>
+            <span x-text="isContextMenuFileScanError ? '↻ Re-scan' : 'Refresh'"></span>
+          </span>
+        </button>
+
         <div class="ui-menu-divider"></div>
 
+        <!-- Group 3: Destructive -->
         <!-- Delete (disabled while scanning; allowed on 'error' rows) -->
         <button type="button" role="menuitem" @click="runContextMenuAction('delete')"
           :disabled="isContextMenuFileBusy || isContextMenuFileScanning" class="ui-menu-item ui-menu-item-danger">

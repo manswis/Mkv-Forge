@@ -5927,7 +5927,7 @@
         if (!otherFile) return;
         const pos = computeContextMenuPosition(
           event,
-          C.CONTEXT_MENU.FOLDER_MENU_HEIGHT_PX
+          C.CONTEXT_MENU.OTHER_FILE_MENU_HEIGHT_PX || C.CONTEXT_MENU.FOLDER_MENU_HEIGHT_PX
         );
         this.contextMenu = {
           kind: "other_file",
@@ -5941,7 +5941,7 @@
       openOtherFileNotice(otherFile) {
         if (!otherFile) return;
         this.showToast(
-          `${otherFile.name} is not an editable MKV/MP4 container. Use the menu to rename, move, or delete.`,
+          `${otherFile.name} is not an editable MKV/MP4 container. Use the menu to download, rename, move, or delete.`,
           "info"
         );
       },
@@ -6023,6 +6023,62 @@
         this._scheduleMobileNavSync();
       },
 
+      _triggerNativeBrowserDownload(url, filename) {
+        if (!url || typeof document === "undefined" || !document.createElement) return;
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        if (filename) {
+          anchor.setAttribute("download", String(filename));
+        } else {
+          anchor.setAttribute("download", "");
+        }
+        anchor.rel = "noopener";
+        anchor.style.display = "none";
+        if (document.body && typeof document.body.appendChild === "function") {
+          document.body.appendChild(anchor);
+          anchor.click();
+          document.body.removeChild(anchor);
+        } else {
+          anchor.click();
+        }
+      },
+
+      async _preflightAndDownload(url, filename) {
+        if (!url) return false;
+        try {
+          await Api.preflightDownload(url);
+        } catch (err) {
+          if (err && err.status === 401) return false;
+          this.showToast(
+            (err && err.message) || "Unable to download file right now.",
+            err && err.status === 409 ? "info" : "error"
+          );
+          return false;
+        }
+        this._triggerNativeBrowserDownload(url, filename);
+        return true;
+      },
+
+      async downloadMediaFile(file) {
+        if (!file || !file.id) return false;
+        if (this.isFileBusy(file)) {
+          this.showToast(this._busyLockMessage(file), "info");
+          return false;
+        }
+        if (this.isFileScanning(file)) {
+          this.showToast("Scanning metadata — ready in a moment.", "info");
+          return false;
+        }
+        const url = Api.getFileDownloadUrl(file.id);
+        return this._preflightAndDownload(url, file.filename || Fmt.basenameOf(file.filepath));
+      },
+
+      async downloadOtherFile(otherFile) {
+        if (!otherFile || !otherFile.filepath) return false;
+        const url = Api.getOtherFileDownloadUrl(otherFile.filepath);
+        return this._preflightAndDownload(url, otherFile.name || Fmt.basenameOf(otherFile.filepath));
+      },
+
       runContextMenuAction(action) {
         const menu = this.contextMenu;
         this.closeContextMenu();
@@ -6045,22 +6101,26 @@
             this.showToast("Scanning metadata — ready in a moment.", "info");
             return;
           }
-          if (action === "info") {
-            this.openFileInfoModal(menu.file);
-            return;
-          }
           if (action === "process") {
             this.openEditor(menu.file);
             return;
           }
-          if (action === "rescan") {
-            this.rescanSingleFile(menu.file);
-          } else if (action === "duplicate") {
-            this.duplicateSingleFile(menu.file);
-          } else if (action === "rename") {
+          if (action === "info") {
+            this.openFileInfoModal(menu.file);
+            return;
+          }
+          if (action === "download") {
+            this.downloadMediaFile(menu.file);
+            return;
+          }
+          if (action === "rename") {
             this.openRenameFileModal(menu.file);
           } else if (action === "move") {
             this.openMoveFilesModal([menu.file.id]);
+          } else if (action === "duplicate") {
+            this.duplicateSingleFile(menu.file);
+          } else if (action === "rescan") {
+            this.rescanSingleFile(menu.file);
           } else if (action === "delete") {
             this.openDeleteFilesModal([menu.file]);
           }
@@ -6068,7 +6128,9 @@
         }
 
         if (menu.kind === "other_file" && menu.otherFile) {
-          if (action === "rename") {
+          if (action === "download") {
+            this.downloadOtherFile(menu.otherFile);
+          } else if (action === "rename") {
             this.openRenameOtherFileModal(menu.otherFile);
           } else if (action === "move") {
             this.openMoveOtherFileModal(menu.otherFile);
