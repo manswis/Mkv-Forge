@@ -23,9 +23,13 @@ jobs:
   test:
     name: Run Unit Tests
     runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.changes.outputs.should_build }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -41,9 +45,19 @@ jobs:
       - name: Run unit test suite
         run: pytest tests/unit
 
+      - name: Detect Docker build-relevant changes
+        id: changes
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/check_build_changes.py
+
   docker:
     name: Build & Push Multi-Arch Image
     needs: test
+    if: needs.test.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -92,10 +106,9 @@ jobs:
             ${{ env.GHCR_IMAGE }}
             name=${{ steps.dockerhub_check.outputs.image }},enable=${{ steps.dockerhub_check.outputs.enabled }}
           tags: |
-            # 1. Every commit on main -> publishes :nightly, :beta, and :sha-<short>
+            # 1. Every commit on main -> publishes rolling :nightly and :beta (shared manifest, no per-SHA bloat)
             type=raw,value=nightly,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
             type=raw,value=beta,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,prefix=sha-,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
             # 2. Tagged releases (v*.*.*) -> publishes :latest, :1.2.3, :1.2, :1
             type=semver,pattern={{version}}
@@ -122,6 +135,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
+          provenance: false
+          sbom: false
           build-args: |
             APP_VERSION=${{ steps.app_version.outputs.version }}
           tags: ${{ steps.meta.outputs.tags }}

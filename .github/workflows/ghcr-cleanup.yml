@@ -1,0 +1,40 @@
+name: GHCR Cleanup
+
+on:
+  schedule:
+    # Weekly on Sunday at 03:00 UTC
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview deletions without removing any GHCR versions"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  packages: write
+
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Prune Orphaned & Legacy GHCR Versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clean up legacy sha-* tags and orphaned untagged digests
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          owner: ${{ github.repository_owner }}
+          package: mkv-forge
+          delete-untagged: true
+          delete-tags: |
+            sha-*
+          exclude-tags: |
+            latest
+            beta
+            nightly
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
