@@ -486,8 +486,12 @@ class UserSettings(BaseModel):
     processing_priority_mode: Literal["auto", "half_cores", "low_priority"] = (
         AppConstants.DEFAULT_PROCESSING_PRIORITY_MODE  # type: ignore[assignment]
     )
-    stage1_scratch_mode: Literal["source", "tmp", "data", "custom"] = (
-        AppConstants.DEFAULT_STAGE1_SCRATCH_MODE  # type: ignore[assignment]
+    stage1_scratch_mode: Literal[
+        "source", "tmp", "data", "storage_folder", "custom"
+    ] = AppConstants.DEFAULT_STAGE1_SCRATCH_MODE  # type: ignore[assignment]
+    stage1_scratch_storage_folder: str | None = Field(
+        default=None,
+        max_length=AppConstants.MAX_SCRATCH_STORAGE_FOLDER_LEN,
     )
 
     # Scheduled Auto-Cleanup
@@ -548,7 +552,13 @@ class UserSettingsUpdate(BaseModel):
     preferred_language: str | None = Field(default=None, min_length=2, max_length=16)
     smart_fill_track_format: Literal["detailed", "compact", "lang_codec"] | None = None
     processing_priority_mode: Literal["auto", "half_cores", "low_priority"] | None = None
-    stage1_scratch_mode: Literal["source", "tmp", "data", "custom"] | None = None
+    stage1_scratch_mode: Literal[
+        "source", "tmp", "data", "storage_folder", "custom"
+    ] | None = None
+    stage1_scratch_storage_folder: str | None = Field(
+        default=None,
+        max_length=AppConstants.MAX_SCRATCH_STORAGE_FOLDER_LEN,
+    )
     auto_cleanup_enabled: bool | None = None
     auto_cleanup_interval_days: Literal[1, 7, 30] | None = None
     job_history_retention_days: Literal[0, 7, 30, 90] | None = None
@@ -572,6 +582,21 @@ class UserSettingsUpdate(BaseModel):
     playback_preferred_codec: Literal["eac3", "ac3", "aac", "opus", "flac"] | None = None
 
 
+class ScratchLocationInfo(BaseModel):
+    """Live mount, free-space, and writability diagnostics for one Stage 1 scratch option."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: Literal["source", "tmp", "data", "storage_folder", "custom"]
+    path: str | None = None
+    configured: bool = True
+    exists: bool = False
+    writable: bool = False
+    free_bytes: int | None = None
+    is_tmpfs: bool = False
+    same_device_as_storage: bool | None = None
+
+
 class ProcessingRuntimeInfo(BaseModel):
     """Read-only host capabilities and resolved scratch paths for Settings UI."""
 
@@ -581,9 +606,12 @@ class ProcessingRuntimeInfo(BaseModel):
     half_cores_threads: int = 1
     low_priority_threads: int = 1
     ionice_available: bool = False
+    storage_dir_path: str = ""
     tmp_scratch_path: str
     data_scratch_path: str
+    storage_folder_scratch_path: str | None = None
     custom_scratch_path: str | None = None
+    scratch_locations: dict[str, ScratchLocationInfo] = Field(default_factory=dict)
 
 
 class MaintenanceStatusResponse(BaseModel):

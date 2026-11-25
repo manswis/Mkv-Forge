@@ -119,6 +119,48 @@ docker compose up -d
 
 3. Open **`http://localhost:7788`** (or `http://<your-server-ip>:7788`) in your browser and follow the quick 3-step welcome setup.
 
+<details>
+<summary><strong>Multiple Media Drives &amp; SSD-Friendly Temp Folder (RAM <code>tmpfs</code> / Scratch Mount)</strong></summary>
+
+<br/>
+
+You can mount multiple host drives or folders as separate subfolders inside `/storage`, and optionally route Stage 1 temporary audio files to **RAM (`tmpfs`)** or an **HDD scratch mount** to protect SSD lifespan:
+
+```yaml
+services:
+  mkv-forge:
+    image: ghcr.io/manswis/mkv-forge:latest
+    container_name: mkv-forge
+    restart: unless-stopped
+    ports:
+      - "7788:7788"
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "022"
+      TZ: "America/Toronto"
+      # Optional: unlocks "Custom Docker Scratch Mount" in Settings
+      MKVFORGE_SCRATCH_DIR: "/scratch"
+    volumes:
+      - ./data:/app/data:rw
+      # Mount multiple drives/folders as subfolders inside /storage
+      - /mnt/hdd1/movies:/storage/movies:rw
+      - /mnt/hdd2/tv:/storage/tv:rw
+      - /mnt/nas/anime:/storage/anime:ro        # read-only also works (use Save As to a writable folder)
+      # Optional: dedicated HDD or SSD mount for Stage 1 FFmpeg temp audio
+      - /mnt/hdd2/mkvforge-scratch:/scratch:rw
+    # Optional: keep /tmp in RAM for zero SSD & HDD wear on Stage 1 audio
+    tmpfs:
+      - /tmp:size=4g
+```
+
+**Good to know:**
+* **Mounting subfolders:** When mounting subfolders like `/storage/movies` and `/storage/tv`, omit a separate `- /host:/storage` line—Docker creates `/storage` automatically. Always store and save files inside your mounted subfolders.
+* **Protecting your SSD:** In **Settings → Processing & Performance → Stage 1 Scratch Directory**, pick **Container `/tmp`** (shows **`RAM (tmpfs) · Zero SSD wear`** when `tmpfs` is mounted), **Storage Temp Folder** (pick any subfolder inside `/storage`, automatically hidden from library scans), or **Custom Docker Scratch Mount** (`MKVFORGE_SCRATCH_DIR`).
+* **Why Stage 2 stays on `/storage`:** Final MKV remuxing always stages on the destination drive so replacing files stays instant and avoids writing the full movie twice.
+
+</details>
+
 ---
 
 ### Option 2: Docker CLI (`docker run`)
@@ -179,6 +221,7 @@ Everything works out of the box with default settings. Expand the guide below on
 | `MKVFORGE_SCAN_INTERVAL_MIN` | `0` | Optional | Periodic background scan interval in minutes (`0` = disabled, max `10080` / 7 days). |
 | `MKVFORGE_STORAGE_DIR` | `/storage` | Optional | Container path where your media library is mounted. Only change if you mount your media to a custom path other than `/storage`. |
 | `MKVFORGE_DATA_DIR` | `/app/data` | Optional | Container path for the SQLite cache database (`mkvforge.db`), thumbnails, and temporary uploads. |
+| `MKVFORGE_SCRATCH_DIR` | *(unset)* | Optional | Container path for a dedicated Stage 1 FFmpeg temp audio mount (unlocks **Custom Docker Scratch Mount** in Settings). |
 | `MKVFORGE_LOG_LEVEL` | `INFO` | Optional | Application log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 
 ### Choosing the Right `MKVFORGE_WATCH_MODE`
@@ -243,7 +286,7 @@ If **Local Sign-In** is enabled:
 
 ## Development Transparency
 
-MKV Forge is built with LLM assistance. I design the architecture and features, manually review the code, and test changes against my own media library—backed by an automated suite of 700+ unit and integration tests (~87% backend line coverage). Everything is open-source, so you can inspect the code or build the Docker image yourself.
+MKV Forge is built with LLM assistance. I design the architecture and features, manually review the code, and test changes against my own media library—backed by an automated suite of 950+ unit and integration tests (~87% backend line coverage). Everything is open-source, so you can inspect the code or build the Docker image yourself.
 
 ## Privacy
 

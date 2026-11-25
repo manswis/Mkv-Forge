@@ -173,6 +173,9 @@ class UserSettingsService:
     ) -> UserSettings:
         """Persist updated settings to their hybrid scope and return merged effective state."""
         updates = patch.model_dump(exclude_none=True)
+        if "stage1_scratch_storage_folder" in updates:
+            cleaned_folder = str(updates["stage1_scratch_storage_folder"]).strip()
+            updates["stage1_scratch_storage_folder"] = cleaned_folder or None
         if "visible_media_extensions" in updates:
             updates["visible_media_extensions"] = normalize_visible_extensions_csv(
                 str(updates["visible_media_extensions"])

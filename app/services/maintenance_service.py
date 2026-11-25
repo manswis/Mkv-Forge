@@ -172,9 +172,17 @@ class MaintenanceService:
 
     def _find_stray_temp_files(self) -> list[tuple[Path, int]]:
         """Walk storage_dir and managed scratch dirs for leftover `*.mkvforge.*` temp files."""
+        storage_scratch_folder = (
+            self._user_settings_service.get(user_id=None).stage1_scratch_storage_folder
+            if self._user_settings_service is not None
+            else None
+        )
         roots: list[Path] = [
             self._settings.storage_dir,
-            *list_managed_scratch_dirs(self._settings),
+            *list_managed_scratch_dirs(
+                self._settings,
+                storage_folder=storage_scratch_folder,
+            ),
         ]
         found: list[tuple[Path, int]] = []
         seen: set[str] = set()

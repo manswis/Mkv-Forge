@@ -143,6 +143,7 @@ window.MKVForgeConstants = Object.freeze({
     smart_fill_track_format: "detailed",
     processing_priority_mode: "auto",
     stage1_scratch_mode: "source",
+    stage1_scratch_storage_folder: null,
     auto_cleanup_enabled: true,
     auto_cleanup_interval_days: 7,
     job_history_retention_days: 30,
@@ -354,22 +355,32 @@ window.MKVForgeConstants = Object.freeze({
       Object.freeze({
         id: "source",
         label: "Source Folder (Default)",
-        description: "Write intermediate Stage 1 audio next to the source file on /storage.",
+        description:
+          "Write temporary Stage 1 audio next to the movie on /storage (stays on HDD if your library is on HDD).",
       }),
       Object.freeze({
         id: "tmp",
         label: "Container /tmp",
-        description: "Use container temp storage for Stage 1 audio to reduce HDD seek contention.",
+        description:
+          "Ideal for SSD protection when /tmp is mounted in RAM (tmpfs)—zero disk wear and zero HDD seek contention.",
       }),
       Object.freeze({
         id: "data",
         label: "App Data Scratch",
-        description: "Use <DATA_DIR>/scratch (typically fast SSD alongside SQLite).",
+        description:
+          "Use <DATA_DIR>/scratch alongside SQLite (fast local volume; typically SSD).",
+      }),
+      Object.freeze({
+        id: "storage_folder",
+        label: "Storage Temp Folder",
+        description:
+          "Pick a dedicated subfolder inside /storage (e.g. an HDD folder)—automatically hidden from library scans.",
       }),
       Object.freeze({
         id: "custom",
-        label: "Custom Scratch Mount",
-        description: "Use the directory configured via MKVFORGE_SCRATCH_DIR.",
+        label: "Custom Docker Scratch Mount",
+        description:
+          "Use the dedicated host volume mounted via MKVFORGE_SCRATCH_DIR.",
       }),
     ]),
   }),

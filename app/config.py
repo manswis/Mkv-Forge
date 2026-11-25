@@ -322,6 +322,7 @@ class AppConstants:
             "playback_preferred_codec",
             "processing_priority_mode",
             "stage1_scratch_mode",
+            "stage1_scratch_storage_folder",
         }
     )
     USER_SETTING_KEYS: frozenset[str] = frozenset(
@@ -483,14 +484,19 @@ class AppConstants:
     STAGE1_SCRATCH_SOURCE: str = "source"
     STAGE1_SCRATCH_TMP: str = "tmp"
     STAGE1_SCRATCH_DATA: str = "data"
+    STAGE1_SCRATCH_STORAGE_FOLDER: str = "storage_folder"
     STAGE1_SCRATCH_CUSTOM: str = "custom"
     DEFAULT_STAGE1_SCRATCH_MODE: str = "source"
     ALLOWED_STAGE1_SCRATCH_MODES: frozenset[str] = frozenset(
-        {"source", "tmp", "data", "custom"}
+        {"source", "tmp", "data", "storage_folder", "custom"}
     )
     SCRATCH_SUBDIR_NAME: str = "scratch"
     TMP_SCRATCH_DIR_NAME: str = "mkvforge_scratch"
     SCRATCH_PATH_HASH_LEN: int = 8
+    MAX_SCRATCH_STORAGE_FOLDER_LEN: int = 512
+    PROC_MOUNTS_PATH: str = "/proc/mounts"
+    TMPFS_FS_TYPES: frozenset[str] = frozenset({"tmpfs", "ramfs"})
+    SCRATCH_WRITE_PROBE_PREFIX: str = ".mkvforge_scratch_probe_"
 
     # Phase 15 Global Playback Profile & 3-Step Onboarding constants
     PLAYBACK_PRESET_NEUTRAL: str = "neutral"

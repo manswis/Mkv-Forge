@@ -323,7 +323,15 @@ class JobWorker:
             sweep_orphaned_temp_files,
             self._settings.storage_dir,
         )
-        for scratch_dir in list_managed_scratch_dirs(self._settings):
+        storage_scratch_folder = (
+            self._user_settings_service.get(user_id=None).stage1_scratch_storage_folder
+            if self._user_settings_service is not None
+            else None
+        )
+        for scratch_dir in list_managed_scratch_dirs(
+            self._settings,
+            storage_folder=storage_scratch_folder,
+        ):
             removed_temps += await asyncio.to_thread(
                 sweep_orphaned_temp_files,
                 scratch_dir,

@@ -4295,6 +4295,92 @@
         }
       },
 
+      getScratchLocationInfo(modeId) {
+        const map =
+          this.processingRuntime && this.processingRuntime.scratch_locations;
+        if (!map || typeof map !== "object") return null;
+        return map[modeId] || null;
+      },
+
+      getScratchOptionPath(modeId) {
+        const loc = this.getScratchLocationInfo(modeId);
+        if (loc && loc.path) return loc.path;
+        if (!this.processingRuntime) return "";
+        if (modeId === "tmp") return this.processingRuntime.tmp_scratch_path || "";
+        if (modeId === "data") return this.processingRuntime.data_scratch_path || "";
+        if (modeId === "storage_folder") {
+          return (
+            this.processingRuntime.storage_folder_scratch_path ||
+            (this.userSettings && this.userSettings.stage1_scratch_storage_folder
+              ? `/storage/${this.userSettings.stage1_scratch_storage_folder}`
+              : "")
+          );
+        }
+        if (modeId === "custom") return this.processingRuntime.custom_scratch_path || "";
+        return this.processingRuntime.storage_dir_path || "";
+      },
+
+      formatScratchFreeSpace(modeId) {
+        const loc = this.getScratchLocationInfo(modeId);
+        if (!loc || !loc.configured || !Number.isFinite(Number(loc.free_bytes))) {
+          return "";
+        }
+        return `${Fmt.formatBytes(Number(loc.free_bytes))} free`;
+      },
+
+      formatScratchMountBadge(modeId) {
+        const loc = this.getScratchLocationInfo(modeId);
+        if (!loc) return null;
+        if (!loc.configured) {
+          return { text: "Not selected", tone: "neutral" };
+        }
+        if (!loc.writable) {
+          return { text: "Read-only", tone: "warn" };
+        }
+        if (loc.is_tmpfs) {
+          return { text: "RAM (tmpfs) · Zero SSD wear", tone: "ok" };
+        }
+        if (modeId === "tmp") {
+          return { text: "Container disk (may use SSD)", tone: "neutral" };
+        }
+        if (modeId === "source") {
+          return { text: "Same drive as /storage", tone: "neutral" };
+        }
+        if (loc.same_device_as_storage === true) {
+          return { text: "Same drive as /storage", tone: "neutral" };
+        }
+        if (loc.same_device_as_storage === false) {
+          return { text: "Separate mount", tone: "ok" };
+        }
+        return { text: "Writable", tone: "neutral" };
+      },
+
+      async selectStage1ScratchMode(modeId) {
+        if (
+          modeId === "storage_folder" &&
+          !(this.userSettings && this.userSettings.stage1_scratch_storage_folder)
+        ) {
+          await this.openScratchStorageFolderPicker();
+          return;
+        }
+        await this.updateUserSettings({ stage1_scratch_mode: modeId });
+      },
+
+      async openScratchStorageFolderPicker() {
+        const currentRel =
+          (this.userSettings && this.userSettings.stage1_scratch_storage_folder) ||
+          "";
+        const initialPath = currentRel
+          ? FT.normalizeFolderPath(`/${currentRel}`)
+          : C.FOLDER_TREE.ROOT_PATH;
+        await this._openFolderPickerWithConfig({
+          purpose: "scratch_storage_folder",
+          initialPath,
+          title: "Choose Stage 1 Temp Folder",
+          confirmLabel: "Use as Temp Folder",
+        });
+      },
+
       async loadUserSettings() {
         try {
           const settings = await Api.getSettings();
@@ -4343,6 +4429,13 @@
               this._syncUrlHash(true);
             }
             this.loadLibrary({ preserveSelection: true });
+          }
+          if (
+            patch &&
+            (patch.stage1_scratch_mode !== undefined ||
+              patch.stage1_scratch_storage_folder !== undefined)
+          ) {
+            this.loadProcessingRuntime();
           }
           this.showToast("Settings saved.", "success");
           return this.userSettings;
@@ -5771,6 +5864,37 @@
             this.showToast(`Moved ${srcName} to ${chosenPath}.`, "success");
           } catch (err) {
             this.folderTree.error = err.message || "Failed to move file.";
+          } finally {
+            this.folderPickerSubmitting = false;
+          }
+          return;
+        }
+
+        if (this.folderPickerPurpose === "scratch_storage_folder") {
+          const normalized = FT.normalizeFolderPath(chosenPath);
+          if (normalized === C.FOLDER_TREE.ROOT_PATH) {
+            this.folderTree.error =
+              "Choose a subfolder inside /storage (not the library root).";
+            return;
+          }
+          const relFolder = normalized.replace(/^\/+/, "");
+          this.folderPickerSubmitting = true;
+          this.folderTree.error = null;
+          try {
+            const updated = await Api.updateSettings({
+              stage1_scratch_mode: "storage_folder",
+              stage1_scratch_storage_folder: relFolder,
+            });
+            this._applyUserSettings(updated);
+            await this.loadProcessingRuntime();
+            this.closeFolderPicker();
+            this.showToast(
+              `Stage 1 temp folder set to /${relFolder} (excluded from library scans).`,
+              "success"
+            );
+          } catch (err) {
+            this.folderTree.error =
+              err.message || "Failed to save temp folder.";
           } finally {
             this.folderPickerSubmitting = false;
           }

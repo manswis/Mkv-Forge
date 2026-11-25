@@ -75,18 +75,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     job_repo = JobRepository(db_manager)
     template_repo = TemplateRepository(db_manager)
     folder_reconcile_cache = FolderReconcileCache()
+    user_settings_service = UserSettingsService(
+        state_repo=state_repo,
+        auth_repo=auth_repo,
+    )
     scanner = LibraryScanner(
         settings=resolved_settings,
         media_repo=media_repo,
         state_repo=state_repo,
         folder_cache=folder_reconcile_cache,
+        user_settings_service=user_settings_service,
     )
     job_broker = JobSSEBroker()
     upload_service = UploadService(settings=resolved_settings)
-    user_settings_service = UserSettingsService(
-        state_repo=state_repo,
-        auth_repo=auth_repo,
-    )
     job_worker = JobWorker(
         settings=resolved_settings,
         media_repo=media_repo,
@@ -112,6 +113,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         job_repo=job_repo,
         scanner=scanner,
         library_broker=library_broker,
+        user_settings_service=user_settings_service,
     )
     maintenance_service = MaintenanceService(
         settings=resolved_settings,

@@ -20,6 +20,11 @@ from app.db.repositories import (
 from app.models.schemas import ScanProgressPayload
 from app.services.folder_sync import FolderReconcileCache
 from app.services.probe_parser import parse_mkvmerge_json
+from app.services.processing_policy import (
+    get_excluded_storage_scratch_rel_prefix,
+    is_rel_path_within_excluded_prefix,
+)
+from app.services.user_settings import UserSettingsService
 from app.utils.paths import (
     PathSafetyError,
     extract_folder,
@@ -45,10 +50,15 @@ class DiscoveredMediaFile:
     size_bytes: int
 
 
-def _discover_media_files(storage_root: Path) -> tuple[list[DiscoveredMediaFile], int]:
+def _discover_media_files(
+    storage_root: Path,
+    *,
+    excluded_rel_prefix: str | None = None,
+) -> tuple[list[DiscoveredMediaFile], int]:
     """Recursively collect supported media files inside `storage_root`.
 
     Runs in a worker thread via `asyncio.to_thread` to avoid blocking the event loop.
+    Automatically skips any active Stage 1 storage temp subfolder (`excluded_rel_prefix`).
     Returns `(discovered_files, stat_error_count)`.
     """
     resolved_root = storage_root.resolve(strict=False)
@@ -56,9 +66,24 @@ def _discover_media_files(storage_root: Path) -> tuple[list[DiscoveredMediaFile]
     stat_errors = 0
 
     for root_str, dirnames, filenames in os.walk(resolved_root, followlinks=False):
-        dirnames.sort()
-        filenames.sort()
         current_dir = Path(root_str)
+        if excluded_rel_prefix:
+            kept_dirs: list[str] = []
+            for dirname in sorted(dirnames):
+                try:
+                    sub_rel = to_relative_storage_path(
+                        (current_dir / dirname).resolve(strict=False),
+                        resolved_root,
+                    )
+                except PathSafetyError:
+                    continue
+                if is_rel_path_within_excluded_prefix(sub_rel, excluded_rel_prefix):
+                    continue
+                kept_dirs.append(dirname)
+            dirnames[:] = kept_dirs
+        else:
+            dirnames.sort()
+        filenames.sort()
 
         for filename in filenames:
             candidate = current_dir / filename
@@ -68,6 +93,8 @@ def _discover_media_files(storage_root: Path) -> tuple[list[DiscoveredMediaFile]
             try:
                 safe_path = safe_resolve_path(candidate, resolved_root)
                 rel_path = to_relative_storage_path(safe_path, resolved_root)
+                if is_rel_path_within_excluded_prefix(rel_path, excluded_rel_prefix):
+                    continue
                 stat_result = safe_path.stat()
             except (PathSafetyError, OSError) as exc:
                 logger.warning("Skipping unreadable or unsafe path %s: %s", candidate, exc)
@@ -202,16 +229,27 @@ class LibraryScanner:
         media_repo: MediaFileRepository,
         state_repo: AppStateRepository,
         folder_cache: FolderReconcileCache | None = None,
+        user_settings_service: UserSettingsService | None = None,
     ) -> None:
         self._settings = settings
         self._media_repo = media_repo
         self._state_repo = state_repo
         self._folder_cache = folder_cache
+        self._user_settings_service = user_settings_service
         self._task: asyncio.Task[None] | None = None
         self._progress: ScanProgressPayload = ScanProgressPayload(
             status=AppConstants.SCAN_STATUS_IDLE
         )
         self._subscribers: set[asyncio.Queue[ScanProgressPayload | None]] = set()
+
+    def _get_excluded_scratch_prefix_sync(self) -> str | None:
+        """Return active `/storage` temp folder prefix to exclude from scanning, if any."""
+        if self._user_settings_service is None:
+            return None
+        effective = self._user_settings_service.get(user_id=None)
+        return get_excluded_storage_scratch_rel_prefix(
+            effective, storage_root=self._settings.storage_dir
+        )
 
     @property
     def is_running(self) -> bool:
@@ -300,6 +338,15 @@ class LibraryScanner:
         )
         normalized_rel = to_relative_storage_path(abs_path, self._settings.storage_dir)
 
+        excluded_prefix = await asyncio.to_thread(self._get_excluded_scratch_prefix_sync)
+        if is_rel_path_within_excluded_prefix(normalized_rel, excluded_prefix):
+            await asyncio.to_thread(
+                self._media_repo.delete_by_filepaths, [normalized_rel]
+            )
+            if self._folder_cache is not None:
+                self._folder_cache.invalidate_for_filepath(normalized_rel)
+            return None
+
         if not await asyncio.to_thread(abs_path.is_file):
             await asyncio.to_thread(
                 self._media_repo.delete_by_filepaths, [normalized_rel]
@@ -378,8 +425,13 @@ class LibraryScanner:
             return
 
         try:
+            excluded_prefix = await asyncio.to_thread(
+                self._get_excluded_scratch_prefix_sync
+            )
             discovered, stat_errors = await asyncio.to_thread(
-                _discover_media_files, storage_root
+                _discover_media_files,
+                storage_root,
+                excluded_rel_prefix=excluded_prefix,
             )
             existing_index = await asyncio.to_thread(self._media_repo.get_scan_index)
 

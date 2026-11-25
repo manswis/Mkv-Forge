@@ -44,7 +44,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.25"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.26"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
@@ -59,7 +59,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.25"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.26"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -4514,44 +4514,68 @@
                         </div>
 
                         <!-- Card 2: Stage 1 Scratch Directory -->
-                        <div class="space-y-2">
+                        <div class="space-y-2.5">
                           <div>
                             <p class="text-xs font-semibold text-ink-primary">Stage 1 Scratch Directory</p>
-                            <p class="mt-0.5 text-xs text-ink-muted">Optional fast SSD or <code
-                                class="font-mono">/tmp</code> location for FFmpeg's intermediate audio file. Stage 2
-                              always writes the final MKV temp file on <code class="font-mono">/storage</code> for
-                              instant atomic renames.</p>
+                            <p class="mt-0.5 text-xs text-ink-muted">Choose where FFmpeg writes temporary Stage 1
+                              audio files—use RAM (<code class="font-mono">tmpfs</code>) or an HDD folder to protect
+                              SSD lifespan, or a fast SSD to reduce HDD seek contention.</p>
                           </div>
                           <div
                             class="ui-list-group rounded-ui-md border border-subtle overflow-hidden">
                             <template
                               x-for="opt in C.SETTINGS_OPTIONS.STAGE1_SCRATCH_MODES.filter((o) => o.id !== 'custom' || (processingRuntime && processingRuntime.custom_scratch_path))"
                               :key="`scratch-${opt.id}`">
-                              <button type="button"
-                                @click="updateUserSettings({ stage1_scratch_mode: opt.id })"
+                              <div
+                                role="button"
+                                tabindex="0"
+                                @click="selectStage1ScratchMode(opt.id)"
+                                @keydown.enter.prevent="selectStage1ScratchMode(opt.id)"
+                                @keydown.space.prevent="selectStage1ScratchMode(opt.id)"
                                 :aria-pressed="userSettings.stage1_scratch_mode === opt.id ? 'true' : 'false'"
-                                class="ui-row flex w-full flex-wrap items-start justify-between gap-2 px-3.5 py-3 text-left transition"
+                                class="ui-row flex w-full cursor-pointer flex-wrap items-center justify-between gap-2.5 px-3.5 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
                                 :class="userSettings.stage1_scratch_mode === opt.id ? 'bg-accent/[0.08]' : ''">
-                                <div class="min-w-0 flex-1 space-y-0.5">
-                                  <div class="flex flex-wrap items-center gap-2">
+                                <div class="min-w-0 flex-1 space-y-1">
+                                  <div class="flex flex-wrap items-center gap-1.5">
                                     <span class="text-xs font-medium text-ink-primary" x-text="opt.label"></span>
                                     <span x-show="userSettings.stage1_scratch_mode === opt.id"
                                       class="ui-status ui-status-ok text-[11px]">Active</span>
+                                    <template x-if="formatScratchMountBadge(opt.id)">
+                                      <span
+                                        class="text-[11px]"
+                                        :class="formatScratchMountBadge(opt.id).tone === 'ok' ? 'ui-status ui-status-ok' : (formatScratchMountBadge(opt.id).tone === 'warn' ? 'ui-status ui-status-warn' : 'ui-tag')"
+                                        x-text="formatScratchMountBadge(opt.id).text"></span>
+                                    </template>
+                                    <span x-show="formatScratchFreeSpace(opt.id)"
+                                      class="ui-tag font-mono text-[11px]"
+                                      x-text="formatScratchFreeSpace(opt.id)"></span>
                                   </div>
                                   <p class="text-xs text-ink-muted" x-text="opt.description"></p>
-                                  <p x-show="opt.id !== 'source' && processingRuntime"
+                                  <p x-show="getScratchOptionPath(opt.id)"
                                     class="truncate font-mono text-[11px] text-ink-secondary"
-                                    x-text="opt.id === 'tmp' ? (processingRuntime && processingRuntime.tmp_scratch_path) : (opt.id === 'data' ? (processingRuntime && processingRuntime.data_scratch_path) : (processingRuntime && processingRuntime.custom_scratch_path))">
+                                    :title="getScratchOptionPath(opt.id)"
+                                    x-text="getScratchOptionPath(opt.id)">
                                   </p>
                                 </div>
-                              </button>
+                                <div x-show="opt.id === 'storage_folder'" class="shrink-0">
+                                  <button type="button"
+                                    @click.stop="openScratchStorageFolderPicker()"
+                                    class="ui-btn ui-btn-secondary px-2.5 py-1.5 text-xs"
+                                    x-text="userSettings.stage1_scratch_storage_folder ? 'Change…' : 'Choose Folder…'"></button>
+                                </div>
+                              </div>
                             </template>
                           </div>
+                          <p class="text-[11px] leading-relaxed text-ink-muted">
+                            Stage 2 final MKV remuxing always stages on the destination drive (<code
+                              class="font-mono">/storage</code>) so replacing files stays instant and avoids writing
+                            the full movie twice.
+                          </p>
                           <p x-show="!processingRuntime || !processingRuntime.custom_scratch_path"
-                            class="text-[11px] text-ink-muted">
-                            Tip: Mount a dedicated SSD volume and set <code
-                              class="font-mono">MKVFORGE_SCRATCH_DIR=/scratch</code> in Docker to unlock a custom mount
-                            option.
+                            class="text-[11px] leading-relaxed text-ink-muted">
+                            Docker tip: mount <code class="font-mono">--tmpfs /tmp:size=4g</code> for zero-wear RAM
+                            scratch, or set <code class="font-mono">MKVFORGE_SCRATCH_DIR=/scratch</code> to unlock an
+                            external HDD/SSD mount.
                           </p>
                         </div>
                       </div>

@@ -15,7 +15,12 @@ from app.config import AppConstants, Settings
 from app.db.repositories import JobRepository, MediaFileRepository
 from app.models.schemas import WatcherStatus
 from app.services.library_events import LibraryEventBroker
+from app.services.processing_policy import (
+    get_excluded_storage_scratch_rel_prefix,
+    is_rel_path_within_excluded_prefix,
+)
 from app.services.scanner import LibraryScanner, ProbeError
+from app.services.user_settings import UserSettingsService
 from app.utils.paths import (
     PathSafetyError,
     extract_folder,
@@ -107,6 +112,7 @@ class LibraryWatcher:
         job_repo: JobRepository,
         scanner: LibraryScanner,
         library_broker: LibraryEventBroker,
+        user_settings_service: UserSettingsService | None = None,
         job_defer_poll_sec: float = AppConstants.WATCH_JOB_DEFER_POLL_SEC,
         poll_interval_ms: int = AppConstants.WATCH_POLL_INTERVAL_MS,
     ) -> None:
@@ -115,6 +121,7 @@ class LibraryWatcher:
         self._job_repo = job_repo
         self._scanner = scanner
         self._library_broker = library_broker
+        self._user_settings_service = user_settings_service
         self._job_defer_poll_sec = max(0.01, float(job_defer_poll_sec))
         self._poll_interval_ms = poll_interval_ms
 
@@ -270,6 +277,18 @@ class LibraryWatcher:
             rel_filepath = to_relative_storage_path(path, self._settings.storage_dir)
         except PathSafetyError:
             return
+
+        if self._user_settings_service is not None:
+            try:
+                effective = self._user_settings_service.get(user_id=None)
+                excluded_prefix = get_excluded_storage_scratch_rel_prefix(
+                    effective,
+                    storage_root=self._settings.storage_dir,
+                )
+            except Exception:
+                excluded_prefix = None
+            if is_rel_path_within_excluded_prefix(rel_filepath, excluded_prefix):
+                return
 
         if not is_watchable_media_path(path):
             self._handle_non_media_fs_event(change_type, path, rel_filepath)
