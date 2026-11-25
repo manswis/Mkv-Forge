@@ -19,9 +19,12 @@ from scripts import check_build_changes  # noqa: E402
 class WorkflowTestConstants:
     """Centralized paths and expectations for GitHub Actions workflow tests."""
 
+    DOCKERFILE_PATH: Path = REPO_ROOT / "Dockerfile"
     DOCKER_PUBLISH_WORKFLOW: Path = REPO_ROOT / ".github/workflows/docker-publish.yml"
     GHCR_CLEANUP_WORKFLOW: Path = REPO_ROOT / ".github/workflows/ghcr-cleanup.yml"
     UTF8_ENCODING: str = "utf-8"
+    EXPECTED_PYTHON_VERSION: str = "3.13"
+    EXPECTED_APP_VERSION_ARG_COUNT: int = 2
     ZERO_SHA: str = "0" * 40
     MISSING_SHA: str = "deadbeef" * 5
     GIT_USER_NAME: str = "Test Bot"
@@ -107,6 +110,35 @@ def test_docker_publish_avoids_invalid_push_tags_and_paths_ignore_combination() 
     assert "python3 scripts/check_build_changes.py" in content
     assert "should_build: ${{ steps.changes.outputs.should_build }}" in content
     assert "if: needs.test.outputs.should_build == 'true'" in content
+
+
+def test_dockerfile_and_ci_use_trixie_python313_and_upstream_mkvtoolnix_repo() -> None:
+    """Dockerfile builds on Debian Trixie + Python 3.13 with signed upstream MKVToolNix APT repo."""
+    dockerfile = WorkflowTestConstants.DOCKERFILE_PATH.read_text(
+        encoding=WorkflowTestConstants.UTF8_ENCODING
+    )
+    publish_wf = _read_workflow(WorkflowTestConstants.DOCKER_PUBLISH_WORKFLOW)
+
+    assert "FROM debian:trixie-slim AS css-builder" in dockerfile
+    assert f"FROM python:{WorkflowTestConstants.EXPECTED_PYTHON_VERSION}-slim-trixie AS runtime" in dockerfile
+    assert "bookworm" not in dockerfile
+    assert f'python-version: "{WorkflowTestConstants.EXPECTED_PYTHON_VERSION}"' in publish_wf
+
+    # Signed official MKVToolNix Debian Trixie repository (amd64 + arm64)
+    assert "https://mkvtoolnix.download/gpg-pub-moritzbunkus.gpg" in dockerfile
+    assert "signed-by=/etc/apt/keyrings/gpg-pub-moritzbunkus.gpg" in dockerfile
+    assert "https://mkvtoolnix.download/debian/ trixie main" in dockerfile
+    assert "apt-get purge -y --auto-remove curl" in dockerfile
+
+    # Build-time smoke verification runs AFTER pruning curl
+    assert dockerfile.index("apt-get purge -y --auto-remove curl") < dockerfile.index(
+        "mkvmerge --version"
+    )
+    assert "ffmpeg -version" in dockerfile
+
+    # Release version sync requires exactly 2 ARG APP_VERSION= declarations
+    app_version_args = re.findall(r"^ARG\s+APP_VERSION=", dockerfile, re.MULTILINE)
+    assert len(app_version_args) == WorkflowTestConstants.EXPECTED_APP_VERSION_ARG_COUNT
 
 
 # ---------------------------------------------------------------------------

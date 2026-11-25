@@ -140,6 +140,8 @@ class TestThumbnailExtractionAndCaching:
         )
         assert res1 == (_FAKE_PNG, "image/png")
         assert len(calls) == 1
+        assert calls[0][:3] == [AppConstants.TOOL_MKVEXTRACT, str(mkv_file.resolve()), "attachments"]
+        assert calls[0][3].startswith("2:")
         cache_file = get_thumbnail_cache_path(data_dir, 7, 1700000500.0)
         assert cache_file.is_file()
 
@@ -279,3 +281,120 @@ class TestSqliteHasCoverArtDenormalizationAndSetting:
         by_id = {int(r["id"]): r for r in rows}
         assert bool(by_id[id_with]["has_cover_art"]) is True
         assert bool(by_id[id_without]["has_cover_art"]) is False
+
+
+class TestThumbnailCommandBuildersAndFfmpeg7Compatibility:
+    """Verify MKVToolNix v17+/v104 mkvextract ordering and FFmpeg 7+ HDR/RGBA JPEG safety."""
+
+    def test_mkvextract_places_source_file_before_attachments_mode(
+        self, tmp_path: Path
+    ) -> None:
+        from app.services.thumbnail_service import build_mkvextract_attachment_command
+
+        src = tmp_path / "-leading-dash-movie.mkv"
+        out = tmp_path / "cover.img"
+        cmd = build_mkvextract_attachment_command(src, 4, out)
+
+        assert cmd == [
+            AppConstants.TOOL_MKVEXTRACT,
+            str(src),
+            "attachments",
+            f"4:{out}",
+        ]
+        assert cmd.index(str(src)) < cmd.index("attachments")
+
+    def test_ffmpeg_thumbnail_command_normalizes_pixel_format_for_mjpeg(
+        self, tmp_path: Path
+    ) -> None:
+        from app.services.thumbnail_service import build_ffmpeg_thumbnail_command
+
+        src = tmp_path / "hdr10_clip.mkv"
+        out = tmp_path / "thumb.img"
+
+        cmd_default = build_ffmpeg_thumbnail_command(src, out)
+        assert "-map" not in cmd_default
+        vf_idx = cmd_default.index("-vf")
+        assert (
+            cmd_default[vf_idx + 1]
+            == f"scale='min({AppConstants.THUMBNAIL_MAX_DIMENSION_PX},iw)':-2,format={AppConstants.THUMBNAIL_JPEG_PIXEL_FORMAT}"
+        )
+
+        cmd_mapped = build_ffmpeg_thumbnail_command(src, out, map_first_video=True)
+        map_idx = cmd_mapped.index("-map")
+        assert cmd_mapped[map_idx + 1] == "0:v:0"
+        assert cmd_mapped[-1] == str(out)
+
+    async def test_real_ffmpeg_generates_jpeg_from_10bit_hdr_and_rgba_sources(
+        self, tmp_path: Path
+    ) -> None:
+        import shutil
+        import subprocess
+        from app.services.thumbnail_service import (
+            _run_extract_cmd,
+            build_ffmpeg_thumbnail_command,
+        )
+
+        if shutil.which(AppConstants.TOOL_FFMPEG) is None:
+            pytest.skip("ffmpeg not installed locally")
+
+        # 1. Generate a real 10-bit limited-range YUV (yuv420p10le) MKV frame
+        hdr_src = tmp_path / "hdr10_10bit.mkv"
+        subprocess.run(
+            [
+                AppConstants.TOOL_FFMPEG,
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=640x360:duration=0.2:rate=10",
+                "-pix_fmt",
+                "yuv420p10le",
+                "-c:v",
+                "libx264",
+                str(hdr_src),
+            ],
+            check=True,
+        )
+
+        hdr_out = tmp_path / "hdr_thumb.jpg"
+        ok_hdr = await _run_extract_cmd(
+            build_ffmpeg_thumbnail_command(hdr_src, hdr_out, map_first_video=True),
+            timeout_sec=AppConstants.THUMBNAIL_EXTRACT_TIMEOUT_SEC,
+        )
+        assert ok_hdr is True
+        hdr_bytes = hdr_out.read_bytes()
+        assert is_valid_image_bytes(hdr_bytes) is True
+        assert detect_image_media_type(hdr_bytes) == "image/jpeg"
+
+        # 2. Generate a real RGBA PNG image (with alpha channel)
+        rgba_src = tmp_path / "alpha_cover.png"
+        subprocess.run(
+            [
+                AppConstants.TOOL_FFMPEG,
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=blue@0.5:s=512x512:d=0.1",
+                "-frames:v",
+                "1",
+                "-pix_fmt",
+                "rgba",
+                str(rgba_src),
+            ],
+            check=True,
+        )
+
+        rgba_out = tmp_path / "rgba_thumb.jpg"
+        ok_rgba = await _run_extract_cmd(
+            build_ffmpeg_thumbnail_command(rgba_src, rgba_out, map_first_video=True),
+            timeout_sec=AppConstants.THUMBNAIL_EXTRACT_TIMEOUT_SEC,
+        )
+        assert ok_rgba is True
+        rgba_bytes = rgba_out.read_bytes()
+        assert is_valid_image_bytes(rgba_bytes) is True
+        assert detect_image_media_type(rgba_bytes) == "image/jpeg"

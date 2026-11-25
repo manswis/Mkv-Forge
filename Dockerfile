@@ -6,7 +6,7 @@ ARG APP_VERSION=1.0.7
 # ---------------------------------------------------------------------------
 # Stage 1: Compile static Tailwind CSS using standalone CLI (zero Node.js)
 # ---------------------------------------------------------------------------
-FROM debian:bookworm-slim AS css-builder
+FROM debian:trixie-slim AS css-builder
 
 ARG TARGETARCH
 ARG TAILWIND_VERSION
@@ -33,9 +33,9 @@ COPY app/static/ ./app/static/
 RUN tailwindcss -i ./frontend/input.css -o ./app/static/css/app.css --minify
 
 # ---------------------------------------------------------------------------
-# Stage 2: Runtime image with mkvtoolnix, ffmpeg, gosu, and FastAPI
+# Stage 2: Runtime image with MKVToolNix (upstream Trixie repo), FFmpeg 7.1, gosu, and FastAPI
 # ---------------------------------------------------------------------------
-FROM python:3.11-slim-bookworm AS runtime
+FROM python:3.13-slim-trixie AS runtime
 
 ARG APP_VERSION=1.0.7
 
@@ -50,11 +50,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+       ca-certificates \
+       curl \
+    && install -d -m 0755 /etc/apt/keyrings \
+    && curl -fsSL --retry 3 --retry-delay 2 \
+       https://mkvtoolnix.download/gpg-pub-moritzbunkus.gpg \
+       -o /etc/apt/keyrings/gpg-pub-moritzbunkus.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/gpg-pub-moritzbunkus.gpg] https://mkvtoolnix.download/debian/ trixie main" \
+       > /etc/apt/sources.list.d/mkvtoolnix.download.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
        mkvtoolnix \
        ffmpeg \
        gosu \
        tzdata \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y --auto-remove curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkvmerge --version \
+    && ffmpeg -version
 
 WORKDIR /app
 

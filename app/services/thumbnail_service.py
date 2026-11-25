@@ -133,6 +133,61 @@ def get_thumbnail_cache_path(data_dir: Path, file_id: int, mtime: float) -> Path
     return thumbs_dir / f"thumb_{int(file_id)}_{mtime_tag}.img"
 
 
+def build_mkvextract_attachment_command(
+    media_path: Path,
+    attachment_id: int,
+    output_path: Path,
+) -> list[str]:
+    """Build canonical MKVToolNix v17+ `mkvextract <file> attachments <id>:<out>` argv."""
+    return [
+        AppConstants.TOOL_MKVEXTRACT,
+        str(media_path),
+        "attachments",
+        f"{attachment_id}:{output_path}",
+    ]
+
+
+def build_ffmpeg_thumbnail_command(
+    source_path: Path,
+    output_path: Path,
+    *,
+    map_first_video: bool = False,
+) -> list[str]:
+    """Build FFmpeg 7+ safe JPEG thumbnail argv normalizing 10-bit HDR / RGBA to yuvj420p."""
+    vf_chain = (
+        f"scale='min({AppConstants.THUMBNAIL_MAX_DIMENSION_PX},iw)':-2,"
+        f"format={AppConstants.THUMBNAIL_JPEG_PIXEL_FORMAT}"
+    )
+    argv: list[str] = [
+        AppConstants.TOOL_FFMPEG,
+        "-nostdin",
+        "-v",
+        "error",
+        "-y",
+        "-i",
+        str(source_path),
+    ]
+    if map_first_video:
+        argv.extend(["-map", "0:v:0"])
+    argv.extend(
+        [
+            "-an",
+            "-sn",
+            "-dn",
+            "-frames:v",
+            "1",
+            "-vf",
+            vf_chain,
+            "-f",
+            "image2",
+            "-c:v",
+            "mjpeg",
+            str(output_path),
+        ]
+    )
+    return argv
+
+
 async def _run_extract_cmd(cmd: list[str], timeout_sec: float) -> bool:
     """Run an extraction subprocess with strict timeout and cleanup on failure."""
     proc: asyncio.subprocess.Process | None = None
@@ -214,39 +269,16 @@ async def get_or_extract_thumbnail(
         try:
             # Strategy A: mkvextract seeks straight to the Matroska attachment table in <10ms
             extracted = await _run_extract_cmd(
-                [
-                    AppConstants.TOOL_MKVEXTRACT,
-                    "attachments",
-                    str(abs_media_path),
-                    f"{best_att.id}:{tmp_path}",
-                ],
+                build_mkvextract_attachment_command(
+                    abs_media_path, best_att.id, tmp_path
+                ),
                 timeout_sec=AppConstants.THUMBNAIL_EXTRACT_TIMEOUT_SEC,
             )
 
             # Strategy B: Fallback to ffmpeg attached_pic / video stream downscaled thumbnail
             if not extracted or not tmp_path.is_file() or tmp_path.stat().st_size == 0:
                 extracted = await _run_extract_cmd(
-                    [
-                        AppConstants.TOOL_FFMPEG,
-                        "-nostdin",
-                        "-v",
-                        "error",
-                        "-y",
-                        "-i",
-                        str(abs_media_path),
-                        "-an",
-                        "-sn",
-                        "-dn",
-                        "-frames:v",
-                        "1",
-                        "-vf",
-                        f"scale='min({AppConstants.THUMBNAIL_MAX_DIMENSION_PX},iw)':-2",
-                        "-f",
-                        "image2",
-                        "-c:v",
-                        "mjpeg",
-                        str(tmp_path),
-                    ],
+                    build_ffmpeg_thumbnail_command(abs_media_path, tmp_path),
                     timeout_sec=AppConstants.THUMBNAIL_EXTRACT_TIMEOUT_SEC,
                 )
 
@@ -555,29 +587,9 @@ async def get_or_extract_other_file_thumbnail(
         tmp_path = Path(tmp_str)
         try:
             extracted = await _run_extract_cmd(
-                [
-                    AppConstants.TOOL_FFMPEG,
-                    "-nostdin",
-                    "-v",
-                    "error",
-                    "-y",
-                    "-i",
-                    str(abs_path),
-                    "-map",
-                    "0:v:0",
-                    "-an",
-                    "-sn",
-                    "-dn",
-                    "-frames:v",
-                    "1",
-                    "-vf",
-                    f"scale='min({AppConstants.THUMBNAIL_MAX_DIMENSION_PX},iw)':-2",
-                    "-f",
-                    "image2",
-                    "-c:v",
-                    "mjpeg",
-                    str(tmp_path),
-                ],
+                build_ffmpeg_thumbnail_command(
+                    abs_path, tmp_path, map_first_video=True
+                ),
                 timeout_sec=AppConstants.THUMBNAIL_EXTRACT_TIMEOUT_SEC,
             )
             if extracted and tmp_path.is_file():
