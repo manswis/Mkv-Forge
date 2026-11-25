@@ -44,15 +44,13 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.26"></script>
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.27"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.28"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
   <script defer src="/static/js/api.js?v=0.1.0-p18.25"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/editor.js?v=0.1.0-p18.23"></script>
-  <script defer src="/static/js/editor.js?v=0.1.0-p18.27"></script>
+  <script defer src="/static/js/editor.js?v=0.1.0-p18.28"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/charts.js?v=0.1.0-p17.7"></script>
@@ -61,7 +59,6 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.26"></script>
   <script defer src="/static/js/app.js?v=0.1.0-p18.27"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
@@ -2862,8 +2859,11 @@
                           <div class="flex flex-wrap items-center gap-2">
                             <select x-model="track.language" aria-label="Track language"
                               class="ui-select select-dark h-8 min-h-[32px] w-auto py-1 pl-2.5 font-mono text-xs">
-                              <template x-for="lang in C.EDITOR.LANGUAGE_OPTIONS" :key="`${track.id}-${lang.code}`">
-                                <option :value="lang.code" :selected="lang.code === track.language" x-text="lang.code">
+                              <template
+                                x-for="lang in Ed.getLanguageOptionsFor(track.language, track.original_language)"
+                                :key="`${track.id}-${lang.code}`">
+                                <option :value="lang.code" :selected="lang.code === track.language" :title="lang.label"
+                                  x-text="lang.code">
                                 </option>
                               </template>
                             </select>
@@ -4226,7 +4226,8 @@
                             <select :value="userSettings.preferred_language"
                               @change="updateUserSettings({ preferred_language: $event.target.value })"
                               aria-label="Preferred track language" class="ui-select select-dark w-auto min-w-[150px]">
-                              <template x-for="lang in C.EDITOR.LANGUAGE_OPTIONS" :key="`preflang-${lang.code}`">
+                              <template x-for="lang in Ed.getLanguageOptionsFor(userSettings.preferred_language)"
+                                :key="`preflang-${lang.code}`">
                                 <option :value="lang.code" :selected="userSettings.preferred_language === lang.code"
                                   x-text="lang.label"></option>
                               </template>
@@ -5329,7 +5330,8 @@
                   <label class="block text-xs font-medium text-ink-secondary">Language</label>
                   <select x-model="addAudioDraft.language" @change="onDraftLanguageChange()"
                     class="ui-select select-dark mt-1.5 font-mono text-xs">
-                    <template x-for="lang in C.EDITOR.LANGUAGE_OPTIONS" :key="`draft-${lang.code}`">
+                    <template x-for="lang in Ed.getLanguageOptionsFor(addAudioDraft.language)"
+                      :key="`draft-${lang.code}`">
                       <option :value="lang.code" :selected="lang.code === addAudioDraft.language" x-text="lang.label">
                       </option>
                     </template>
@@ -5576,8 +5578,10 @@
                 <label class="block text-xs font-medium text-ink-secondary">Language</label>
                 <select x-model="importTrackModal.language" @change="onImportLanguageChange()"
                   class="ui-select select-dark mt-1.5 text-xs">
-                  <template x-for="lang in C.EDITOR.LANGUAGE_OPTIONS" :key="`implang-${lang.code}`">
-                    <option :value="lang.code" x-text="lang.label"></option>
+                  <template x-for="lang in Ed.getLanguageOptionsFor(importTrackModal.language)"
+                    :key="`implang-${lang.code}`">
+                    <option :value="lang.code" :selected="lang.code === importTrackModal.language" x-text="lang.label">
+                    </option>
                   </template>
                 </select>
               </div>

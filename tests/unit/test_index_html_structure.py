@@ -190,12 +190,12 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p18.18" in html
-        assert "/static/js/constants.js?v=0.1.0-p18.27" in html
+        assert "/static/js/constants.js?v=0.1.0-p18.28" in html
         assert "/static/js/api.js?v=0.1.0-p18.25" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
         assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
-        assert "/static/js/editor.js?v=0.1.0-p18.27" in html
+        assert "/static/js/editor.js?v=0.1.0-p18.28" in html
         assert "/static/js/app.js?v=0.1.0-p18.27" in html
         assert "/static/js/batch.js?v=0.1.0-p18.23" in html
         assert html.index(
@@ -465,3 +465,19 @@ class TestIndexHtmlStructure:
         assert html.count('openJobFolder(') == 3
         # title + aria-label + x-text x 3 surfaces
         assert html.count('Fmt.resolveJobFolder(') == 9
+
+    def test_no_duplicate_static_js_script_tags_and_dynamic_language_selects(self) -> None:
+        import re
+
+        html = _read_index_html()
+        scripts = re.findall(r'src="(/static/js/[^"?]+)(?:\?[^"]*)?"', html)
+        assert len(scripts) == len(set(scripts)), (
+            f"Duplicate JS script tags found in index.html: {scripts}"
+        )
+
+        # Every track/modal/settings language dropdown preserves arbitrary ISO 639-2/B & BCP-47 codes
+        assert "Ed.getLanguageOptionsFor(track.language, track.original_language)" in html
+        assert "Ed.getLanguageOptionsFor(userSettings.preferred_language)" in html
+        assert "Ed.getLanguageOptionsFor(addAudioDraft.language)" in html
+        assert "Ed.getLanguageOptionsFor(importTrackModal.language)" in html
+        assert "x-for=\"lang in C.EDITOR.LANGUAGE_OPTIONS\"" not in html

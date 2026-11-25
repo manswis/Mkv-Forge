@@ -626,6 +626,30 @@
     return mapped || code.toUpperCase();
   }
 
+  function getLanguageOptionsFor(...extraCodes) {
+    const baseOptions = Array.isArray(EDITOR.LANGUAGE_OPTIONS)
+      ? EDITOR.LANGUAGE_OPTIONS
+      : [];
+    const knownCodes = new Set(baseOptions.map((opt) => opt.code));
+    const prepended = [];
+
+    for (const raw of extraCodes) {
+      if (raw === null || raw === undefined) continue;
+      const code = String(raw).trim();
+      if (!code || knownCodes.has(code)) continue;
+      knownCodes.add(code);
+      const lower = code.toLowerCase();
+      const displayName =
+        EDITOR.LANGUAGE_DISPLAY_NAMES && EDITOR.LANGUAGE_DISPLAY_NAMES[lower];
+      prepended.push({
+        code,
+        label: displayName ? `${displayName} (${code})` : code,
+      });
+    }
+
+    return prepended.length > 0 ? [...prepended, ...baseOptions] : baseOptions;
+  }
+
   function resolveAudioDynamicsShortLabel(audioDynamics, targetCodec = null) {
     if (targetCodec && getCodecMeta(targetCodec).isLossless) return "";
     const mode = String(audioDynamics || EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original")
@@ -1769,6 +1793,8 @@
     getRecommendedAddAudioOptions,
     buildDefaultAudioTitle,
     resolveAudioDynamicsShortLabel,
+    resolveLanguageDisplayName,
+    getLanguageOptionsFor,
     buildDefaultExternalTitle,
     isAac51Track,
     isSurroundTrack,

@@ -811,6 +811,64 @@ def test_frontend_editor_helpers_and_html_landmarks() -> None:
     }}
     if (Ed.isInstantHeaderEditEligible(state, file)) throw new Error("Audio conversion must not be instant-eligible");
 
+    // Language options helper: preserves ISO 639-2/B (fre, dut, rum), BCP-47, and unknown codes without fallback to 'eng'
+    const baseLen = ctx.MKVForgeConstants.EDITOR.LANGUAGE_OPTIONS.length;
+    const freOpts = Ed.getLanguageOptionsFor("fre", "fre");
+    if (freOpts[0].code !== "fre" || freOpts[0].label !== "French (fre)") {{
+      throw new Error("Expected French (fre) prepended, got: " + JSON.stringify(freOpts[0]));
+    }}
+    if (freOpts.length !== baseLen + 1) throw new Error("Duplicate fre option generated");
+
+    const dutOpts = Ed.getLanguageOptionsFor("dut");
+    if (dutOpts[0].code !== "dut" || dutOpts[0].label !== "Dutch (dut)") {{
+      throw new Error("Expected Dutch (dut) prepended, got: " + JSON.stringify(dutOpts[0]));
+    }}
+
+    const rumOpts = Ed.getLanguageOptionsFor("rum");
+    if (rumOpts[0].code !== "rum" || rumOpts[0].label !== "Romanian (rum)") {{
+      throw new Error("Expected Romanian (rum) prepended, got: " + JSON.stringify(rumOpts[0]));
+    }}
+
+    // Changing track.language from 'fre' to 'eng' keeps 'fre' (original_language) selectable to revert cleanly
+    const revertedOpts = Ed.getLanguageOptionsFor("eng", "fre");
+    if (!revertedOpts.some((o) => o.code === "fre") || !revertedOpts.some((o) => o.code === "eng")) {{
+      throw new Error("Expected both eng and original fre in options");
+    }}
+    if (revertedOpts.filter((o) => o.code === "eng").length !== 1) {{
+      throw new Error("Standard code eng must not be duplicated");
+    }}
+
+    // BCP-47 & unknown custom codes + negative/null/empty inputs
+    const bcpOpts = Ed.getLanguageOptionsFor("pt-BR", null, undefined, "", "   ", "tlh");
+    if (bcpOpts[0].code !== "pt-BR" || bcpOpts[1].code !== "tlh" || bcpOpts.length !== baseLen + 2) {{
+      throw new Error("Unexpected BCP-47/unknown options: " + JSON.stringify(bcpOpts.slice(0, 3)));
+    }}
+    const standardOnly = Ed.getLanguageOptionsFor("eng", "und", null, "");
+    if (standardOnly.length !== baseLen) {{
+      throw new Error("Standard/empty codes must not alter base option list length");
+    }}
+    if (ctx.MKVForgeConstants.EDITOR.LANGUAGE_OPTIONS.length !== baseLen) {{
+      throw new Error("LANGUAGE_OPTIONS constant was mutated");
+    }}
+
+    // Track state preserves fre/dut/rum verbatim with zero phantom pending changes
+    const intlFile = {{
+      ...file,
+      tracks: [
+        {{ id: 0, type: "video", codec: "HEVC", language: "und", default_track: true }},
+        {{ id: 4, type: "subtitles", codec: "SubRip/SRT", language: "fre", default_track: false }},
+        {{ id: 5, type: "subtitles", codec: "SubRip/SRT", language: "dut", default_track: false }},
+        {{ id: 6, type: "subtitles", codec: "SubRip/SRT", language: "rum", default_track: false }},
+      ]
+    }};
+    const intlState = Ed.createEditorState(intlFile, {{ default_output_mode: "replace", default_remove_all_metadata: false }});
+    if (intlState.tracks[1].language !== "fre" || intlState.tracks[2].language !== "dut" || intlState.tracks[3].language !== "rum") {{
+      throw new Error("Track languages were altered on load");
+    }}
+    if (Ed.hasPendingChanges(intlState, intlFile)) {{
+      throw new Error("Untouched fre/dut/rum tracks must not report pending changes");
+    }}
+
     console.log("FRONTEND_VM_OK");
     """
     proc = subprocess.run(
