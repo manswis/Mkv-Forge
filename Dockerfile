@@ -67,6 +67,7 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/* \
     && mkvmerge --version \
+    && mkvpropedit --version \
     && ffmpeg -version
 
 WORKDIR /app

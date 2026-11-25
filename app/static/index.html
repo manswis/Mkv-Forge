@@ -45,12 +45,14 @@
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
   <script defer src="/static/js/constants.js?v=0.1.0-p18.26"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p18.27"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
   <script defer src="/static/js/api.js?v=0.1.0-p18.25"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p18.23"></script>
+  <script defer src="/static/js/editor.js?v=0.1.0-p18.27"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/charts.js?v=0.1.0-p17.7"></script>
@@ -60,6 +62,7 @@
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
   <script defer src="/static/js/app.js?v=0.1.0-p18.26"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p18.27"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -985,7 +988,8 @@
               <template x-for="item in dashboard.recent_activity" :key="item.id">
                 <div class="ui-row flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                   <div class="min-w-0 flex-1">
-                    <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary" :title="item.output_filepath || item.filepath"
+                    <p class="min-w-0 truncate font-mono text-xs font-medium text-ink-primary"
+                      :title="item.output_filepath || item.filepath"
                       x-text="Fmt.basenameOf(item.output_filepath || item.filepath)"></p>
                     <button type="button" @click="openJobFolder(item)"
                       :title="`Open folder ${Fmt.resolveJobFolder(item)}`"
@@ -998,8 +1002,9 @@
                       </svg>
                       <span class="min-w-0 truncate" x-text="Fmt.resolveJobFolder(item)"></span>
                     </button>
-                    <p x-show="item.error_message" class="mt-0.5 min-w-0 truncate text-xs text-[var(--color-status-err)]"
-                      :title="item.error_message" x-text="item.error_message"></p>
+                    <p x-show="item.error_message"
+                      class="mt-0.5 min-w-0 truncate text-xs text-[var(--color-status-err)]" :title="item.error_message"
+                      x-text="item.error_message"></p>
                   </div>
                   <div class="flex shrink-0 flex-col items-end gap-1">
                     <div class="flex items-center gap-2">
@@ -1978,8 +1983,7 @@
                           <div class="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center">
                             <!-- Album Art / Embedded Cover / Image Thumbnail -->
                             <template x-if="isGridLayout && shouldShowOtherFileThumb(of)">
-                              <img loading="lazy" decoding="async"
-                                :src="otherFileThumbnailUrl(of)" :alt="of.name"
+                              <img loading="lazy" decoding="async" :src="otherFileThumbnailUrl(of)" :alt="of.name"
                                 @error="markOtherThumbError(of)"
                                 class="relative h-[72px] w-[72px] shrink-0 rounded-ui-md border border-subtle bg-inset object-cover shadow-panel transition duration-150 group-hover:-translate-y-0.5" />
                             </template>
@@ -2459,6 +2463,8 @@
                               <span x-show="row.setAsDefault" class="ui-status ui-status-ok">
                                 Audio Index 0 • Default
                               </span>
+                              <span x-show="row.audioDynamicsLabel" class="ui-status ui-status-info"
+                                x-text="row.audioDynamicsLabel"></span>
                             </div>
                             <div class="flex shrink-0 items-center gap-1.5">
                               <button type="button" @click="editAddedAudio()"
@@ -2598,6 +2604,18 @@
                                 </span>
                                 <span x-show="row.track.forced_track" class="ui-tag">
                                   Forced
+                                </span>
+                                <span x-show="row.track.flag_hearing_impaired" class="ui-tag">
+                                  SDH / HI
+                                </span>
+                                <span x-show="row.track.flag_commentary" class="ui-tag">
+                                  Commentary
+                                </span>
+                                <span x-show="row.track.flag_original" class="ui-tag">
+                                  Original
+                                </span>
+                                <span x-show="row.track.flag_visual_impaired" class="ui-tag">
+                                  AD
                                 </span>
                               </div>
 
@@ -2860,6 +2878,38 @@
                               class="ui-status cursor-pointer transition"
                               :class="track.forced_track ? 'ui-status-warn' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'">
                               Forced
+                            </button>
+
+                            <button type="button" x-show="track.type === 'subtitles'"
+                              @click="track.flag_hearing_impaired = !track.flag_hearing_impaired"
+                              :aria-pressed="track.flag_hearing_impaired ? 'true' : 'false'"
+                              title="Hearing Impaired / SDH subtitles" class="ui-status cursor-pointer transition"
+                              :class="track.flag_hearing_impaired ? 'ui-status-info' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'">
+                              SDH / HI
+                            </button>
+
+                            <button type="button" x-show="track.type === 'audio' || track.type === 'subtitles'"
+                              @click="toggleTrackCommentaryFlag(track)"
+                              :aria-pressed="track.flag_commentary ? 'true' : 'false'"
+                              title="Director or cast commentary track" class="ui-status cursor-pointer transition"
+                              :class="track.flag_commentary ? 'ui-status-warn' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'">
+                              Commentary
+                            </button>
+
+                            <button type="button" x-show="track.type === 'video' || track.type === 'audio'"
+                              @click="track.flag_original = !track.flag_original"
+                              :aria-pressed="track.flag_original ? 'true' : 'false'" title="Original language track"
+                              class="ui-status cursor-pointer transition"
+                              :class="track.flag_original ? 'ui-status-ok' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'">
+                              Original
+                            </button>
+
+                            <button type="button" x-show="track.type === 'audio'"
+                              @click="track.flag_visual_impaired = !track.flag_visual_impaired"
+                              :aria-pressed="track.flag_visual_impaired ? 'true' : 'false'"
+                              title="Audio Description / Visually Impaired" class="ui-status cursor-pointer transition"
+                              :class="track.flag_visual_impaired ? 'ui-status-info' : 'border-subtle bg-inset text-ink-muted hover:text-ink-primary'">
+                              AD
                             </button>
                           </div>
                         </div>
@@ -4192,8 +4242,7 @@
                                   Editor &amp; Batch Studio.</p>
                               </div>
                               <select :value="userSettings.default_audio_codec"
-                                @change="setDefaultAudioCodec($event.target.value)"
-                                aria-label="Default target codec"
+                                @change="setDefaultAudioCodec($event.target.value)" aria-label="Default target codec"
                                 class="ui-select select-dark w-full sm:w-auto min-w-0">
                                 <template x-for="opt in C.SETTINGS_OPTIONS.DEFAULT_AUDIO_CODECS" :key="`dac-${opt.id}`">
                                   <option :value="opt.id" :selected="userSettings.default_audio_codec === opt.id"
@@ -4210,23 +4259,22 @@
                               <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
                                   <p class="text-xs font-medium text-ink-primary">Default Audio Quality</p>
-                                  <span x-show="isDefaultAudioCodecLossless"
-                                    class="ui-badge ui-badge-ok font-mono">
+                                  <span x-show="isDefaultAudioCodecLossless" class="ui-badge ui-badge-ok font-mono">
                                     Lossless · Bitrate N/A
                                   </span>
                                 </div>
                                 <p class="mt-0.5 text-xs text-ink-muted"
-                                  x-text="isDefaultAudioCodecLossless ? 'FLAC is always lossless PCM — quality tier applies only when encoding to a lossy codec.' : 'Automatically chooses codec- and channel-appropriate bitrates (1.0 through 7.1).'"></p>
+                                  x-text="isDefaultAudioCodecLossless ? 'FLAC is always lossless PCM — quality tier applies only when encoding to a lossy codec.' : 'Automatically chooses codec- and channel-appropriate bitrates (1.0 through 7.1).'">
+                                </p>
                               </div>
                               <div class="ui-segmented shrink-0 flex flex-wrap"
                                 :class="isDefaultAudioCodecLossless ? 'opacity-50' : ''">
-                                <template x-for="tier in C.SETTINGS_OPTIONS.AUDIO_QUALITY_TIERS" :key="`daq-${tier.id}`">
-                                  <button type="button"
-                                    :disabled="isDefaultAudioCodecLossless"
+                                <template x-for="tier in C.SETTINGS_OPTIONS.AUDIO_QUALITY_TIERS"
+                                  :key="`daq-${tier.id}`">
+                                  <button type="button" :disabled="isDefaultAudioCodecLossless"
                                     :aria-disabled="isDefaultAudioCodecLossless ? 'true' : 'false'"
                                     :aria-pressed="!isDefaultAudioCodecLossless && effectiveAudioQuality === tier.id ? 'true' : 'false'"
-                                    @click="setDefaultAudioQuality(tier.id)"
-                                    class="ui-segmented-item"
+                                    @click="setDefaultAudioQuality(tier.id)" class="ui-segmented-item"
                                     :class="[!isDefaultAudioCodecLossless && effectiveAudioQuality === tier.id ? 'ui-segmented-item-active' : '', isDefaultAudioCodecLossless ? 'cursor-not-allowed' : '']"
                                     x-text="tier.label"></button>
                                 </template>
@@ -4250,15 +4298,15 @@
                                 aria-label="Smart fill track format"
                                 class="ui-select select-dark w-full sm:w-auto min-w-0">
                                 <template x-for="opt in C.SETTINGS_OPTIONS.SMART_FILL_FORMATS" :key="`sff-${opt.id}`">
-                                  <option :value="opt.id"
-                                    :selected="userSettings.smart_fill_track_format === opt.id" x-text="opt.label">
+                                  <option :value="opt.id" :selected="userSettings.smart_fill_track_format === opt.id"
+                                    x-text="opt.label">
                                   </option>
                                 </template>
                               </select>
                             </div>
-                            <div
-                              class="rounded-ui-sm border border-subtle bg-inset px-3 py-2.5 text-xs space-y-1.5">
-                              <p class="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Live Preview</p>
+                            <div class="rounded-ui-sm border border-subtle bg-inset px-3 py-2.5 text-xs space-y-1.5">
+                              <p class="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Live Preview
+                              </p>
                               <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                                 <div class="flex min-w-0 items-center justify-between gap-2">
                                   <span class="shrink-0 text-ink-muted">Audio</span>
@@ -4474,8 +4522,7 @@
                         <div class="hidden md:block">
                           <div class="flex flex-wrap items-center justify-between gap-2">
                             <h2 class="ui-section-title">Processing &amp; Performance</h2>
-                            <span x-show="processingRuntime"
-                              class="ui-tag font-mono text-xs"
+                            <span x-show="processingRuntime" class="ui-tag font-mono text-xs"
                               x-text="processingRuntime ? `${processingRuntime.cpu_count} CPU ${processingRuntime.cpu_count === 1 ? 'core' : 'cores'}${processingRuntime.ionice_available ? ' · ionice ready' : ''}` : ''"></span>
                           </div>
                           <p class="ui-meta mt-0.5">Control server-wide CPU/I/O throttling and Stage 1 scratch storage
@@ -4486,7 +4533,8 @@
                         <div class="space-y-2">
                           <div class="flex flex-wrap items-center justify-between gap-2">
                             <div>
-                              <p class="text-xs font-semibold text-ink-primary">FFmpeg &amp; Remux CPU / I/O Priority</p>
+                              <p class="text-xs font-semibold text-ink-primary">FFmpeg &amp; Remux CPU / I/O Priority
+                              </p>
                               <p class="mt-0.5 text-xs text-ink-muted">Applies to the next job started by the worker
                                 (system-wide).</p>
                             </div>
@@ -4494,8 +4542,7 @@
                           <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             <template x-for="mode in C.SETTINGS_OPTIONS.PROCESSING_PRIORITY_MODES"
                               :key="`prio-${mode.id}`">
-                              <button type="button"
-                                @click="updateUserSettings({ processing_priority_mode: mode.id })"
+                              <button type="button" @click="updateUserSettings({ processing_priority_mode: mode.id })"
                                 :aria-pressed="userSettings.processing_priority_mode === mode.id ? 'true' : 'false'"
                                 class="flex flex-col items-start gap-1.5 rounded-ui-md border p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                                 :class="userSettings.processing_priority_mode === mode.id ? 'border-accent bg-accent/10 text-ink-primary' : 'border-subtle bg-surface text-ink-secondary hover:border-default hover:bg-[var(--color-hover-fill)]'">
@@ -4505,8 +4552,7 @@
                                     class="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden="true"></span>
                                 </div>
                                 <p class="text-[11px] leading-relaxed text-ink-muted" x-text="mode.description"></p>
-                                <span x-show="processingRuntime"
-                                  class="ui-tag mt-auto font-mono text-[11px]"
+                                <span x-show="processingRuntime" class="ui-tag mt-auto font-mono text-[11px]"
                                   x-text="mode.id === 'auto' ? 'All cores · normal' : (mode.id === 'half_cores' ? `${processingRuntime ? processingRuntime.half_cores_threads : 1} threads · nice +10` : `${processingRuntime ? processingRuntime.low_priority_threads : 1} threads · nice +15${processingRuntime && processingRuntime.ionice_available ? ' · ionice' : ''}`)"></span>
                               </button>
                             </template>
@@ -4521,15 +4567,11 @@
                               audio files—use RAM (<code class="font-mono">tmpfs</code>) or an HDD folder to protect
                               SSD lifespan, or a fast SSD to reduce HDD seek contention.</p>
                           </div>
-                          <div
-                            class="ui-list-group rounded-ui-md border border-subtle overflow-hidden">
+                          <div class="ui-list-group rounded-ui-md border border-subtle overflow-hidden">
                             <template
                               x-for="opt in C.SETTINGS_OPTIONS.STAGE1_SCRATCH_MODES.filter((o) => o.id !== 'custom' || (processingRuntime && processingRuntime.custom_scratch_path))"
                               :key="`scratch-${opt.id}`">
-                              <div
-                                role="button"
-                                tabindex="0"
-                                @click="selectStage1ScratchMode(opt.id)"
+                              <div role="button" tabindex="0" @click="selectStage1ScratchMode(opt.id)"
                                 @keydown.enter.prevent="selectStage1ScratchMode(opt.id)"
                                 @keydown.space.prevent="selectStage1ScratchMode(opt.id)"
                                 :aria-pressed="userSettings.stage1_scratch_mode === opt.id ? 'true' : 'false'"
@@ -4541,25 +4583,21 @@
                                     <span x-show="userSettings.stage1_scratch_mode === opt.id"
                                       class="ui-status ui-status-ok text-[11px]">Active</span>
                                     <template x-if="formatScratchMountBadge(opt.id)">
-                                      <span
-                                        class="text-[11px]"
+                                      <span class="text-[11px]"
                                         :class="formatScratchMountBadge(opt.id).tone === 'ok' ? 'ui-status ui-status-ok' : (formatScratchMountBadge(opt.id).tone === 'warn' ? 'ui-status ui-status-warn' : 'ui-tag')"
                                         x-text="formatScratchMountBadge(opt.id).text"></span>
                                     </template>
-                                    <span x-show="formatScratchFreeSpace(opt.id)"
-                                      class="ui-tag font-mono text-[11px]"
+                                    <span x-show="formatScratchFreeSpace(opt.id)" class="ui-tag font-mono text-[11px]"
                                       x-text="formatScratchFreeSpace(opt.id)"></span>
                                   </div>
                                   <p class="text-xs text-ink-muted" x-text="opt.description"></p>
                                   <p x-show="getScratchOptionPath(opt.id)"
                                     class="truncate font-mono text-[11px] text-ink-secondary"
-                                    :title="getScratchOptionPath(opt.id)"
-                                    x-text="getScratchOptionPath(opt.id)">
+                                    :title="getScratchOptionPath(opt.id)" x-text="getScratchOptionPath(opt.id)">
                                   </p>
                                 </div>
                                 <div x-show="opt.id === 'storage_folder'" class="shrink-0">
-                                  <button type="button"
-                                    @click.stop="openScratchStorageFolderPicker()"
+                                  <button type="button" @click.stop="openScratchStorageFolderPicker()"
                                     class="ui-btn ui-btn-secondary px-2.5 py-1.5 text-xs"
                                     x-text="userSettings.stage1_scratch_storage_folder ? 'Change…' : 'Choose Folder…'"></button>
                                 </div>
@@ -5127,8 +5165,14 @@
           </div>
 
           <div x-show="!isEditorFileBusy">
-            <p class="truncate text-xs font-medium text-ink-primary" :title="editorPendingSummary"
-              x-text="editorPendingSummary"></p>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <p class="truncate text-xs font-medium text-ink-primary" :title="editorPendingSummary"
+                x-text="editorPendingSummary"></p>
+              <span x-cloak x-show="editorIsInstantHeaderEdit" class="ui-status ui-status-ok shrink-0 text-[11px]"
+                title="Uses mkvpropedit to update MKV headers in place without rewriting the file">
+                ⚡ Instant Edit (&lt;1s · no rewrite)
+              </span>
+            </div>
             <p x-show="editorIsMp4 && editor && editor.outputMode === C.EDITOR.OUTPUT_REPLACE"
               class="mt-0.5 truncate text-xs text-[var(--color-status-warn)]">
               Writes <strong class="font-mono font-semibold" x-text="editorOutputPreview.targetFilename"></strong> •
@@ -5154,7 +5198,8 @@
         </button>
 
         <button x-show="!isEditorFileBusy" type="button" @click="submitEditorJob()" :disabled="!editorCanSubmit"
-          class="ui-btn ui-btn-primary shrink-0 px-5" x-text="editorSubmitting ? 'Queuing…' : 'Process File'"></button>
+          class="ui-btn ui-btn-primary shrink-0 px-5"
+          x-text="editorSubmitting ? 'Queuing…' : (editorIsInstantHeaderEdit ? '⚡ Apply Instant Edit' : 'Process File')"></button>
       </div>
     </div>
 
@@ -5291,6 +5336,28 @@
                   </select>
                 </div>
               </div>
+            </div>
+
+            <!-- Volume / Dynamics Preset (Original / Dialogue Boost / Night Mode) -->
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <label class="block text-xs font-medium text-ink-secondary">Volume / Dynamics</label>
+                <span x-show="editorDraftCodecMeta && editorDraftCodecMeta.isLossless"
+                  class="text-[11px] text-ink-muted">Lossless preserves original waveform</span>
+              </div>
+              <div class="ui-segmented mt-1.5 grid w-full grid-cols-3" role="group"
+                aria-label="Audio volume dynamics preset">
+                <template x-for="dyn in C.EDITOR.AUDIO_DYNAMICS_OPTIONS" :key="`dyn-${dyn.id}`">
+                  <button type="button" @click="onDraftAudioDynamicsChange(dyn.id)"
+                    :disabled="Boolean(editorDraftCodecMeta && editorDraftCodecMeta.isLossless && dyn.id !== C.EDITOR.AUDIO_DYNAMICS_ORIGINAL)"
+                    :aria-pressed="(addAudioDraft.audioDynamics || C.EDITOR.AUDIO_DYNAMICS_ORIGINAL) === dyn.id ? 'true' : 'false'"
+                    class="ui-segmented-item min-h-[34px] px-1.5 text-xs disabled:opacity-40"
+                    :class="(addAudioDraft.audioDynamics || C.EDITOR.AUDIO_DYNAMICS_ORIGINAL) === dyn.id ? 'ui-segmented-item-active' : ''"
+                    x-text="dyn.label"></button>
+                </template>
+              </div>
+              <p x-show="editorDraftAudioDynamicsOption" class="mt-1.5 text-[11px] leading-relaxed text-ink-muted"
+                x-text="editorDraftAudioDynamicsOption ? editorDraftAudioDynamicsOption.description : ''"></p>
             </div>
 
             <!-- Track Title -->
@@ -6474,8 +6541,8 @@
         <!-- Download (Media Files & Other Files — native range-resumable download with HEAD preflight) -->
         <button type="button" role="menuitem"
           x-show="contextMenu && (contextMenu.kind === 'file' || contextMenu.kind === 'other_file')"
-          @click="runContextMenuAction('download')"
-          :disabled="isContextMenuFileBusy || isContextMenuFileScanning" class="ui-menu-item">
+          @click="runContextMenuAction('download')" :disabled="isContextMenuFileBusy || isContextMenuFileScanning"
+          class="ui-menu-item">
           <span class="flex items-center gap-2.5">
             <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path>

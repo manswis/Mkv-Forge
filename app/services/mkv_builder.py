@@ -261,6 +261,28 @@ def build_mkvmerge_command(
         argv.extend(
             ["--forced-display-flag", f"{track.id}:{_bool_flag(track.forced_track)}"]
         )
+        if track.flag_original is not None:
+            argv.extend(
+                ["--original-flag", f"{track.id}:{_bool_flag(track.flag_original)}"]
+            )
+        if track.flag_commentary is not None:
+            argv.extend(
+                ["--commentary-flag", f"{track.id}:{_bool_flag(track.flag_commentary)}"]
+            )
+        if track.flag_hearing_impaired is not None:
+            argv.extend(
+                [
+                    "--hearing-impaired-flag",
+                    f"{track.id}:{_bool_flag(track.flag_hearing_impaired)}",
+                ]
+            )
+        if track.flag_visual_impaired is not None:
+            argv.extend(
+                [
+                    "--visual-impaired-flag",
+                    f"{track.id}:{_bool_flag(track.flag_visual_impaired)}",
+                ]
+            )
 
     argv.append(str(source_path))
 

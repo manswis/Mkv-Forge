@@ -91,6 +91,10 @@ class ParsedTrackInfo(BaseModel):
     track_name: str = ""
     default_track: bool = False
     forced_track: bool = False
+    flag_original: bool = False
+    flag_commentary: bool = False
+    flag_hearing_impaired: bool = False
+    flag_visual_impaired: bool = False
     audio_channels: int | None = None
     audio_sampling_frequency: int | None = None
     audio_index: int | None = None
@@ -794,6 +798,9 @@ class AudioConversionConfig(BaseModel):
         le=AppConstants.MAX_AUDIO_CHANNELS,
     )
     bitrate: str | None = "640k"
+    audio_dynamics: Literal["original", "dialogue_boost", "night_mode"] = (
+        AppConstants.DEFAULT_AUDIO_DYNAMICS  # type: ignore[assignment]
+    )
     track_title: str = "EAC3 5.1"
     language: str = "eng"
     set_as_default: bool = True
@@ -819,7 +826,12 @@ class AudioConversionConfig(BaseModel):
                 raise ValueError(
                     f"Cannot upmix audio from {self.source_channels} to {self.target_channels} channels"
                 )
-        if self.target_codec not in AppConstants.LOSSLESS_TARGET_CODECS:
+        if self.target_codec in AppConstants.LOSSLESS_TARGET_CODECS:
+            if self.audio_dynamics != AppConstants.AUDIO_DYNAMICS_ORIGINAL:
+                raise ValueError(
+                    f"Audio dynamics filter ({self.audio_dynamics!r}) is not supported for lossless codec {self.target_codec!r}"
+                )
+        else:
             allowed_rates = AppConstants.AUDIO_CODEC_ALLOWED_BITRATES.get(
                 self.target_codec, frozenset()
             )
@@ -842,6 +854,10 @@ class TrackEditConfig(BaseModel):
     language: str | None = None
     default_track: bool = False
     forced_track: bool = False
+    flag_original: bool | None = None
+    flag_commentary: bool | None = None
+    flag_hearing_impaired: bool | None = None
+    flag_visual_impaired: bool | None = None
 
 
 class ExternalTrackConfig(BaseModel):
@@ -894,6 +910,7 @@ class JobConfig(BaseModel):
     output_mode: Literal["replace", "keep_both", "save_as"] = "replace"
     output_path: str | None = None
     delete_original: bool = False
+    prefer_instant_edit: bool = True
 
     @model_validator(mode="after")
     def _validate_save_as_output_path(self) -> "JobConfig":

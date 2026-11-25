@@ -134,6 +134,7 @@ def test_dockerfile_and_ci_use_trixie_python313_and_upstream_mkvtoolnix_repo() -
     assert dockerfile.index("apt-get purge -y --auto-remove curl") < dockerfile.index(
         "mkvmerge --version"
     )
+    assert "mkvpropedit --version" in dockerfile
     assert "ffmpeg -version" in dockerfile
 
     # Release version sync requires exactly 2 ARG APP_VERSION= declarations

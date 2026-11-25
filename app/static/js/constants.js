@@ -584,6 +584,31 @@ window.MKVForgeConstants = Object.freeze({
     }),
     STANDARD_DOWNMIX_CHANNELS: Object.freeze([8, 7, 6, 4, 3, 2, 1]),
     LOSSLESS_SOURCE_CODECS: Object.freeze(["truehd", "flac", "pcm", "alac"]),
+    AUDIO_DYNAMICS_ORIGINAL: "original",
+    AUDIO_DYNAMICS_DIALOGUE_BOOST: "dialogue_boost",
+    AUDIO_DYNAMICS_NIGHT_MODE: "night_mode",
+    AUDIO_DYNAMICS_OPTIONS: Object.freeze([
+      Object.freeze({
+        id: "original",
+        label: "Original",
+        shortLabel: "",
+        description: "Preserves full original cinema dynamic range untouched.",
+      }),
+      Object.freeze({
+        id: "dialogue_boost",
+        label: "Dialogue Boost",
+        shortLabel: "Dialogue Boost",
+        description:
+          "Balances volume and gently lifts speech (+3 dB center mix on 5.1→2.0 downmix) for TV speakers & soundbars.",
+      }),
+      Object.freeze({
+        id: "night_mode",
+        label: "Night Mode",
+        shortLabel: "Night Mode",
+        description:
+          "Tames loud explosions and lifts quiet whispers so you don't need to ride the volume remote at night.",
+      }),
+    ]),
     TARGET_CODEC_META: Object.freeze({
       eac3: Object.freeze({
         codec: "eac3",

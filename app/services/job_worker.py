@@ -14,9 +14,10 @@ from typing import Any
 
 from app.config import AppConstants, Settings
 from app.db.repositories import JobRepository, MediaFileRepository
-from app.models.schemas import JobConfig
+from app.models.schemas import JobConfig, ParsedTrackInfo
 from app.services.folder_sync import FolderReconcileCache
 from app.services.mkv_runner import JobCancelledError, execute_two_stage_pipeline
+from app.services.probe_parser import parse_mkvmerge_json
 from app.services.processing_policy import (
     ProcessingRuntimePolicy,
     list_managed_scratch_dirs,
@@ -582,6 +583,15 @@ class JobWorker:
             processing_policy = await asyncio.to_thread(
                 self._resolve_processing_policy
             )
+            source_tracks: list[ParsedTrackInfo] | None = None
+            if media_row is not None and media_row.get("raw_json"):
+                try:
+                    parsed_probe = parse_mkvmerge_json(
+                        json.loads(str(media_row["raw_json"]))
+                    )
+                    source_tracks = parsed_probe.tracks
+                except Exception:
+                    source_tracks = None
 
             result = await execute_two_stage_pipeline(
                 source_path,
@@ -593,6 +603,7 @@ class JobWorker:
                 upload_service=self._upload_service,
                 folder_cache=self._folder_cache,
                 processing_policy=processing_policy,
+                source_tracks=source_tracks,
                 on_stage=_on_stage,
                 on_progress=_on_progress,
                 on_log=_on_log,

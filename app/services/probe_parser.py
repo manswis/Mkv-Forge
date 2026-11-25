@@ -491,6 +491,10 @@ def parse_mkvmerge_json(payload: dict[str, Any]) -> ParsedMediaProbe:
         track_name = str(props.get("track_name") or "").strip()
         default_track = bool(props.get("default_track", False))
         forced_track = bool(props.get("forced_track", False))
+        flag_original = bool(props.get("flag_original", False))
+        flag_commentary = bool(props.get("flag_commentary", False))
+        flag_hearing_impaired = bool(props.get("flag_hearing_impaired", False))
+        flag_visual_impaired = bool(props.get("flag_visual_impaired", False))
         raw_min_ts_ns = _safe_int(props.get("minimum_timestamp"))
         minimum_timestamp_ns = raw_min_ts_ns if raw_min_ts_ns is not None else 0
         sync_delay_ms = _convert_min_timestamp_ns_to_ms(minimum_timestamp_ns)
@@ -546,6 +550,10 @@ def parse_mkvmerge_json(payload: dict[str, Any]) -> ParsedMediaProbe:
                 track_name=track_name,
                 default_track=default_track,
                 forced_track=forced_track,
+                flag_original=flag_original,
+                flag_commentary=flag_commentary,
+                flag_hearing_impaired=flag_hearing_impaired,
+                flag_visual_impaired=flag_visual_impaired,
                 audio_channels=audio_channels,
                 audio_sampling_frequency=audio_sampling_freq,
                 audio_index=audio_index,

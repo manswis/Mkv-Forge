@@ -13,7 +13,7 @@ from typing import Callable
 
 from app.config import AppConstants
 from app.db.repositories import MediaFileRepository
-from app.models.schemas import ExternalTrackConfig, JobConfig
+from app.models.schemas import ExternalTrackConfig, JobConfig, ParsedTrackInfo
 from app.services.ffmpeg_runner import (
     LogCallback,
     ProcessCallback,
@@ -22,6 +22,10 @@ from app.services.ffmpeg_runner import (
 )
 from app.services.folder_sync import FolderReconcileCache
 from app.services.mkv_builder import build_mkvmerge_command
+from app.services.mkvpropedit_runner import (
+    can_use_instant_header_edit,
+    run_mkvpropedit_edit,
+)
 from app.services.preflight import TargetFileCollisionError, run_preflight_checks
 from app.services.processing_policy import (
     ProcessingRuntimePolicy,
@@ -369,13 +373,14 @@ async def execute_two_stage_pipeline(
     upload_service: UploadService | None = None,
     folder_cache: FolderReconcileCache | None = None,
     processing_policy: ProcessingRuntimePolicy | None = None,
+    source_tracks: list[ParsedTrackInfo] | None = None,
     on_stage: StageCallback | None = None,
     on_progress: ProgressCallback | None = None,
     on_log: LogCallback | None = None,
     on_process_started: ProcessCallback | None = None,
     check_cancelled: CancelCheckCallback | None = None,
 ) -> PipelineExecutionResult:
-    """Run Pre-Flight -> optional Stage 1 (FFmpeg) -> Stage 2 (mkvmerge) -> Swap.
+    """Run Instant Header Edit (`mkvpropedit`) or Pre-Flight -> Stage 1 -> Stage 2 -> Swap.
 
     Enforces cancel-between-stages checks before Stage 1, between Stage 1 and
     Stage 2, and immediately before the atomic file swap so a cancelled job can
@@ -392,6 +397,40 @@ async def execute_two_stage_pipeline(
     try:
         if check_cancelled is not None:
             check_cancelled()
+
+        instant_ok, _instant_reason = can_use_instant_header_edit(
+            source_path,
+            config,
+            source_tracks=source_tracks,
+        )
+        if instant_ok:
+            if on_stage is not None:
+                on_stage("header_edit", "Instant Header Edit (mkvpropedit)")
+            propedit_res = await run_mkvpropedit_edit(
+                source_path,
+                config,
+                source_tracks=source_tracks,
+                nice_increment=policy.nice_increment,
+                use_ionice_idle=policy.use_ionice_idle,
+                on_log=on_log,
+                on_process_started=on_process_started,
+                check_cancelled=check_cancelled,
+            )
+            if on_progress is not None:
+                on_progress(100, None)
+            rel_path = to_relative_storage_path(source_path, storage_root)
+            if scanner is not None:
+                await scanner.probe_single_file(rel_path)
+            if folder_cache is not None:
+                folder_cache.invalidate_for_filepath(rel_path)
+            finalized = True
+            return PipelineExecutionResult(
+                output_path=source_path,
+                output_rel_filepath=rel_path,
+                mkvmerge_exit_code=propedit_res.exit_code,
+                warnings=propedit_res.warnings,
+                replaced_mp4_deleted=False,
+            )
 
         await asyncio.to_thread(
             run_preflight_checks,
@@ -449,6 +488,7 @@ async def execute_two_stage_pipeline(
                     target_codec=audio_cfg.target_codec,
                     bitrate=audio_cfg.bitrate,
                     target_channels=audio_cfg.target_channels,
+                    audio_dynamics=audio_cfg.audio_dynamics,
                     duration_us=duration_us,
                     expected_codec=audio_cfg.source_codec,
                     expected_channels=audio_cfg.source_channels,

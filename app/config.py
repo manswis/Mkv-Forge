@@ -97,6 +97,7 @@ class AppConstants:
 
     TOOL_MKVMERGE: str = "mkvmerge"
     TOOL_MKVEXTRACT: str = "mkvextract"
+    TOOL_MKVPROPEDIT: str = "mkvpropedit"
     TOOL_FFMPEG: str = "ffmpeg"
     TOOL_FFPROBE: str = "ffprobe"
     VERSION_FLAG_DOUBLE_DASH: str = "--version"
@@ -156,6 +157,23 @@ class AppConstants:
     OPUS_MAX_MONO_BITRATE: str = "256k"
     OPUS_MAX_MONO_BPS: int = 256_000
     DOLBY_DECODE_DRC_SCALE_OFF: str = "0"
+    AUDIO_DYNAMICS_ORIGINAL: str = "original"
+    AUDIO_DYNAMICS_DIALOGUE_BOOST: str = "dialogue_boost"
+    AUDIO_DYNAMICS_NIGHT_MODE: str = "night_mode"
+    DEFAULT_AUDIO_DYNAMICS: str = "original"
+    ALLOWED_AUDIO_DYNAMICS: frozenset[str] = frozenset(
+        {"original", "dialogue_boost", "night_mode"}
+    )
+    AUDIO_DYNAMICS_DOWNMIX_PREFIX: str = (
+        "aresample=center_mix_level=1.414:ochl=stereo"
+    )
+    AUDIO_DYNAMICS_DIALOGUE_FILTER: str = "loudnorm=I=-16:TP=-1.5:LRA=11"
+    AUDIO_DYNAMICS_NIGHT_FILTER: str = "dynaudnorm=f=150:g=15:p=0.9:m=10:s=12"
+    MKVPROPEDIT_TRACK_TYPE_PREFIX: Mapping[str, str] = {
+        "video": "v",
+        "audio": "a",
+        "subtitles": "s",
+    }
     RES_2160P_MIN_HEIGHT: int = 2000
     RES_2160P_MIN_WIDTH: int = 3500
     RES_1080P_MIN_HEIGHT: int = 1000

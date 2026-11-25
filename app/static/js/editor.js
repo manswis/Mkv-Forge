@@ -626,12 +626,22 @@
     return mapped || code.toUpperCase();
   }
 
+  function resolveAudioDynamicsShortLabel(audioDynamics, targetCodec = null) {
+    if (targetCodec && getCodecMeta(targetCodec).isLossless) return "";
+    const mode = String(audioDynamics || EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original")
+      .trim()
+      .toLowerCase();
+    const match = (EDITOR.AUDIO_DYNAMICS_OPTIONS || []).find((opt) => opt.id === mode);
+    return (match && match.shortLabel) || "";
+  }
+
   function buildDefaultAudioTitle(
     langCode,
     targetCodec,
     targetChannels,
     bitrate,
-    format = "detailed"
+    format = "detailed",
+    audioDynamics = "original"
   ) {
     const fmt = resolveSmartFillFormat(format);
     const normalizedLang = String(langCode || EDITOR.DEFAULT_LANGUAGE).toLowerCase();
@@ -640,13 +650,15 @@
     const layout = formatChannelLabel(resolvedCh);
     const spec = `${meta.label} ${layout}`;
     const hasLang = Boolean(normalizedLang && normalizedLang !== EDITOR.DEFAULT_LANGUAGE);
+    const dynamicsTag = resolveAudioDynamicsShortLabel(audioDynamics, targetCodec);
 
     if (fmt === "compact") {
-      return spec;
+      return dynamicsTag ? `${spec} · ${dynamicsTag}` : spec;
     }
     if (fmt === "lang_codec") {
       const langName = hasLang ? resolveLanguageDisplayName(normalizedLang) : "";
-      return langName ? `${langName} · ${spec}` : spec;
+      const base = langName ? `${langName} · ${spec}` : spec;
+      return dynamicsTag ? `${base} · ${dynamicsTag}` : base;
     }
 
     const pieces = [spec];
@@ -657,6 +669,9 @@
       if (resolvedBitrate) {
         pieces.push(resolvedBitrate);
       }
+    }
+    if (dynamicsTag) {
+      pieces.push(dynamicsTag);
     }
     if (hasLang) {
       pieces.push(normalizedLang);
@@ -848,6 +863,14 @@
         original_default_track: Boolean(t.default_track),
         forced_track: Boolean(t.forced_track),
         original_forced_track: Boolean(t.forced_track),
+        flag_original: Boolean(t.flag_original),
+        original_flag_original: Boolean(t.flag_original),
+        flag_commentary: Boolean(t.flag_commentary),
+        original_flag_commentary: Boolean(t.flag_commentary),
+        flag_hearing_impaired: Boolean(t.flag_hearing_impaired),
+        original_flag_hearing_impaired: Boolean(t.flag_hearing_impaired),
+        flag_visual_impaired: Boolean(t.flag_visual_impaired),
+        original_flag_visual_impaired: Boolean(t.flag_visual_impaired),
         audio_channels: t.audio_channels ?? null,
         audio_index: t.audio_index ?? null,
         pixel_dimensions: t.pixel_dimensions || null,
@@ -911,6 +934,7 @@
         targetCodec: defaultDolbyCodec,
         targetChannels: null,
         bitrate: defaultDolbyBitrate,
+        audioDynamics: EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original",
         language: prefs.preferred_language || EDITOR.DEFAULT_LANGUAGE,
         trackTitle: "",
         titleManuallyEdited: false,
@@ -1169,6 +1193,13 @@
           language: audioFix.language || EDITOR.DEFAULT_LANGUAGE,
           bitrate: meta.isLossless ? "Lossless" : audioFix.bitrate,
           isLossless: Boolean(meta.isLossless),
+          audioDynamics: meta.isLossless
+            ? EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original"
+            : audioFix.audioDynamics || EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original",
+          audioDynamicsLabel: resolveAudioDynamicsShortLabel(
+            audioFix.audioDynamics,
+            audioFix.targetCodec
+          ),
           setAsDefault: Boolean(audioFix.setAsDefault),
           dropSourceTrack: Boolean(audioFix.dropSourceTrack),
           sourceTrackId: sourceAudio.id,
@@ -1339,8 +1370,53 @@
         t.track_name !== t.original_track_name ||
         t.language !== t.original_language ||
         t.default_track !== t.original_default_track ||
-        t.forced_track !== t.original_forced_track
+        t.forced_track !== t.original_forced_track ||
+        Boolean(t.flag_original) !== Boolean(t.original_flag_original) ||
+        Boolean(t.flag_commentary) !== Boolean(t.original_flag_commentary) ||
+        Boolean(t.flag_hearing_impaired) !== Boolean(t.original_flag_hearing_impaired) ||
+        Boolean(t.flag_visual_impaired) !== Boolean(t.original_flag_visual_impaired)
     );
+  }
+
+  function isInstantHeaderEditEligible(editorState, fileDetail) {
+    if (!editorState || !fileDetail) return false;
+    if (!hasPendingChanges(editorState, fileDetail)) return false;
+    if (isMp4File(fileDetail)) return false;
+    if (editorState.outputMode !== EDITOR.OUTPUT_REPLACE) return false;
+    if (editorState.audioFix && editorState.audioFix.enabled && findSelectedSourceAudio(editorState)) {
+      return false;
+    }
+    if (Array.isArray(editorState.externalTracks) && editorState.externalTracks.length > 0) {
+      return false;
+    }
+    if (
+      editorState.stripGlobalTags ||
+      editorState.stripTrackTags ||
+      editorState.stripAttachments ||
+      editorState.stripChapters
+    ) {
+      return false;
+    }
+    if (
+      Array.isArray(editorState.attachments) &&
+      editorState.attachments.some((att) => !att.enabled)
+    ) {
+      return false;
+    }
+    if (!Array.isArray(editorState.tracks) || editorState.tracks.length === 0) {
+      return false;
+    }
+    if (editorState.tracks.some((t) => !t.enabled)) {
+      return false;
+    }
+    const currentOrder = editorState.tracks.map((t) => t.id);
+    if (
+      currentOrder.length !== editorState.initialTrackOrderIds.length ||
+      currentOrder.some((id, idx) => id !== editorState.initialTrackOrderIds[idx])
+    ) {
+      return false;
+    }
+    return true;
   }
 
   function buildPendingSummary(editorState, fileDetail) {
@@ -1616,20 +1692,48 @@
             getCodecMeta(editorState.audioFix.targetCodec).isLossless
               ? null
               : editorState.audioFix.bitrate,
+          audio_dynamics:
+            convertEnabled &&
+            !getCodecMeta(editorState.audioFix.targetCodec).isLossless
+              ? editorState.audioFix.audioDynamics ||
+                EDITOR.AUDIO_DYNAMICS_ORIGINAL ||
+                "original"
+              : EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original",
           track_title: editorState.audioFix.trackTitle,
           language: editorState.audioFix.language || EDITOR.DEFAULT_LANGUAGE,
           set_as_default: Boolean(editorState.audioFix.setAsDefault),
           drop_source_track: Boolean(editorState.audioFix.dropSourceTrack),
         },
-        tracks: editorState.tracks.map((t) => ({
-          id: t.id,
-          type: t.type,
-          enabled: Boolean(t.enabled),
-          track_name: t.track_name,
-          language: t.language || EDITOR.DEFAULT_LANGUAGE,
-          default_track: Boolean(t.default_track),
-          forced_track: Boolean(t.forced_track),
-        })),
+        tracks: editorState.tracks.map((t) => {
+          const trackPayload = {
+            id: t.id,
+            type: t.type,
+            enabled: Boolean(t.enabled),
+            track_name: t.track_name,
+            language: t.language || EDITOR.DEFAULT_LANGUAGE,
+            default_track: Boolean(t.default_track),
+            forced_track: Boolean(t.forced_track),
+          };
+          if (Boolean(t.flag_original) !== Boolean(t.original_flag_original) || t.flag_original) {
+            trackPayload.flag_original = Boolean(t.flag_original);
+          }
+          if (Boolean(t.flag_commentary) !== Boolean(t.original_flag_commentary) || t.flag_commentary) {
+            trackPayload.flag_commentary = Boolean(t.flag_commentary);
+          }
+          if (
+            Boolean(t.flag_hearing_impaired) !== Boolean(t.original_flag_hearing_impaired) ||
+            t.flag_hearing_impaired
+          ) {
+            trackPayload.flag_hearing_impaired = Boolean(t.flag_hearing_impaired);
+          }
+          if (
+            Boolean(t.flag_visual_impaired) !== Boolean(t.original_flag_visual_impaired) ||
+            t.flag_visual_impaired
+          ) {
+            trackPayload.flag_visual_impaired = Boolean(t.flag_visual_impaired);
+          }
+          return trackPayload;
+        }),
         external_tracks: externalTracks,
         output_mode: editorState.outputMode,
         output_path:
@@ -1664,6 +1768,7 @@
     getAvailableAddAudioOptions,
     getRecommendedAddAudioOptions,
     buildDefaultAudioTitle,
+    resolveAudioDynamicsShortLabel,
     buildDefaultExternalTitle,
     isAac51Track,
     isSurroundTrack,
@@ -1684,6 +1789,7 @@
     hasUncheckedAllVideo,
     countEffectiveKeptTracks,
     hasPendingChanges,
+    isInstantHeaderEditEligible,
     buildPendingSummary,
     formatTrackBadge,
     getSmartFillPreview,

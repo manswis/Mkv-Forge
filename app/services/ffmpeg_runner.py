@@ -125,27 +125,47 @@ def compute_target_channels(
 def resolve_target_sample_rate(
     source_sample_rate: int | None,
     target_codec: str,
+    *,
+    audio_dynamics: str = AppConstants.DEFAULT_AUDIO_DYNAMICS,
 ) -> int | None:
-    """Return an explicit `-ar` override only when the target encoder requires resampling.
+    """Return an explicit `-ar` override when the encoder or `loudnorm` filter requires it.
 
     - `eac3` / `ac3`: supports `{48000, 44100, 32000}`; resamples outside that set to `48000`.
     - `opus`: native `48000 Hz`; resamples when source rate differs from `48000`.
-    - `aac` / `flac`: preserves native sample rate (`None`).
+    - `dialogue_boost` (`loudnorm`): FFmpeg's `loudnorm` internally upsamples to 192 kHz,
+      which would cause AAC to encode at 96 kHz if `-ar` is omitted; always pin `-ar` back
+      to the target/source sample rate (defaulting to `48000 Hz`).
+    - `aac` / `flac` with `original` / `night_mode`: preserves native sample rate (`None`).
     """
+    normalized_dynamics = (
+        audio_dynamics or AppConstants.DEFAULT_AUDIO_DYNAMICS
+    ).strip().lower()
+    uses_loudnorm = (
+        normalized_dynamics == AppConstants.AUDIO_DYNAMICS_DIALOGUE_BOOST
+        and target_codec not in AppConstants.LOSSLESS_TARGET_CODECS
+    )
+
     if target_codec == AppConstants.TARGET_CODEC_OPUS:
-        if source_sample_rate is None or source_sample_rate <= 0:
+        if uses_loudnorm or source_sample_rate is None or source_sample_rate <= 0:
             return AppConstants.OPUS_SAMPLE_RATE
         if source_sample_rate != AppConstants.OPUS_SAMPLE_RATE:
             return AppConstants.OPUS_SAMPLE_RATE
         return None
-    if source_sample_rate is None or source_sample_rate <= 0:
-        return None
+
     if target_codec in (
         AppConstants.TARGET_CODEC_EAC3,
         AppConstants.TARGET_CODEC_AC3,
     ):
+        if source_sample_rate is None or source_sample_rate <= 0:
+            return AppConstants.DOLBY_FALLBACK_SAMPLE_RATE if uses_loudnorm else None
         if source_sample_rate not in AppConstants.DOLBY_SUPPORTED_SAMPLE_RATES:
             return AppConstants.DOLBY_FALLBACK_SAMPLE_RATE
+        return source_sample_rate if uses_loudnorm else None
+
+    if uses_loudnorm:
+        if source_sample_rate is not None and source_sample_rate > 0:
+            return source_sample_rate
+        return AppConstants.DOLBY_FALLBACK_SAMPLE_RATE
     return None
 
 
@@ -204,6 +224,39 @@ def parse_ffmpeg_progress_kv(
     return None
 
 
+def build_audio_dynamics_filter(
+    audio_dynamics: str,
+    *,
+    source_channels: int,
+    target_channels: int,
+    target_codec: str,
+) -> str | None:
+    """Return an FFmpeg `-af` filter string for Dialogue Boost or Night Mode, or `None` for Original.
+
+    When downmixing surround (`>= 5.1`) to stereo (`2.0`), prepends a +3 dB center-channel
+    mix lift via `aresample=center_mix_level=1.414:ochl=stereo` so speech stays clear.
+    Lossless codecs (`flac`) never apply destructive dynamics filters.
+    """
+    if target_codec in AppConstants.LOSSLESS_TARGET_CODECS:
+        return None
+    normalized = (audio_dynamics or AppConstants.DEFAULT_AUDIO_DYNAMICS).strip().lower()
+    if normalized == AppConstants.AUDIO_DYNAMICS_ORIGINAL:
+        return None
+    if normalized == AppConstants.AUDIO_DYNAMICS_DIALOGUE_BOOST:
+        base_filter = AppConstants.AUDIO_DYNAMICS_DIALOGUE_FILTER
+    elif normalized == AppConstants.AUDIO_DYNAMICS_NIGHT_MODE:
+        base_filter = AppConstants.AUDIO_DYNAMICS_NIGHT_FILTER
+    else:
+        raise ValueError(f"Unsupported audio_dynamics mode: {audio_dynamics!r}")
+
+    if (
+        source_channels >= AppConstants.CHANNELS_51
+        and target_channels == AppConstants.CHANNELS_STEREO
+    ):
+        return f"{AppConstants.AUDIO_DYNAMICS_DOWNMIX_PREFIX},{base_filter}"
+    return base_filter
+
+
 def build_ffmpeg_command(
     source_path: Path,
     temp_audio_path: Path,
@@ -215,6 +268,7 @@ def build_ffmpeg_command(
     sample_rate: int | None = None,
     requested_channels: int | None = None,
     source_codec: str | None = None,
+    audio_dynamics: str = AppConstants.DEFAULT_AUDIO_DYNAMICS,
     threads: int | None = None,
 ) -> list[str]:
     """Build deterministic Stage 1 FFmpeg argv list (zero shell interpolation)."""
@@ -236,7 +290,11 @@ def build_ffmpeg_command(
         target_codec=target_codec,
         requested_channels=requested_channels,
     )
-    target_sample_rate = resolve_target_sample_rate(sample_rate, target_codec)
+    target_sample_rate = resolve_target_sample_rate(
+        sample_rate,
+        target_codec,
+        audio_dynamics=audio_dynamics,
+    )
     encoder_name = AppConstants.AUDIO_CODEC_FFMPEG_ENCODER_MAP[target_codec]
 
     argv: list[str] = [
@@ -296,6 +354,15 @@ def build_ffmpeg_command(
 
     if target_sample_rate is not None:
         argv.extend(["-ar", str(target_sample_rate)])
+
+    dynamics_filter = build_audio_dynamics_filter(
+        audio_dynamics,
+        source_channels=channels,
+        target_channels=target_channels,
+        target_codec=target_codec,
+    )
+    if dynamics_filter is not None:
+        argv.extend(["-af", dynamics_filter])
 
     argv.extend(
         [
@@ -451,6 +518,7 @@ async def run_ffmpeg_transcode(
     target_codec: str,
     bitrate: str | None = None,
     target_channels: int | None = None,
+    audio_dynamics: str = AppConstants.DEFAULT_AUDIO_DYNAMICS,
     duration_us: int = 0,
     expected_codec: str | None = None,
     expected_channels: int | None = None,
@@ -515,6 +583,7 @@ async def run_ffmpeg_transcode(
         requested_channels=resolved_channels,
         sample_rate=probe_info.sample_rate,
         source_codec=probe_info.codec_name,
+        audio_dynamics=audio_dynamics,
         threads=threads,
     )
     launch_cmd = wrap_command_with_io_priority(

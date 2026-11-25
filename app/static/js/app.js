@@ -2698,6 +2698,22 @@
         return Ed.hasPendingChanges(this.editor, this.editorFile);
       },
 
+      get editorIsInstantHeaderEdit() {
+        return Ed.isInstantHeaderEditEligible(this.editor, this.editorFile);
+      },
+
+      get editorDraftAudioDynamicsOption() {
+        const mode =
+          (this.addAudioDraft && this.addAudioDraft.audioDynamics) ||
+          C.EDITOR.AUDIO_DYNAMICS_ORIGINAL ||
+          "original";
+        return (
+          (C.EDITOR.AUDIO_DYNAMICS_OPTIONS || []).find((opt) => opt.id === mode) ||
+          (C.EDITOR.AUDIO_DYNAMICS_OPTIONS || [])[0] ||
+          null
+        );
+      },
+
       get editorIsMp4() {
         return Ed.isMp4File(this.editorFile);
       },
@@ -4975,13 +4991,15 @@
           targetChannels: requestedChannels,
           sourceTrackId: preferred ? preferred.id : null,
           bitrate: preferredBitrate,
+          audioDynamics: C.EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original",
           language: sourceLang,
           trackTitle: Ed.buildDefaultAudioTitle(
             sourceLang,
             option.codec,
             resolvedChannels,
             preferredBitrate,
-            this.userSettings && this.userSettings.smart_fill_track_format
+            this.userSettings && this.userSettings.smart_fill_track_format,
+            C.EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original"
           ),
           titleManuallyEdited: false,
           setAsDefault: true,
@@ -5023,6 +5041,7 @@
         this.addAudioMenuOpen = false;
         this.addAudioDraft = {
           targetChannels: null,
+          audioDynamics: C.EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original",
           ...this.editor.audioFix,
           advancedOpen: false,
         };
@@ -5042,7 +5061,8 @@
           this.addAudioDraft.targetCodec,
           resolvedCh,
           this.addAudioDraft.bitrate,
-          this.userSettings && this.userSettings.smart_fill_track_format
+          this.userSettings && this.userSettings.smart_fill_track_format,
+          this.addAudioDraft.audioDynamics
         );
       },
 
@@ -5102,6 +5122,10 @@
       onDraftTargetCodecChange(nextCodec) {
         if (!this.addAudioDraft || !nextCodec) return;
         this.addAudioDraft.targetCodec = nextCodec;
+        if (Ed.getCodecMeta(nextCodec).isLossless) {
+          this.addAudioDraft.audioDynamics =
+            C.EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original";
+        }
         const src = this.editorDraftSourceTrack;
         const srcCh = Number((src && src.audio_channels) || C.EDITOR.MAX_DOLBY_CHANNELS);
         const maxCh = Math.min(
@@ -5146,6 +5170,25 @@
         this._refreshDraftAudioTitle();
       },
 
+      onDraftAudioDynamicsChange(modeId) {
+        if (!this.addAudioDraft || !modeId) return;
+        if (this.editorDraftCodecMeta && this.editorDraftCodecMeta.isLossless) {
+          this.addAudioDraft.audioDynamics =
+            C.EDITOR.AUDIO_DYNAMICS_ORIGINAL || "original";
+          return;
+        }
+        this.addAudioDraft.audioDynamics = modeId;
+        this._refreshDraftAudioTitle();
+      },
+
+      toggleTrackCommentaryFlag(track) {
+        if (!track) return;
+        track.flag_commentary = !track.flag_commentary;
+        if (track.flag_commentary && track.type === "audio") {
+          track.default_track = false;
+        }
+      },
+
       clearDraftAudioTitle() {
         if (!this.addAudioDraft) return;
         this.addAudioDraft.trackTitle = "";
@@ -5173,7 +5216,8 @@
           this.editor.audioFix.targetCodec,
           resolvedCh,
           this.editor.audioFix.bitrate,
-          this.userSettings && this.userSettings.smart_fill_track_format
+          this.userSettings && this.userSettings.smart_fill_track_format,
+          this.editor.audioFix.audioDynamics
         );
       },
 
