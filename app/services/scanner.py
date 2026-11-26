@@ -117,7 +117,7 @@ def _discover_media_files(
 
 
 _IONICE_ERROR_MARKERS: tuple[str, ...] = ("ionice:", "ioprio_set")
-_ionice_fallback_warned: bool = False
+_ionice_probe_disabled: bool = False
 
 
 def _is_ionice_wrapper_failure(stderr_bytes: bytes) -> bool:
@@ -126,14 +126,14 @@ def _is_ionice_wrapper_failure(stderr_bytes: bytes) -> bool:
     return any(marker in stderr_lower for marker in _IONICE_ERROR_MARKERS)
 
 
-def _log_ionice_probe_fallback(reason: str) -> None:
-    """Log `ionice` probe fallback at WARNING once per container lifetime, DEBUG thereafter."""
-    global _ionice_fallback_warned
-    if not _ionice_fallback_warned:
-        _ionice_fallback_warned = True
+def _disable_ionice_probe(reason: str) -> None:
+    """Latch `ionice` probing off for this container lifetime and log WARNING once."""
+    global _ionice_probe_disabled
+    if not _ionice_probe_disabled:
+        _ionice_probe_disabled = True
         logger.warning(
-            "ionice probe wrapper unavailable (%s); falling back to direct probe "
-            "(subsequent fallbacks logged at DEBUG)",
+            "ionice probe wrapper unavailable (%s); disabling ionice for future probes "
+            "and falling back to direct probe",
             reason,
         )
     else:
@@ -152,12 +152,15 @@ async def _exec_probe_subprocess(
     """Run a metadata probe subprocess with optional best-effort `ionice` + `nice` priority.
 
     When `low_io_priority` is True:
-    - Prefixes `base_argv` with `ionice -t -c 3` if `ionice` is installed on PATH.
+    - Prefixes `base_argv` with `ionice -t -c 3` if `ionice` is installed and not disabled.
     - Applies `os.nice(LOW_PRIORITY_NICE_INCREMENT)` via `preexec_fn` when supported.
-    - Automatically falls back to running `base_argv` directly if `ionice` cannot be
-      launched or fails due to container permission restrictions (`EPERM`/`ioprio_set`).
+    - Automatically falls back to running `base_argv` directly and latches `ionice` off
+      for the rest of the container lifetime if `ionice` cannot be launched or fails due
+      to container permission restrictions (`EPERM`/`ioprio_set`).
     """
-    use_ionice = bool(low_io_priority and is_ionice_available())
+    use_ionice = bool(
+        low_io_priority and not _ionice_probe_disabled and is_ionice_available()
+    )
     preexec_fn = (
         build_nice_preexec_fn(AppConstants.LOW_PRIORITY_NICE_INCREMENT)
         if low_io_priority
@@ -195,14 +198,14 @@ async def _exec_probe_subprocess(
         except asyncio.TimeoutError:
             raise
         except (FileNotFoundError, PermissionError, OSError) as exc:
-            _log_ionice_probe_fallback(str(exc))
+            _disable_ionice_probe(str(exc))
         else:
             if returncode == AppConstants.EXIT_CODE_SUCCESS or not _is_ionice_wrapper_failure(
                 stderr_bytes
             ):
                 return returncode, stdout_bytes, stderr_bytes
             detail = stderr_bytes.decode(AppConstants.UTF8_ENCODING, errors="replace").strip()
-            _log_ionice_probe_fallback(f"exit {returncode}: {detail}")
+            _disable_ionice_probe(f"exit {returncode}: {detail}")
 
     return await _run_once(base_argv)
 

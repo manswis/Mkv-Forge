@@ -305,6 +305,12 @@ class TestGuardrail2And3SerializedProbingAndStabilityDuringActiveJob:
 class TestGuardrail3SafeIoniceFallback:
     """Verify `run_mkvmerge_probe` uses ionice when available and falls back cleanly on errors."""
 
+    @pytest.fixture(autouse=True)
+    def _reset_ionice_latch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import app.services.scanner as scanner_mod
+
+        monkeypatch.setattr(scanner_mod, "_ionice_probe_disabled", False)
+
     async def test_low_io_wraps_with_ionice_when_available(self, tmp_path: Path) -> None:
         sample = tmp_path / "sample.mkv"
         sample.write_bytes(b"mkv")
@@ -488,18 +494,19 @@ class TestGuardrail3SafeIoniceFallback:
         assert killed is True
         assert len(captured_argvs) == 1
 
-    async def test_ionice_fallback_logs_warning_once_then_debug_thereafter(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    async def test_ionice_fallback_latches_off_after_first_failure_and_stops_double_spawning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         import logging
         import app.services.scanner as scanner_mod
 
-        monkeypatch.setattr(scanner_mod, "_ionice_fallback_warned", False)
         sample = tmp_path / "repeat.mkv"
         sample.write_bytes(b"mkv")
         fake_json = json.dumps(_fake_probe_payload()).encode()
+        captured_argvs: list[tuple[str, ...]] = []
 
         async def _fake_exec(*argv, **_kwargs):
+            captured_argvs.append(argv)
             if argv[0] == AppConstants.IONICE_TOOL:
                 raise PermissionError("EPERM in container")
             return SimpleNamespace(
@@ -518,11 +525,17 @@ class TestGuardrail3SafeIoniceFallback:
             await run_mkvmerge_probe(sample, 5.0, low_io_priority=True)
             await run_mkvmerge_probe(sample, 5.0, low_io_priority=True)
 
+        assert scanner_mod._ionice_probe_disabled is True
+        # Probe 1: ionice (fails) -> mkvmerge (2 calls); Probes 2 & 3: direct mkvmerge only (1 call each)
+        assert [argv[0] for argv in captured_argvs] == [
+            AppConstants.IONICE_TOOL,
+            AppConstants.TOOL_MKVMERGE,
+            AppConstants.TOOL_MKVMERGE,
+            AppConstants.TOOL_MKVMERGE,
+        ]
         fallback_records = [
             r for r in caplog.records if "ionice probe wrapper unavailable" in r.getMessage()
         ]
-        assert len(fallback_records) == 3
+        assert len(fallback_records) == 1
         assert fallback_records[0].levelno == logging.WARNING
-        assert fallback_records[1].levelno == logging.DEBUG
-        assert fallback_records[2].levelno == logging.DEBUG
 

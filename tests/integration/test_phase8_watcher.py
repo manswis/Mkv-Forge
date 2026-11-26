@@ -78,7 +78,6 @@ def _build_watcher_stack(
     db_manager: DatabaseManager,
     *,
     coalesce_sec: float = 0.05,
-    job_defer_poll_sec: float = 0.03,
 ) -> tuple[
     LibraryWatcher,
     LibraryEventBroker,
@@ -97,7 +96,6 @@ def _build_watcher_stack(
         job_repo=job_repo,
         scanner=scanner,
         library_broker=broker,
-        job_defer_poll_sec=job_defer_poll_sec,
     )
     return watcher, broker, media_repo, job_repo, scanner
 
@@ -263,7 +261,7 @@ class TestWatcherDebounceSuppressionAndDeletes:
             scan_interval_min=0,
         )
         watcher, broker, media_repo, job_repo, _scanner = _build_watcher_stack(
-            fast_settings, db_manager, coalesce_sec=0.02, job_defer_poll_sec=0.03
+            fast_settings, db_manager, coalesce_sec=0.02
         )
 
         movies = fast_settings.storage_dir / "movies"

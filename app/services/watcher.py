@@ -97,7 +97,23 @@ def _normalize_rel_posix(raw_path: str | None) -> str | None:
     return cleaned or None
 
 
-def _extract_job_target_paths(job_row: dict[str, Any]) -> set[str]:
+def _parse_job_config_json(job_row: dict[str, Any]) -> dict[str, Any] | None:
+    """Safely parse `job_row['config_json']` once, returning `None` if absent or malformed."""
+    raw_cfg = job_row.get("config_json")
+    if not isinstance(raw_cfg, str) or not raw_cfg:
+        return None
+    try:
+        loaded = json.loads(raw_cfg)
+    except json.JSONDecodeError:
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def _extract_job_target_paths(
+    job_row: dict[str, Any],
+    *,
+    parsed_cfg: dict[str, Any] | None = None,
+) -> set[str]:
     """Return relative filepaths currently owned by a running MKV Forge job."""
     owned: set[str] = set()
     filepath = _normalize_rel_posix(job_row.get("filepath"))
@@ -107,16 +123,7 @@ def _extract_job_target_paths(job_row: dict[str, Any]) -> set[str]:
     if output_filepath:
         owned.add(output_filepath)
 
-    raw_cfg = job_row.get("config_json")
-    parsed: dict[str, Any] | None = None
-    if isinstance(raw_cfg, str) and raw_cfg:
-        try:
-            loaded = json.loads(raw_cfg)
-            if isinstance(loaded, dict):
-                parsed = loaded
-        except json.JSONDecodeError:
-            parsed = None
-
+    parsed = parsed_cfg if parsed_cfg is not None else _parse_job_config_json(job_row)
     if parsed is not None:
         out_path = _normalize_rel_posix(parsed.get("output_path"))
         if out_path:
@@ -148,31 +155,28 @@ def _is_path_owned_by_active_job(
     normalized = _normalize_rel_posix(rel_filepath)
     if not normalized:
         return False
-    if normalized in _extract_job_target_paths(job_row):
+
+    parsed_cfg = _parse_job_config_json(job_row)
+    if normalized in _extract_job_target_paths(job_row, parsed_cfg=parsed_cfg):
         return True
 
     # Also match numbered Keep-Both outputs (`<stem>.remux.<N>.mkv`) in the same folder
     filepath = _normalize_rel_posix(job_row.get("filepath"))
-    raw_cfg = job_row.get("config_json")
-    if filepath and isinstance(raw_cfg, str) and raw_cfg:
-        try:
-            parsed = json.loads(raw_cfg)
-        except json.JSONDecodeError:
-            parsed = None
-        if (
-            isinstance(parsed, dict)
-            and parsed.get("output_mode") == AppConstants.OUTPUT_MODE_KEEP_BOTH
-        ):
-            src = PurePosixPath(filepath)
-            cand = PurePosixPath(normalized)
-            if cand.parent == src.parent:
-                pattern = (
-                    rf"^{re.escape(src.stem)}"
-                    rf"{re.escape(AppConstants.KEEP_BOTH_INFIX)}"
-                    rf"(?:\.\d+)?{re.escape(AppConstants.EXT_MKV)}$"
-                )
-                if re.match(pattern, cand.name):
-                    return True
+    if (
+        filepath
+        and parsed_cfg is not None
+        and parsed_cfg.get("output_mode") == AppConstants.OUTPUT_MODE_KEEP_BOTH
+    ):
+        src = PurePosixPath(filepath)
+        cand = PurePosixPath(normalized)
+        if cand.parent == src.parent:
+            pattern = (
+                rf"^{re.escape(src.stem)}"
+                rf"{re.escape(AppConstants.KEEP_BOTH_INFIX)}"
+                rf"(?:\.\d+)?{re.escape(AppConstants.EXT_MKV)}$"
+            )
+            if re.match(pattern, cand.name):
+                return True
     return False
 
 
@@ -188,7 +192,6 @@ class LibraryWatcher:
         scanner: LibraryScanner,
         library_broker: LibraryEventBroker,
         user_settings_service: UserSettingsService | None = None,
-        job_defer_poll_sec: float = AppConstants.WATCH_JOB_DEFER_POLL_SEC,
         poll_interval_ms: int = AppConstants.WATCH_POLL_INTERVAL_MS,
     ) -> None:
         self._settings = settings
@@ -197,7 +200,6 @@ class LibraryWatcher:
         self._scanner = scanner
         self._library_broker = library_broker
         self._user_settings_service = user_settings_service
-        self._job_defer_poll_sec = max(0.01, float(job_defer_poll_sec))
         self._poll_interval_ms = poll_interval_ms
 
         self._stop_event = asyncio.Event()

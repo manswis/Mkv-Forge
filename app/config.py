@@ -75,7 +75,6 @@ class AppConstants:
     MIN_SCAN_INTERVAL_MIN: int = 0
     MAX_SCAN_INTERVAL_MIN: int = 10_080  # 7 days
     WATCH_POLL_INTERVAL_MS: int = 2000
-    WATCH_JOB_DEFER_POLL_SEC: float = 1.0
     WATCH_PROBE_CONCURRENCY: int = 1
     WATCH_EVENT_COALESCE_SEC: float = 0.75
     WATCH_MAX_EVENT_PATHS: int = 20
