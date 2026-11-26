@@ -12,7 +12,7 @@ class AppConstants:
     """Centralized immutable constants to eliminate magic values."""
 
     APP_NAME: str = "MKV Forge"
-    DEFAULT_APP_VERSION: str = "1.0.7"
+    DEFAULT_APP_VERSION: str = "1.0.8"
     ENV_APP_VERSION: str = "MKVFORGE_APP_VERSION"
     APP_VERSION: str = (
         os.environ.get("MKVFORGE_APP_VERSION", "").strip() or DEFAULT_APP_VERSION
