@@ -398,7 +398,7 @@ async def execute_two_stage_pipeline(
         if check_cancelled is not None:
             check_cancelled()
 
-        instant_ok, _instant_reason = can_use_instant_header_edit(
+        instant_ok, instant_reason = can_use_instant_header_edit(
             source_path,
             config,
             source_tracks=source_tracks,
@@ -430,6 +430,17 @@ async def execute_two_stage_pipeline(
                 mkvmerge_exit_code=propedit_res.exit_code,
                 warnings=propedit_res.warnings,
                 replaced_mp4_deleted=False,
+            )
+
+        if (
+            source_path.suffix.lower() == AppConstants.EXT_MKV
+            and config.output_mode == AppConstants.OUTPUT_MODE_REPLACE
+            and on_log is not None
+            and instant_reason
+        ):
+            on_log(
+                f"Instant header edit (mkvpropedit) skipped ({instant_reason}); "
+                "running full mkvmerge remux."
             )
 
         await asyncio.to_thread(

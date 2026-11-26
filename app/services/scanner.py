@@ -21,8 +21,11 @@ from app.models.schemas import ScanProgressPayload
 from app.services.folder_sync import FolderReconcileCache
 from app.services.probe_parser import parse_mkvmerge_json
 from app.services.processing_policy import (
+    build_nice_preexec_fn,
     get_excluded_storage_scratch_rel_prefix,
+    is_ionice_available,
     is_rel_path_within_excluded_prefix,
+    wrap_command_with_io_priority,
 )
 from app.services.user_settings import UserSettingsService
 from app.utils.paths import (
@@ -113,9 +116,102 @@ def _discover_media_files(
     return discovered, stat_errors
 
 
+_IONICE_ERROR_MARKERS: tuple[str, ...] = ("ionice:", "ioprio_set")
+_ionice_fallback_warned: bool = False
+
+
+def _is_ionice_wrapper_failure(stderr_bytes: bytes) -> bool:
+    """Return True when stderr indicates `ionice` itself failed due to permissions/container limits."""
+    stderr_lower = stderr_bytes.decode(AppConstants.UTF8_ENCODING, errors="replace").lower()
+    return any(marker in stderr_lower for marker in _IONICE_ERROR_MARKERS)
+
+
+def _log_ionice_probe_fallback(reason: str) -> None:
+    """Log `ionice` probe fallback at WARNING once per container lifetime, DEBUG thereafter."""
+    global _ionice_fallback_warned
+    if not _ionice_fallback_warned:
+        _ionice_fallback_warned = True
+        logger.warning(
+            "ionice probe wrapper unavailable (%s); falling back to direct probe "
+            "(subsequent fallbacks logged at DEBUG)",
+            reason,
+        )
+    else:
+        logger.debug(
+            "ionice probe wrapper unavailable (%s); falling back to direct probe",
+            reason,
+        )
+
+
+async def _exec_probe_subprocess(
+    base_argv: list[str],
+    *,
+    timeout_sec: float,
+    low_io_priority: bool = False,
+) -> tuple[int, bytes, bytes]:
+    """Run a metadata probe subprocess with optional best-effort `ionice` + `nice` priority.
+
+    When `low_io_priority` is True:
+    - Prefixes `base_argv` with `ionice -t -c 3` if `ionice` is installed on PATH.
+    - Applies `os.nice(LOW_PRIORITY_NICE_INCREMENT)` via `preexec_fn` when supported.
+    - Automatically falls back to running `base_argv` directly if `ionice` cannot be
+      launched or fails due to container permission restrictions (`EPERM`/`ioprio_set`).
+    """
+    use_ionice = bool(low_io_priority and is_ionice_available())
+    preexec_fn = (
+        build_nice_preexec_fn(AppConstants.LOW_PRIORITY_NICE_INCREMENT)
+        if low_io_priority
+        else None
+    )
+
+    async def _run_once(argv: list[str]) -> tuple[int, bytes, bytes]:
+        proc = await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            preexec_fn=preexec_fn,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=timeout_sec,
+            )
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            await proc.wait()
+            raise
+        return int(proc.returncode or 0), stdout_bytes, stderr_bytes
+
+    if use_ionice:
+        wrapped_argv = wrap_command_with_io_priority(
+            base_argv,
+            use_ionice_idle=True,
+        )
+        try:
+            returncode, stdout_bytes, stderr_bytes = await _run_once(wrapped_argv)
+        except asyncio.TimeoutError:
+            raise
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            _log_ionice_probe_fallback(str(exc))
+        else:
+            if returncode == AppConstants.EXIT_CODE_SUCCESS or not _is_ionice_wrapper_failure(
+                stderr_bytes
+            ):
+                return returncode, stdout_bytes, stderr_bytes
+            detail = stderr_bytes.decode(AppConstants.UTF8_ENCODING, errors="replace").strip()
+            _log_ionice_probe_fallback(f"exit {returncode}: {detail}")
+
+    return await _run_once(base_argv)
+
+
 async def probe_container_tags_with_ffprobe(
     file_path: Path,
     timeout_sec: float = 3.0,
+    *,
+    low_io_priority: bool = False,
 ) -> dict[str, str]:
     """Read container-level tags via `ffprobe -show_format` when global_tags are present.
 
@@ -124,23 +220,21 @@ async def probe_container_tags_with_ffprobe(
     Degrades silently to `{}` if `ffprobe` is unavailable or fails.
     """
     try:
-        proc = await asyncio.create_subprocess_exec(
-            AppConstants.TOOL_FFPROBE,
-            "-v",
-            "quiet",
-            "-print_format",
-            "json",
-            "-show_entries",
-            "format_tags",
-            str(file_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, stdout_bytes, _ = await _exec_probe_subprocess(
+            [
+                AppConstants.TOOL_FFPROBE,
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_entries",
+                "format_tags",
+                str(file_path),
+            ],
+            timeout_sec=timeout_sec,
+            low_io_priority=low_io_priority,
         )
-        stdout_bytes, _ = await asyncio.wait_for(
-            proc.communicate(),
-            timeout=timeout_sec,
-        )
-        if proc.returncode != AppConstants.EXIT_CODE_SUCCESS:
+        if returncode != AppConstants.EXIT_CODE_SUCCESS:
             return {}
         data = json.loads(
             stdout_bytes.decode(AppConstants.UTF8_ENCODING, errors="replace")
@@ -164,42 +258,36 @@ async def probe_container_tags_with_ffprobe(
 async def run_mkvmerge_probe(
     file_path: Path,
     timeout_sec: float,
+    *,
+    low_io_priority: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """Execute `mkvmerge -J <file_path>` with a strict timeout and return parsed JSON."""
+    base_argv = [
+        AppConstants.TOOL_MKVMERGE,
+        AppConstants.MKVMERGE_IDENTIFY_FLAG,
+        str(file_path),
+    ]
     try:
-        proc = await asyncio.create_subprocess_exec(
-            AppConstants.TOOL_MKVMERGE,
-            AppConstants.MKVMERGE_IDENTIFY_FLAG,
-            str(file_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        returncode, stdout_bytes, stderr_bytes = await _exec_probe_subprocess(
+            base_argv,
+            timeout_sec=timeout_sec,
+            low_io_priority=low_io_priority,
         )
+    except asyncio.TimeoutError as exc:
+        raise ProbeError(
+            f"mkvmerge -J timed out after {timeout_sec}s for {file_path.name}"
+        ) from exc
     except FileNotFoundError as exc:
         raise ProbeError("mkvmerge executable not found in PATH") from exc
     except OSError as exc:
         raise ProbeError(f"Failed to launch mkvmerge: {exc}") from exc
 
-    try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(),
-            timeout=timeout_sec,
-        )
-    except asyncio.TimeoutError as exc:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        await proc.wait()
-        raise ProbeError(
-            f"mkvmerge -J timed out after {timeout_sec}s for {file_path.name}"
-        ) from exc
-
     raw_text = stdout_bytes.decode(AppConstants.UTF8_ENCODING, errors="replace")
-    if proc.returncode != AppConstants.EXIT_CODE_SUCCESS:
+    if returncode != AppConstants.EXIT_CODE_SUCCESS:
         stderr_text = stderr_bytes.decode(AppConstants.UTF8_ENCODING, errors="replace").strip()
         excerpt = (stderr_text or raw_text.strip())[: AppConstants.MAX_ERROR_EXCERPT_LEN]
         raise ProbeError(
-            f"mkvmerge -J failed with exit code {proc.returncode}: {excerpt}"
+            f"mkvmerge -J failed with exit code {returncode}: {excerpt}"
         )
 
     try:
@@ -212,7 +300,10 @@ async def run_mkvmerge_probe(
 
     global_tags = parsed.get("global_tags")
     if isinstance(global_tags, list) and len(global_tags) > 0:
-        container_tags = await probe_container_tags_with_ffprobe(file_path)
+        container_tags = await probe_container_tags_with_ffprobe(
+            file_path,
+            low_io_priority=low_io_priority,
+        )
         if container_tags:
             parsed["container_tags"] = container_tags
             raw_text = json.dumps(parsed, separators=(",", ":"))
@@ -328,7 +419,12 @@ class LibraryScanner:
         finally:
             self._subscribers.discard(queue)
 
-    async def probe_single_file(self, rel_filepath: str) -> dict[str, Any] | None:
+    async def probe_single_file(
+        self,
+        rel_filepath: str,
+        *,
+        low_io_priority: bool = False,
+    ) -> dict[str, Any] | None:
         """Re-probe one media file on disk and refresh its SQLite cache entry.
 
         Returns the refreshed DB row dict, or `None` if the file no longer exists on disk.
@@ -356,10 +452,17 @@ class LibraryScanner:
             return None
 
         stat_result = await asyncio.to_thread(abs_path.stat)
-        parsed_dict, raw_json = await run_mkvmerge_probe(
-            abs_path,
-            self._settings.scan_timeout_sec,
-        )
+        if low_io_priority:
+            parsed_dict, raw_json = await run_mkvmerge_probe(
+                abs_path,
+                self._settings.scan_timeout_sec,
+                low_io_priority=True,
+            )
+        else:
+            parsed_dict, raw_json = await run_mkvmerge_probe(
+                abs_path,
+                self._settings.scan_timeout_sec,
+            )
         upsert_record = self._build_upsert_record(
             rel_filepath=normalized_rel,
             filename=abs_path.name,

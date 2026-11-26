@@ -1,13 +1,14 @@
-"""Configurable live filesystem watcher with write-stability debounce and job-safe I/O deferral."""
+"""Configurable live filesystem watcher with write-stability debounce and serialized job-safe probing."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
+import re
 import time
-from pathlib import Path
-from typing import Callable
+from pathlib import Path, PurePosixPath
+from typing import Any, Callable
 
 from watchfiles import Change, awatch
 
@@ -70,35 +71,109 @@ def should_watch_fs_event(change: Change, raw_path: str) -> bool:
     return True
 
 
-def _extract_job_target_paths(job_row: dict) -> set[str]:
+def is_temp_or_partial_rel_path(rel_filepath: str) -> bool:
+    """Return True if `rel_filepath` is hidden, an MKV Forge temp artifact, or a partial download."""
+    cleaned = str(rel_filepath or "").strip().replace("\\", "/")
+    if not cleaned:
+        return True
+    name = PurePosixPath(cleaned).name
+    if not name or name.startswith("."):
+        return True
+    lower_name = name.lower()
+    if AppConstants.TEMP_MARKER in lower_name or lower_name.endswith(
+        AppConstants.TEMP_REMUX_SUFFIX
+    ):
+        return True
+    return any(
+        lower_name.endswith(suffix) for suffix in AppConstants.IGNORED_PARTIAL_SUFFIXES
+    )
+
+
+def _normalize_rel_posix(raw_path: str | None) -> str | None:
+    """Normalize a relative storage path for exact comparison."""
+    if not isinstance(raw_path, str):
+        return None
+    cleaned = raw_path.strip().replace("\\", "/").lstrip("/")
+    return cleaned or None
+
+
+def _extract_job_target_paths(job_row: dict[str, Any]) -> set[str]:
     """Return relative filepaths currently owned by a running MKV Forge job."""
     owned: set[str] = set()
-    filepath = job_row.get("filepath")
-    if isinstance(filepath, str) and filepath.strip():
-        owned.add(filepath.strip())
-    output_filepath = job_row.get("output_filepath")
-    if isinstance(output_filepath, str) and output_filepath.strip():
-        owned.add(output_filepath.strip())
+    filepath = _normalize_rel_posix(job_row.get("filepath"))
+    if filepath:
+        owned.add(filepath)
+    output_filepath = _normalize_rel_posix(job_row.get("output_filepath"))
+    if output_filepath:
+        owned.add(output_filepath)
 
     raw_cfg = job_row.get("config_json")
+    parsed: dict[str, Any] | None = None
     if isinstance(raw_cfg, str) and raw_cfg:
+        try:
+            loaded = json.loads(raw_cfg)
+            if isinstance(loaded, dict):
+                parsed = loaded
+        except json.JSONDecodeError:
+            parsed = None
+
+    if parsed is not None:
+        out_path = _normalize_rel_posix(parsed.get("output_path"))
+        if out_path:
+            owned.add(out_path)
+        output_mode = parsed.get("output_mode")
+        if filepath:
+            posix_src = PurePosixPath(filepath)
+            parent_prefix = "" if str(posix_src.parent) == "." else f"{posix_src.parent}/"
+            # Replace .mp4 writes <stem>.mkv in the same directory
+            if (
+                filepath.lower().endswith(AppConstants.EXT_MP4)
+                and output_mode == AppConstants.OUTPUT_MODE_REPLACE
+            ):
+                owned.add(f"{parent_prefix}{posix_src.stem}{AppConstants.EXT_MKV}")
+            # Keep Both writes <stem>.remux.mkv (or <stem>.remux.<N>.mkv) in the same directory
+            if output_mode == AppConstants.OUTPUT_MODE_KEEP_BOTH:
+                owned.add(
+                    f"{parent_prefix}{posix_src.stem}{AppConstants.KEEP_BOTH_INFIX}{AppConstants.EXT_MKV}"
+                )
+    return owned
+
+
+def _is_path_owned_by_active_job(
+    rel_filepath: str, job_row: dict[str, Any] | None
+) -> bool:
+    """Return True iff `rel_filepath` is owned by `job_row` (source, output, or keep_both target)."""
+    if job_row is None:
+        return False
+    normalized = _normalize_rel_posix(rel_filepath)
+    if not normalized:
+        return False
+    if normalized in _extract_job_target_paths(job_row):
+        return True
+
+    # Also match numbered Keep-Both outputs (`<stem>.remux.<N>.mkv`) in the same folder
+    filepath = _normalize_rel_posix(job_row.get("filepath"))
+    raw_cfg = job_row.get("config_json")
+    if filepath and isinstance(raw_cfg, str) and raw_cfg:
         try:
             parsed = json.loads(raw_cfg)
         except json.JSONDecodeError:
             parsed = None
-        if isinstance(parsed, dict):
-            out_path = parsed.get("output_path")
-            if isinstance(out_path, str) and out_path.strip():
-                owned.add(out_path.strip().lstrip("/"))
-            # Replace .mp4 writes <stem>.mkv in same directory
-            if (
-                filepath
-                and isinstance(filepath, str)
-                and filepath.lower().endswith(AppConstants.EXT_MP4)
-                and parsed.get("output_mode") == AppConstants.OUTPUT_MODE_REPLACE
-            ):
-                owned.add(f"{filepath[:-len(AppConstants.EXT_MP4)]}{AppConstants.EXT_MKV}")
-    return owned
+        if (
+            isinstance(parsed, dict)
+            and parsed.get("output_mode") == AppConstants.OUTPUT_MODE_KEEP_BOTH
+        ):
+            src = PurePosixPath(filepath)
+            cand = PurePosixPath(normalized)
+            if cand.parent == src.parent:
+                pattern = (
+                    rf"^{re.escape(src.stem)}"
+                    rf"{re.escape(AppConstants.KEEP_BOTH_INFIX)}"
+                    rf"(?:\.\d+)?{re.escape(AppConstants.EXT_MKV)}$"
+                )
+                if re.match(pattern, cand.name):
+                    return True
+    return False
 
 
 class LibraryWatcher:
@@ -129,6 +204,7 @@ class LibraryWatcher:
         self._watch_task: asyncio.Task[None] | None = None
         self._periodic_task: asyncio.Task[None] | None = None
         self._debounce_tasks: dict[str, asyncio.Task[None]] = {}
+        self._probe_semaphore = asyncio.Semaphore(AppConstants.WATCH_PROBE_CONCURRENCY)
 
     @property
     def is_active(self) -> bool:
@@ -378,11 +454,14 @@ class LibraryWatcher:
     def schedule_background_probe(self, rel_filepath: str) -> bool:
         """Queue a non-blocking background probe for a newly spotted/modified file.
 
-        Deduplicates against any in-flight watcher task for `rel_filepath`. If the file's
-        `mtime` is already older than `watch_debounce_sec`, skips the idle wait and probes
-        immediately (still respecting active-job ownership and USB I/O deferral).
+        Deduplicates against any in-flight watcher task for `rel_filepath` and skips
+        temp/partial artifacts. If the file's `mtime` is already older than
+        `watch_debounce_sec`, skips the idle wait and probes immediately (serialized
+        1-at-a-time with best-effort low I/O priority when a job is active).
         """
         if self._stop_event.is_set():
+            return False
+        if is_temp_or_partial_rel_path(rel_filepath):
             return False
         existing = self._debounce_tasks.get(rel_filepath)
         if existing is not None and not existing.done():
@@ -431,8 +510,7 @@ class LibraryWatcher:
         active_job = await asyncio.to_thread(self._job_repo.get_active)
         if active_job is None:
             return False, False
-        owned = _extract_job_target_paths(active_job)
-        return True, rel_filepath in owned
+        return True, _is_path_owned_by_active_job(rel_filepath, active_job)
 
     async def _wait_for_stability(self, resolved_path: Path) -> tuple[int, float] | None:
         """Wait until `(size_bytes, mtime)` stay unchanged across `watch_debounce_sec`."""
@@ -467,9 +545,12 @@ class LibraryWatcher:
     async def _process_settled_upsert(
         self, rel_filepath: str, *, fast_if_aged: bool = False
     ) -> None:
-        """Debounce writes, defer during active jobs, probe single file, and emit SSE."""
+        """Debounce writes, exclude active-job/temp files, serialize single-file probe, and emit SSE."""
         try:
-            any_running, owned = await self._is_owned_by_running_job(rel_filepath)
+            if is_temp_or_partial_rel_path(rel_filepath):
+                return
+
+            _, owned = await self._is_owned_by_running_job(rel_filepath)
             if owned:
                 logger.debug("Watcher suppressed active-job echo for %s", rel_filepath)
                 return
@@ -520,69 +601,89 @@ class LibraryWatcher:
                     await self._process_deleted(rel_filepath)
                 return
 
-            # Defer probing while any remux/FFmpeg job is actively writing to USB/HDD
-            while not self._stop_event.is_set():
-                any_running, owned = await self._is_owned_by_running_job(rel_filepath)
-                if owned:
-                    logger.debug("Watcher suppressed active-job echo for %s", rel_filepath)
-                    return
-                if not any_running:
-                    break
-                await asyncio.sleep(self._job_defer_poll_sec)
-
             if self._stop_event.is_set():
                 return
 
-            # Skip redundant probe ONLY if SQLite already has scan_status == 'ready'
-            # AND matching (size_bytes, mtime). Rows in 'scanning' MUST be probed.
-            existing = await asyncio.to_thread(
-                self._media_repo.get_by_filepath, rel_filepath
-            )
-            size_now, mtime_now = settled
-            if (
-                existing is not None
-                and str(existing.get("scan_status") or AppConstants.FILE_SCAN_STATUS_READY)
-                == AppConstants.FILE_SCAN_STATUS_READY
-                and int(existing["size_bytes"]) == size_now
-                and abs(float(existing["mtime"]) - mtime_now)
-                <= AppConstants.MTIME_TOLERANCE_SEC
-            ):
+            # Reject files owned by an active job before queuing on the probe semaphore
+            _, owned = await self._is_owned_by_running_job(rel_filepath)
+            if owned:
+                logger.debug("Watcher suppressed active-job echo for %s", rel_filepath)
                 return
 
-            action = "added" if existing is None else "updated"
-            try:
-                refreshed = await self._scanner.probe_single_file(rel_filepath)
-            except (ProbeError, PathSafetyError) as exc:
-                logger.warning("Watcher failed to probe file %s: %s", rel_filepath, exc)
-                err_id = await asyncio.to_thread(
-                    self._media_repo.mark_scan_error,
-                    filepath=rel_filepath,
-                    folder=extract_folder(rel_filepath),
-                    filename=resolved.name,
-                    size_bytes=size_now,
-                    mtime=mtime_now,
-                )
-                self._library_broker.record_change(
-                    action="updated",
-                    filepath=rel_filepath,
-                    file_id=err_id,
-                )
-                return
+            # Serialize probes to 1 at a time; when an unrelated job is active, probe
+            # immediately with best-effort low I/O priority (ionice idle + nice).
+            async with self._probe_semaphore:
+                if self._stop_event.is_set():
+                    return
 
-            if refreshed is None:
-                if existing is not None:
-                    self._library_broker.record_change(
-                        action="deleted",
-                        filepath=rel_filepath,
-                        file_id=int(existing["id"]),
+                # Re-check active-job ownership inside semaphore to close TOCTOU window
+                any_running, owned = await self._is_owned_by_running_job(rel_filepath)
+                if owned:
+                    logger.debug(
+                        "Watcher suppressed active-job echo for %s", rel_filepath
                     )
-                return
+                    return
 
-            self._library_broker.record_change(
-                action=action,
-                filepath=rel_filepath,
-                file_id=int(refreshed["id"]),
-            )
+                # Skip redundant probe ONLY if SQLite already has scan_status == 'ready'
+                # AND matching (size_bytes, mtime). Rows in 'scanning' MUST be probed.
+                existing = await asyncio.to_thread(
+                    self._media_repo.get_by_filepath, rel_filepath
+                )
+                size_now, mtime_now = settled
+                if (
+                    existing is not None
+                    and str(
+                        existing.get("scan_status") or AppConstants.FILE_SCAN_STATUS_READY
+                    )
+                    == AppConstants.FILE_SCAN_STATUS_READY
+                    and int(existing["size_bytes"]) == size_now
+                    and abs(float(existing["mtime"]) - mtime_now)
+                    <= AppConstants.MTIME_TOLERANCE_SEC
+                ):
+                    return
+
+                action = "added" if existing is None else "updated"
+                try:
+                    if any_running:
+                        refreshed = await self._scanner.probe_single_file(
+                            rel_filepath,
+                            low_io_priority=True,
+                        )
+                    else:
+                        refreshed = await self._scanner.probe_single_file(rel_filepath)
+                except (ProbeError, PathSafetyError) as exc:
+                    logger.warning(
+                        "Watcher failed to probe file %s: %s", rel_filepath, exc
+                    )
+                    err_id = await asyncio.to_thread(
+                        self._media_repo.mark_scan_error,
+                        filepath=rel_filepath,
+                        folder=extract_folder(rel_filepath),
+                        filename=resolved.name,
+                        size_bytes=size_now,
+                        mtime=mtime_now,
+                    )
+                    self._library_broker.record_change(
+                        action="updated",
+                        filepath=rel_filepath,
+                        file_id=err_id,
+                    )
+                    return
+
+                if refreshed is None:
+                    if existing is not None:
+                        self._library_broker.record_change(
+                            action="deleted",
+                            filepath=rel_filepath,
+                            file_id=int(existing["id"]),
+                        )
+                    return
+
+                self._library_broker.record_change(
+                    action=action,
+                    filepath=rel_filepath,
+                    file_id=int(refreshed["id"]),
+                )
         except asyncio.CancelledError:
             raise
 

@@ -277,6 +277,11 @@ async def get_or_extract_thumbnail(
 
             # Strategy B: Fallback to ffmpeg attached_pic / video stream downscaled thumbnail
             if not extracted or not tmp_path.is_file() or tmp_path.stat().st_size == 0:
+                logger.warning(
+                    "Thumbnail mkvextract failed for %s (attachment id=%s); falling back to ffmpeg",
+                    abs_media_path.name,
+                    best_att.id,
+                )
                 extracted = await _run_extract_cmd(
                     build_ffmpeg_thumbnail_command(abs_media_path, tmp_path),
                     timeout_sec=AppConstants.THUMBNAIL_EXTRACT_TIMEOUT_SEC,

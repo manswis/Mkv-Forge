@@ -248,7 +248,7 @@ class TestWatcherDebounceSuppressionAndDeletes:
             if not sub_task.done():
                 sub_task.cancel()
 
-    async def test_suppresses_active_job_echo_and_defers_unrelated_file_until_job_finishes(
+    async def test_suppresses_active_job_echo_and_probes_unrelated_file_immediately_with_low_io(
         self, test_settings: Settings, db_manager: DatabaseManager
     ) -> None:
         fast_settings = Settings(
@@ -270,22 +270,28 @@ class TestWatcherDebounceSuppressionAndDeletes:
         movies.mkdir(parents=True, exist_ok=True)
         owned_file = movies / "ActiveJob.mkv"
         owned_file.write_bytes(b"active-job-file")
+        keep_both_target = movies / "ActiveJob.remux.mkv"
+        keep_both_target.write_bytes(b"active-job-remux-target")
+        temp_artifact = movies / "ActiveJob.mkv.mkvforge.tmp"
+        temp_artifact.write_bytes(b"temp-mux-artifact")
         other_file = movies / "BrandNew.mkv"
         other_file.write_bytes(b"brand-new-file")
 
-        # Mark ActiveJob.mkv as currently running in SQLite
+        # Mark ActiveJob.mkv as currently running in SQLite (keep_both mode)
         job_repo.create_job(
             job_id="running-1",
             filepath="movies/ActiveJob.mkv",
-            config_json=json.dumps({"output_mode": "replace"}),
+            config_json=json.dumps({"output_mode": "keep_both"}),
         )
         job_repo.claim_next_queued_job()
 
-        probed: list[str] = []
+        probed: list[tuple[str, bool]] = []
         fake_data = _fake_probe_payload()
 
-        async def _fake_probe(path: Path, _timeout: float):
-            probed.append(path.name)
+        async def _fake_probe(
+            path: Path, _timeout: float, *, low_io_priority: bool = False
+        ):
+            probed.append((path.name, low_io_priority))
             return fake_data, json.dumps(fake_data)
 
         try:
@@ -293,25 +299,27 @@ class TestWatcherDebounceSuppressionAndDeletes:
                 "app.services.scanner.run_mkvmerge_probe",
                 new=AsyncMock(side_effect=_fake_probe),
             ):
-                # 1. Self-echo for running job -> suppressed immediately
+                # 1. Source, keep_both target, and .mkvforge.tmp for running job -> strictly suppressed
                 watcher.handle_raw_fs_event(Change.modified, owned_file)
-                # 2. Unrelated new file -> deferred while running-1 is active
+                watcher.handle_raw_fs_event(Change.added, keep_both_target)
+                watcher.handle_raw_fs_event(Change.added, temp_artifact)
+                # 2. Unrelated new file -> probes immediately while job is still running (with low I/O priority)
                 watcher.handle_raw_fs_event(Change.added, other_file)
 
-                await asyncio.sleep(0.15)
-                assert probed == []  # Neither file probed while job is running!
-
-                # Now complete the running job -> BrandNew.mkv should probe right away!
-                job_repo.mark_completed("running-1", output_filepath="movies/ActiveJob.mkv")
-
                 for _ in range(50):
-                    if "BrandNew.mkv" in probed:
+                    if any(name == "BrandNew.mkv" for name, _ in probed):
                         break
                     await asyncio.sleep(0.02)
 
-            assert probed == ["BrandNew.mkv"]
-            assert media_repo.get_by_filepath("movies/BrandNew.mkv") is not None
+            # BrandNew.mkv became ready WITHOUT waiting for running-1 to finish!
+            assert job_repo.get_active() is not None
+            assert probed == [("BrandNew.mkv", True)]
+            row = media_repo.get_by_filepath("movies/BrandNew.mkv")
+            assert row is not None
+            assert row["scan_status"] == "ready"
             assert media_repo.get_by_filepath("movies/ActiveJob.mkv") is None
+            assert media_repo.get_by_filepath("movies/ActiveJob.remux.mkv") is None
+            assert media_repo.get_by_filepath("movies/ActiveJob.mkv.mkvforge.tmp") is None
         finally:
             await watcher.shutdown()
             broker.close()

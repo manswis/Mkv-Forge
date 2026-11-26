@@ -398,3 +398,81 @@ class TestThumbnailCommandBuildersAndFfmpeg7Compatibility:
         rgba_bytes = rgba_out.read_bytes()
         assert is_valid_image_bytes(rgba_bytes) is True
         assert detect_image_media_type(rgba_bytes) == "image/jpeg"
+
+    async def test_logs_warning_when_mkvextract_falls_back_to_ffmpeg_and_not_when_primary_succeeds(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+        from unittest.mock import patch
+        from app.services.thumbnail_service import get_or_extract_thumbnail
+
+        storage = tmp_path / "storage"
+        cache_dir = tmp_path / "cache"
+        storage.mkdir()
+        media = storage / "PosterMovie.mkv"
+        media.write_bytes(b"fake-mkv")
+        raw_json = json.dumps(
+            {
+                "attachments": [
+                    {"id": 7, "file_name": "cover.jpg", "content_type": "image/jpeg"}
+                ]
+            }
+        )
+        fake_jpeg = b"\xff\xd8\xff\xe0" + (b"\x00" * 32)
+
+        # Case 1: mkvextract fails -> logs WARNING and falls back to ffmpeg
+        async def _fail_mkvextract_succeed_ffmpeg(argv: list[str], *, timeout_sec: float) -> bool:
+            if argv[0] == AppConstants.TOOL_MKVEXTRACT:
+                return False
+            Path(argv[-1]).write_bytes(fake_jpeg)
+            return True
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.services.thumbnail_service"),
+            patch("app.services.thumbnail_service._run_extract_cmd", side_effect=_fail_mkvextract_succeed_ffmpeg),
+        ):
+            res = await get_or_extract_thumbnail(
+                {
+                    "id": 101,
+                    "filepath": "PosterMovie.mkv",
+                    "mtime": 123.0,
+                    "raw_json": raw_json,
+                },
+                storage_dir=storage,
+                data_dir=cache_dir,
+            )
+
+        assert res is not None and res[1] == "image/jpeg"
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "PosterMovie.mkv" in warnings[0].getMessage()
+        assert "attachment id=7" in warnings[0].getMessage()
+        assert "falling back to ffmpeg" in warnings[0].getMessage()
+
+        # Case 2: mkvextract succeeds directly -> zero fallback warnings
+        caplog.clear()
+
+        async def _succeed_mkvextract(argv: list[str], *, timeout_sec: float) -> bool:
+            assert argv[0] == AppConstants.TOOL_MKVEXTRACT
+            # attachments spec is "<id>:<out_path>"
+            out_path = argv[-1].split(":", 1)[1]
+            Path(out_path).write_bytes(fake_jpeg)
+            return True
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.services.thumbnail_service"),
+            patch("app.services.thumbnail_service._run_extract_cmd", side_effect=_succeed_mkvextract),
+        ):
+            res2 = await get_or_extract_thumbnail(
+                {
+                    "id": 102,
+                    "filepath": "PosterMovie.mkv",
+                    "mtime": 124.0,
+                    "raw_json": raw_json,
+                },
+                storage_dir=storage,
+                data_dir=cache_dir,
+            )
+
+        assert res2 is not None and res2[1] == "image/jpeg"
+        assert [r for r in caplog.records if r.levelno == logging.WARNING] == []

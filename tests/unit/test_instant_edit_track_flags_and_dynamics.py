@@ -405,6 +405,72 @@ class TestInstantHeaderEditEligibilityAndCommand:
         assert result.output_path == mkv
         assert result.output_rel_filepath == "Movie.mkv"
 
+    async def test_pipeline_logs_instant_edit_skip_reason_only_for_mkv_replace_jobs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.mkv_runner import MkvRemuxResult
+
+        storage = tmp_path / "storage"
+        storage.mkdir()
+        mkv = storage / "Movie.mkv"
+        mkv.write_bytes(b"source-mkv-bytes")
+        mp4 = storage / "Clip.mp4"
+        mp4.write_bytes(b"source-mp4-bytes")
+
+        async def _fake_remux(_source: Path, tmp_out: Path, *_args, **_kwargs) -> MkvRemuxResult:
+            tmp_out.write_bytes(b"remuxed-output")
+            return MkvRemuxResult(
+                output_tmp_path=tmp_out, exit_code=0, warnings=[], log_lines=[]
+            )
+
+        monkeypatch.setattr("app.services.mkv_runner.run_preflight_checks", lambda *_a, **_k: None)
+        monkeypatch.setattr("app.services.mkv_runner.run_mkvmerge_remux", _fake_remux)
+
+        # 1. MKV Replace job dropping a track -> logs exact skip reason to on_log (Watch Live Logs)
+        drop_cfg = _sample_header_edit_config(
+            tracks=[
+                TrackEditConfig(id=0, type="video", enabled=True, language="und", default_track=True),
+                TrackEditConfig(id=1, type="audio", enabled=True, language="eng", default_track=True),
+                TrackEditConfig(id=2, type="audio", enabled=False, language="eng"),
+                TrackEditConfig(id=3, type="subtitles", enabled=True, language="eng"),
+            ]
+        )
+        replace_logs: list[str] = []
+        await execute_two_stage_pipeline(
+            mkv,
+            drop_cfg,
+            storage_root=storage,
+            source_tracks=_sample_source_tracks(),
+            on_log=replace_logs.append,
+        )
+        assert any(
+            "Instant header edit (mkvpropedit) skipped (dropping tracks requires full remux); running full mkvmerge remux."
+            in line
+            for line in replace_logs
+        )
+
+        # 2. Keep-Both MKV job -> does NOT emit instant-edit skip noise
+        keep_both_logs: list[str] = []
+        await execute_two_stage_pipeline(
+            mkv,
+            _sample_header_edit_config(output_mode="keep_both"),
+            storage_root=storage,
+            source_tracks=_sample_source_tracks(),
+            on_log=keep_both_logs.append,
+        )
+        assert not any("Instant header edit (mkvpropedit) skipped" in line for line in keep_both_logs)
+
+        # 3. MP4 Replace job -> does NOT emit instant-edit skip noise
+        mp4_logs: list[str] = []
+        await execute_two_stage_pipeline(
+            mp4,
+            _sample_header_edit_config(output_mode="replace"),
+            storage_root=storage,
+            source_tracks=_sample_source_tracks(),
+            on_log=mp4_logs.append,
+        )
+        assert not any("Instant header edit (mkvpropedit) skipped" in line for line in mp4_logs)
+
 
 # ---------------------------------------------------------------------------
 # Feature #2: Modern Matroska Track Flags
