@@ -12,6 +12,15 @@
   const HTTP_NO_CONTENT = 204;
   const HTTP_SERVER_ERROR_MIN = 500;
   const FRAME_FETCH_MAX_ATTEMPTS = 2;
+  const DRAFT_PEEK_CENTER_INDEX = 1;
+  const DRAFT_PEEK_FETCH_ORDER = [1, 0, 2];
+
+  function _clearDraftPeekFrameLoading(draftPeek) {
+    draftPeek.loading = false;
+    draftPeek.frames.forEach((frame) => {
+      frame.loading = false;
+    });
+  }
 
   function _readSavedScanDensity() {
     try {
@@ -62,6 +71,18 @@
       start_ms: row.start_ms,
       title: row.title,
     }));
+  }
+
+  function _effectiveModalEntries(modal) {
+    const raw = (Array.isArray(modal.chapters) ? modal.chapters : []).map((row) => {
+      const parsed = Ch.parseChapterTimeInput(row.timeText);
+      const startMs =
+        parsed !== null
+          ? Ch.clampFrameTimestampMs(parsed, modal.durationMs)
+          : row.start_ms;
+      return { start_ms: startMs, title: row.title };
+    });
+    return Ch.sortAndNormalizeChapters(raw, modal.durationMs);
   }
 
   function _triggerBlobDownload(content, filename, mimeType) {
@@ -319,6 +340,7 @@
           pasteBusy: false,
           pasteError: null,
           pasteWarnings: [],
+          initialSnapshot: null,
         };
         this.chaptersModal = modal;
 
@@ -330,6 +352,7 @@
                 ? this.editor.chapters
                 : this.editor.originalChapters || [];
           modal.chapters = _toModalRows(modal, sourceList);
+          modal.initialSnapshot = _effectiveModalEntries(modal);
           return;
         }
 
@@ -353,6 +376,7 @@
                 ? this.editor.chapters
                 : fetched;
           this.chaptersModal.chapters = _toModalRows(this.chaptersModal, initialList);
+          this.chaptersModal.initialSnapshot = _effectiveModalEntries(this.chaptersModal);
         } catch (err) {
           if (!this.chaptersModal || this.chaptersModal.fileId !== file.id) return;
           if (err && err.status === C.UNITS.HTTP_CONFLICT) {
@@ -378,13 +402,26 @@
         this.chaptersModal = null;
       },
 
+      chaptersModalHasChanges() {
+        const modal = this.chaptersModal;
+        if (
+          !modal ||
+          modal.loading ||
+          modal.error ||
+          !Array.isArray(modal.initialSnapshot)
+        ) {
+          return false;
+        }
+        return !Ch.areChapterListsEqual(
+          _effectiveModalEntries(modal),
+          modal.initialSnapshot
+        );
+      },
+
       commitChaptersModal() {
         const modal = this.chaptersModal;
-        if (!modal || !this.editor) return;
-        const cleaned = Ch.sortAndNormalizeChapters(
-          _plainEntries(modal.chapters),
-          modal.durationMs
-        );
+        if (!modal || !this.editor || !this.chaptersModalHasChanges()) return;
+        const cleaned = _effectiveModalEntries(modal);
         Ed.applyChapterEdits(this.editor, cleaned, modal.durationMs);
         this.closeChaptersModal();
       },
@@ -409,12 +446,10 @@
         const modal = this.chaptersModal;
         if (!modal) return;
         const runId = ++rt.peekRunSeq;
+        this._resetChapterToolbarModes();
         this._abortChapterFrameRequests();
         this._clearDraftPeekUrls();
         this._collapseExpandedChapterPreview();
-        modal.drawer = DRAWER_MAIN;
-        modal.quickSkipOpen = false;
-        modal.menuOpen = false;
         modal.conflictMessage = null;
 
         const clampedTs = Ch.clampFrameTimestampMs(tsMs, modal.durationMs);
@@ -433,7 +468,8 @@
             label: labels[idx],
             url: null,
             failed: false,
-            isCenter: idx === 1,
+            loading: modal.hasVideo,
+            isCenter: idx === DRAFT_PEEK_CENTER_INDEX,
           })),
           loading: modal.hasVideo,
           error: null,
@@ -446,8 +482,7 @@
         const mode = C.SCENE_PICKER.MODE_FAST;
 
         // Fetch center frame first for perceived instant response, then neighbors serially
-        const fetchOrder = [1, 0, 2];
-        for (const frameIdx of fetchOrder) {
+        for (const frameIdx of DRAFT_PEEK_FETCH_ORDER) {
           const frame = this.chaptersModal.draftPeek.frames[frameIdx];
           const res = await this._fetchChapterFrameObjectUrl(
             frame.tsMs,
@@ -467,12 +502,13 @@
               this.chaptersModal &&
               this.chaptersModal.draftPeek
             ) {
-              this.chaptersModal.draftPeek.loading = false;
+              _clearDraftPeekFrameLoading(this.chaptersModal.draftPeek);
             }
             return;
           }
           frame.url = res.url;
           frame.failed = !res.url;
+          frame.loading = false;
         }
         if (
           runId === rt.peekRunSeq &&
@@ -515,6 +551,8 @@
         const peekTsList = Ch.buildPeekFrameTimestamps(nextTs, modal.durationMs);
         modal.draftPeek.frames.forEach((frame, idx) => {
           frame.tsMs = peekTsList[idx];
+          frame.failed = false;
+          frame.loading = modal.hasVideo;
         });
 
         if (!modal.hasVideo) return;
@@ -522,38 +560,65 @@
         modal.draftPeek.loading = true;
         rt.fineTuneTimer = setTimeout(() => {
           rt.fineTuneTimer = null;
-          this._refreshDraftPeekCenterAccurate(runId);
+          this._refreshDraftPeekFrames(runId);
         }, C.SCENE_PICKER.FINE_TUNE_DEBOUNCE_MS);
       },
 
-      async _refreshDraftPeekCenterAccurate(runId) {
+      async _refreshDraftPeekFrames(runId) {
         const modal = this.chaptersModal;
         if (!modal || !modal.draftPeek || !modal.hasVideo || runId !== rt.peekRunSeq) {
           return;
         }
         const controller = new AbortController();
         rt.abortController = controller;
-        const centerFrame = modal.draftPeek.frames[1];
-        const res = await this._fetchChapterFrameObjectUrl(
-          modal.draftPeek.tsMs,
-          C.SCENE_PICKER.MODE_ACCURATE,
-          controller.signal
-        );
-        if (
-          runId !== rt.peekRunSeq ||
-          !this.chaptersModal ||
-          !this.chaptersModal.draftPeek
-        ) {
-          return;
-        }
-        if (!res.aborted && res.url) {
-          if (centerFrame.url) {
-            this._revokeChapterObjectUrl(centerFrame.url);
+
+        // Priority serial refresh: accurate Center first, then fast Left (-15s) & Right (+15s)
+        for (const frameIdx of DRAFT_PEEK_FETCH_ORDER) {
+          const frame = this.chaptersModal.draftPeek.frames[frameIdx];
+          const mode =
+            frameIdx === DRAFT_PEEK_CENTER_INDEX
+              ? C.SCENE_PICKER.MODE_ACCURATE
+              : C.SCENE_PICKER.MODE_FAST;
+          const res = await this._fetchChapterFrameObjectUrl(
+            frame.tsMs,
+            mode,
+            controller.signal
+          );
+          if (
+            runId !== rt.peekRunSeq ||
+            controller.signal.aborted ||
+            res.aborted ||
+            res.conflict ||
+            !this.chaptersModal ||
+            !this.chaptersModal.draftPeek
+          ) {
+            if (
+              runId === rt.peekRunSeq &&
+              this.chaptersModal &&
+              this.chaptersModal.draftPeek
+            ) {
+              _clearDraftPeekFrameLoading(this.chaptersModal.draftPeek);
+            }
+            return;
           }
-          centerFrame.url = res.url;
-          centerFrame.failed = false;
+          if (res.url) {
+            if (frame.url) {
+              this._revokeChapterObjectUrl(frame.url);
+            }
+            frame.url = res.url;
+            frame.failed = false;
+          } else {
+            frame.failed = true;
+          }
+          frame.loading = false;
         }
-        this.chaptersModal.draftPeek.loading = false;
+        if (
+          runId === rt.peekRunSeq &&
+          this.chaptersModal &&
+          this.chaptersModal.draftPeek
+        ) {
+          this.chaptersModal.draftPeek.loading = false;
+        }
       },
 
       selectDraftPeekFrame(frameIdx) {
@@ -600,6 +665,7 @@
       addManualChapterRow() {
         const modal = this.chaptersModal;
         if (!modal) return;
+        this._resetChapterToolbarModes();
         const lastStart =
           modal.chapters.length > 0
             ? modal.chapters[modal.chapters.length - 1].start_ms
@@ -835,22 +901,45 @@
         }
       },
 
+      _resetChapterToolbarModes() {
+        const modal = this.chaptersModal;
+        if (!modal) return;
+        if (modal.drawer === DRAWER_SCAN_SCENES) {
+          this.stopScanScenesGrid();
+        }
+        modal.drawer = DRAWER_MAIN;
+        modal.quickSkipOpen = false;
+        modal.shiftOpen = false;
+        modal.menuOpen = false;
+      },
+
+      toggleChapterQuickSkip() {
+        const modal = this.chaptersModal;
+        if (!modal || !modal.hasVideo) return;
+        const nextOpen = !modal.quickSkipOpen;
+        this._resetChapterToolbarModes();
+        modal.quickSkipOpen = nextOpen;
+      },
+
+      toggleChapterShiftBar() {
+        const modal = this.chaptersModal;
+        if (!modal || modal.chapters.length === 0) return;
+        const nextOpen = !modal.shiftOpen;
+        this._resetChapterToolbarModes();
+        modal.shiftOpen = nextOpen;
+      },
+
       toggleChapterDrawer(drawerName) {
         const modal = this.chaptersModal;
         if (!modal) return;
-        modal.quickSkipOpen = false;
-        modal.menuOpen = false;
-        modal.shiftOpen = false;
         const nextDrawer =
           modal.drawer === drawerName ? DRAWER_MAIN : drawerName;
-        if (modal.drawer === DRAWER_SCAN_SCENES && nextDrawer !== DRAWER_SCAN_SCENES) {
-          this.stopScanScenesGrid();
-        }
+        this._resetChapterToolbarModes();
         modal.drawer = nextDrawer;
         if (
           nextDrawer === DRAWER_SCAN_SCENES &&
           modal.hasVideo &&
-          modal.scanTiles.length === 0
+          (modal.scanTiles.length === 0 || modal.scanTiles.some((t) => !t.url))
         ) {
           this.loadScanScenesGrid();
         }
@@ -880,26 +969,29 @@
         if (!modal || !modal.hasVideo) return;
         const runId = ++rt.scanRunSeq;
         this._abortChapterFrameRequests();
-        this._clearScanSceneTileUrls();
 
-        const slots = Ch.buildScanSceneSlots(modal.durationMs, modal.scanDensity);
-        modal.scanTiles = slots.map((tsMs) => ({
-          tsMs,
-          timeText: Ch.formatChapterTime(tsMs),
-          url: null,
-        }));
-        modal.scanLoadedCount = 0;
-        modal.scanTotalCount = slots.length;
-        modal.scanLoading = slots.length > 0;
+        if (modal.scanTiles.length === 0) {
+          const slots = Ch.buildScanSceneSlots(modal.durationMs, modal.scanDensity);
+          modal.scanTiles = slots.map((tsMs) => ({
+            tsMs,
+            timeText: Ch.formatChapterTime(tsMs),
+            url: null,
+          }));
+          modal.scanLoadedCount = 0;
+          modal.scanTotalCount = slots.length;
+        }
+
+        const hasMissingTiles = modal.scanTiles.some((tile) => !tile.url);
+        modal.scanLoading = hasMissingTiles;
         modal.conflictMessage = null;
-
-        if (slots.length === 0) return;
+        if (!hasMissingTiles) return;
 
         const controller = new AbortController();
         rt.abortController = controller;
 
         for (let i = 0; i < modal.scanTiles.length; i += 1) {
           const tile = this.chaptersModal.scanTiles[i];
+          if (tile.url) continue;
           const res = await this._fetchChapterFrameObjectUrl(
             tile.tsMs,
             C.SCENE_PICKER.MODE_FAST,
@@ -916,8 +1008,10 @@
             }
             return;
           }
-          tile.url = res.url;
-          this.chaptersModal.scanLoadedCount += 1;
+          if (res.url) {
+            tile.url = res.url;
+            this.chaptersModal.scanLoadedCount += 1;
+          }
         }
 
         if (runId === rt.scanRunSeq && this.chaptersModal) {
@@ -955,7 +1049,7 @@
         this._clearChapterRailThumbUrls();
         modal.chapters = _toModalRows(modal, Ch.ensureZeroStartChapter(combined));
         modal.scanSelectedTsList = [];
-        modal.drawer = DRAWER_MAIN;
+        this._resetChapterToolbarModes();
       },
 
       fineTuneScanTile(tsMs) {

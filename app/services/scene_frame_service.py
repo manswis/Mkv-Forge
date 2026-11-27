@@ -32,7 +32,24 @@ _JPEG_MAGIC: bytes = b"\xff\xd8\xff"
 _MIN_JPEG_BYTES: int = 8
 _IONICE_ERROR_MARKERS: tuple[str, ...] = ("ionice:", "ioprio_set")
 _FRAME_SEMAPHORE = asyncio.Semaphore(AppConstants.SCENE_FRAME_MAX_CONCURRENCY)
+_ACTIVE_FILE_CANCEL_EVENTS: dict[Path, asyncio.Event] = {}
 _ionice_frame_disabled: bool = False
+
+
+def _register_file_cancel_event(file_key: Path) -> asyncio.Event:
+    """Register a latest-wins cancel event for `file_key`, superseding any older call."""
+    prev = _ACTIVE_FILE_CANCEL_EVENTS.get(file_key)
+    if prev is not None:
+        prev.set()
+    current = asyncio.Event()
+    _ACTIVE_FILE_CANCEL_EVENTS[file_key] = current
+    return current
+
+
+def _release_file_cancel_event(file_key: Path, current: asyncio.Event) -> None:
+    """Remove `current` if no newer request for `file_key` has superseded it."""
+    if _ACTIVE_FILE_CANCEL_EVENTS.get(file_key) is current:
+        _ACTIVE_FILE_CANCEL_EVENTS.pop(file_key, None)
 
 
 class SceneFrameError(RuntimeError):
@@ -190,12 +207,19 @@ async def _terminate_subprocess(proc: asyncio.subprocess.Process) -> None:
 
 
 async def _poll_disconnect(
-    is_disconnected: DisconnectChecker,
+    is_disconnected: DisconnectChecker | None,
     poll_interval_sec: float,
+    cancel_event: asyncio.Event,
 ) -> bool:
-    """Resolve with `True` once `is_disconnected()` reports True; tolerate polling errors safely."""
+    """Resolve True immediately when `cancel_event` fires or `is_disconnected()` reports True."""
     while True:
-        await asyncio.sleep(poll_interval_sec)
+        try:
+            await asyncio.wait_for(cancel_event.wait(), timeout=poll_interval_sec)
+            return True
+        except asyncio.TimeoutError:
+            pass
+        if is_disconnected is None:
+            continue
         try:
             if await is_disconnected():
                 return True
@@ -211,8 +235,9 @@ async def _run_frame_subprocess(
     preexec_fn: object | None,
     is_disconnected: DisconnectChecker | None,
     disconnect_poll_sec: float,
+    cancel_event: asyncio.Event | None = None,
 ) -> tuple[int, bytes, bytes]:
-    """Execute one FFmpeg frame command with disconnect-aware termination and timeout."""
+    """Execute one FFmpeg frame command with disconnect/supersede termination and timeout."""
     proc = await asyncio.create_subprocess_exec(
         *argv,
         stdin=asyncio.subprocess.DEVNULL,
@@ -221,9 +246,12 @@ async def _run_frame_subprocess(
         preexec_fn=preexec_fn,  # type: ignore[arg-type]
     )
     comm_task = asyncio.create_task(proc.communicate())
+    effective_cancel = cancel_event if cancel_event is not None else asyncio.Event()
     disc_task: asyncio.Task[bool] | None = (
-        asyncio.create_task(_poll_disconnect(is_disconnected, disconnect_poll_sec))
-        if is_disconnected is not None
+        asyncio.create_task(
+            _poll_disconnect(is_disconnected, disconnect_poll_sec, effective_cancel)
+        )
+        if is_disconnected is not None or cancel_event is not None
         else None
     )
     tasks: set[asyncio.Task] = {comm_task}
@@ -302,6 +330,7 @@ async def _run_with_ionice_fallback(
     timeout_sec: float,
     is_disconnected: DisconnectChecker | None,
     disconnect_poll_sec: float,
+    cancel_event: asyncio.Event | None = None,
 ) -> tuple[int, bytes, bytes]:
     """Execute `base_argv` with optional latched `ionice` wrapper and unified error mapping."""
     use_ionice = bool(
@@ -316,6 +345,7 @@ async def _run_with_ionice_fallback(
                 preexec_fn=preexec_fn,
                 is_disconnected=is_disconnected,
                 disconnect_poll_sec=disconnect_poll_sec,
+                cancel_event=cancel_event,
             )
         except (SceneFrameCancelledError, asyncio.CancelledError):
             raise
@@ -345,6 +375,7 @@ async def _run_with_ionice_fallback(
             preexec_fn=preexec_fn,
             is_disconnected=is_disconnected,
             disconnect_poll_sec=disconnect_poll_sec,
+            cancel_event=cancel_event,
         )
     except (SceneFrameCancelledError, asyncio.CancelledError):
         raise
@@ -384,49 +415,58 @@ async def extract_scene_frame(
         else None
     )
 
-    async with _FRAME_SEMAPHORE:
-        if is_disconnected is not None and await is_disconnected():
-            raise SceneFrameCancelledError("Client disconnected before frame extraction")
+    file_key = abs_path.resolve()
+    cancel_event = _register_file_cancel_event(file_key)
+    try:
+        async with _FRAME_SEMAPHORE:
+            if cancel_event.is_set():
+                raise SceneFrameCancelledError("Superseded by a newer scene frame request")
+            if is_disconnected is not None and await is_disconnected():
+                raise SceneFrameCancelledError("Client disconnected before frame extraction")
 
-        returncode, stdout_bytes, stderr_bytes = await _run_with_ionice_fallback(
-            base_argv,
-            abs_path=abs_path,
-            low_io_priority=low_io_priority,
-            preexec_fn=preexec_fn,
-            timeout_sec=timeout_sec,
-            is_disconnected=is_disconnected,
-            disconnect_poll_sec=disconnect_poll_sec,
-        )
-
-        if not _is_valid_jpeg_output(returncode, stdout_bytes):
-            excerpt = stderr_bytes.decode(
-                AppConstants.UTF8_ENCODING, errors="replace"
-            ).strip()[: AppConstants.MAX_ERROR_EXCERPT_LEN]
-            logger.warning(
-                "Primary scene frame failed for %s (ts_ms=%d mode=%s rc=%d bytes=%d stderr=%r); "
-                "retrying with resilient fallback",
-                abs_path.name,
-                ts_ms,
-                mode,
-                returncode,
-                len(stdout_bytes),
-                excerpt,
-            )
-            fallback_argv = build_scene_frame_ffmpeg_command(
-                abs_path,
-                ts_ms=ts_ms,
-                mode=mode,
-                resilient_fallback=True,
-            )
             returncode, stdout_bytes, stderr_bytes = await _run_with_ionice_fallback(
-                fallback_argv,
+                base_argv,
                 abs_path=abs_path,
                 low_io_priority=low_io_priority,
                 preexec_fn=preexec_fn,
                 timeout_sec=timeout_sec,
                 is_disconnected=is_disconnected,
                 disconnect_poll_sec=disconnect_poll_sec,
+                cancel_event=cancel_event,
             )
+
+            if not _is_valid_jpeg_output(returncode, stdout_bytes):
+                excerpt = stderr_bytes.decode(
+                    AppConstants.UTF8_ENCODING, errors="replace"
+                ).strip()[: AppConstants.MAX_ERROR_EXCERPT_LEN]
+                logger.warning(
+                    "Primary scene frame failed for %s (ts_ms=%d mode=%s rc=%d bytes=%d stderr=%r); "
+                    "retrying with resilient fallback",
+                    abs_path.name,
+                    ts_ms,
+                    mode,
+                    returncode,
+                    len(stdout_bytes),
+                    excerpt,
+                )
+                fallback_argv = build_scene_frame_ffmpeg_command(
+                    abs_path,
+                    ts_ms=ts_ms,
+                    mode=mode,
+                    resilient_fallback=True,
+                )
+                returncode, stdout_bytes, stderr_bytes = await _run_with_ionice_fallback(
+                    fallback_argv,
+                    abs_path=abs_path,
+                    low_io_priority=low_io_priority,
+                    preexec_fn=preexec_fn,
+                    timeout_sec=timeout_sec,
+                    is_disconnected=is_disconnected,
+                    disconnect_poll_sec=disconnect_poll_sec,
+                    cancel_event=cancel_event,
+                )
+    finally:
+        _release_file_cancel_event(file_key, cancel_event)
 
     if returncode != AppConstants.EXIT_CODE_SUCCESS:
         excerpt = stderr_bytes.decode(

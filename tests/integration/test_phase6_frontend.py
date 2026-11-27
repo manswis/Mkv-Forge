@@ -469,7 +469,7 @@ class TestEditorJsLogicAndBackendContract:
     ) -> None:
         """Verify Editor back button targets parent folder and every path segment is tappable."""
         html = (await api_client.get("/")).text
-        assert '@click="backToParentFolder()"' in html
+        assert "@click=\"requestCloseEditor('button')\"" in html
         assert "editorFolderBreadcrumbs" in html
         assert '@click="openFolderInLibrary(crumb.path)"' in html
 

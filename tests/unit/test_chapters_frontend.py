@@ -81,7 +81,7 @@ class TestChaptersFrontendConstantsAndApi:
         if (JSON.stringify(C.SCENE_PICKER.SCAN_DENSITY_PRESETS) !== "[12,24,40]") throw new Error("SCAN_DENSITY_PRESETS mismatch");
         if (C.SCENE_PICKER.SCAN_DEFAULT_DENSITY !== 24) throw new Error("SCAN_DEFAULT_DENSITY mismatch");
         if (C.SCENE_PICKER.SCAN_DENSITY_STORAGE_KEY !== "mkvforge.scene_scan_density") throw new Error("SCAN_DENSITY_STORAGE_KEY mismatch");
-        if (C.SCENE_PICKER.FINE_TUNE_DEBOUNCE_MS !== 180) throw new Error("FINE_TUNE_DEBOUNCE_MS mismatch");
+        if (C.SCENE_PICKER.FINE_TUNE_DEBOUNCE_MS !== 300) throw new Error("FINE_TUNE_DEBOUNCE_MS mismatch");
         if (C.NAV_HISTORY.LAYERS.CHAPTERS_MODAL !== "chapters_modal") throw new Error("CHAPTERS_MODAL layer missing");
 
         // 2. buildSceneFrameUrl positive & negative edge cases
@@ -548,6 +548,7 @@ class TestChaptersControllerLifecycle:
         let inFlight = 0;
         let maxInFlight = 0;
         let abortEventsCount = 0;
+        const frameFetchLog = [];
         let nextFrameBehavior = "ok";
         let chaptersGetBehavior = "ok";
         let parsePostBehavior = "ok";
@@ -612,6 +613,7 @@ class TestChaptersControllerLifecycle:
               }};
             }}
             // Frame fetch: enforce strict serial concurrency (max 1 non-aborted in-flight request)
+            frameFetchLog.push(String(url));
             let released = false;
             const release = () => {{
               if (!released) {{
@@ -694,11 +696,25 @@ class TestChaptersControllerLifecycle:
 
         (async () => {{
           const app = makeApp();
-          // 1. Open modal -> loads chapters, sets hasComplexChapters, fetches ZERO frames
+          // 1. Open modal -> loads chapters, sets hasComplexChapters, fetches ZERO frames, Done starts DISABLED
           await app.openChaptersModal();
           if (createdSeq !== 0) throw new Error("Must fetch ZERO frames on modal open");
           if (!app.chaptersModal.hasComplexChapters) throw new Error("Expected hasComplexChapters=true");
           if (app.chaptersModal.chapters.length !== 2) throw new Error("Expected 2 loaded chapters");
+          if (app.chaptersModalHasChanges() !== false) throw new Error("Done must be disabled before any chapter change");
+          app.commitChaptersModal(); // no-op while unchanged!
+          if (!app.chaptersModal) throw new Error("commitChaptersModal must be a no-op when unchanged");
+          // Modifying title or live valid timeText enables Done; reverting disables Done again
+          app.chaptersModal.chapters[0].title = "Renamed Intro";
+          if (app.chaptersModalHasChanges() !== true) throw new Error("Title edit must enable Done");
+          app.chaptersModal.chapters[0].title = "Intro";
+          if (app.chaptersModalHasChanges() !== false) throw new Error("Reverting title must disable Done again");
+          app.chaptersModal.chapters[1].timeText = "bad-ts";
+          if (app.chaptersModalHasChanges() !== false) throw new Error("Invalid timeText alone must not enable Done");
+          app.chaptersModal.chapters[1].timeText = "00:01:05";
+          if (app.chaptersModalHasChanges() !== true) throw new Error("Valid live timeText edit must enable Done");
+          app.chaptersModal.chapters[1].timeText = "00:01:00";
+          if (app.chaptersModalHasChanges() !== false) throw new Error("Reverting timeText must disable Done again");
 
           // 2. Scrubber tap #1 AND immediate tap #2 under Alpine-like reactive Proxy!
           const proxiedApp = new Proxy(app, {{
@@ -733,10 +749,37 @@ class TestChaptersControllerLifecycle:
             throw new Error("Second tap under Alpine Proxy MUST load all 3 Draft Peek frames!");
           }}
 
-          // 3. Nudge Draft Peek + debounced accurate refresh + quick title + commit (stays pinned, zero layout jump!)
-          app.nudgeChapterDraftPeek(5);
+          // 3. Rapid bombardment (+30s / -5s / +5s burst) coalesces via 300ms debounce into ZERO mid-burst HTTP calls,
+          //    then refreshes ALL 3 frames in priority serial order: Center (accurate) -> Left -15s (fast) -> Right +15s (fast)!
+          const urlsBeforeNudge = app.chaptersModal.draftPeek.frames.map((f) => f.url);
+          frameFetchLog.length = 0;
+          for (const delta of [30, -5, 5, -30, 5]) {{
+            app.nudgeChapterDraftPeek(delta);
+            await new Promise((r) => setTimeout(r, 25));
+          }}
+          if (frameFetchLog.length !== 0) {{
+            throw new Error(`Expected ZERO HTTP requests during rapid nudge bombardment, got ${{frameFetchLog.length}}`);
+          }}
+          if (!app.chaptersModal.draftPeek.frames.every((f) => f.loading === true && Boolean(f.url))) {{
+            throw new Error("Nudge must keep previous frame URLs visible with per-frame loading=true");
+          }}
           app.setDraftPeekQuickTitle("Dream Level 1");
-          await new Promise((r) => setTimeout(r, 220));
+          await new Promise((r) => setTimeout(r, 360));
+          const urlsAfterNudge = app.chaptersModal.draftPeek.frames.map((f) => f.url);
+          for (let i = 0; i < 3; i++) {{
+            if (!urlsAfterNudge[i] || urlsAfterNudge[i] === urlsBeforeNudge[i]) {{
+              throw new Error(`Expected frame[${{i}}] URL to refresh after nudge (before=${{urlsBeforeNudge[i]}} after=${{urlsAfterNudge[i]}})`);
+            }}
+            if (app.chaptersModal.draftPeek.frames[i].loading !== false) {{
+              throw new Error(`Expected frame[${{i}}].loading=false after nudge refresh`);
+            }}
+          }}
+          if (frameFetchLog.length !== 3) {{
+            throw new Error(`Expected 3 serial frame fetches on nudge, got ${{frameFetchLog.length}}`);
+          }}
+          if (!frameFetchLog[0].includes("mode=accurate") || !frameFetchLog[1].includes("mode=fast") || !frameFetchLog[2].includes("mode=fast")) {{
+            throw new Error("Expected nudge fetch priority: Center (accurate) -> Left (fast) -> Right (fast), got " + JSON.stringify(frameFetchLog));
+          }}
           app.commitChapterDraftPeek();
           if (app.chaptersModal.chapters.length !== 3) throw new Error("Expected 3 chapters after adding Draft Peek");
           if (!app.chaptersModal.draftPeek || app.chaptersModal.draftPeek.added !== true) {{
@@ -761,7 +804,7 @@ class TestChaptersControllerLifecycle:
             throw new Error("Expected expanded accurate frame");
           }}
           app.nudgeChapterRow(firstKey, 1);
-          await new Promise((r) => setTimeout(r, 220));
+          await new Promise((r) => setTimeout(r, 340));
           app.setChapterRowQuickTitle(firstKey, "Opening");
           await app.toggleChapterRowPreview(firstKey); // collapse
           if (app.chaptersModal.expandedChapterKey !== null) throw new Error("Expected collapsed");
@@ -774,19 +817,89 @@ class TestChaptersControllerLifecycle:
           await app.toggleChapterRailPreviews(); // hide
           if (app.chaptersModal.previewsActive) throw new Error("Expected previews hidden");
 
-          // 7. Scan Scenes 1-level grid (12 / 24 / 40) + localStorage persistence + multi-select + add
-          storage.set("mkvforge.scene_scan_density", "12");
+          // 7. Scan Scenes 1-level grid (24 default -> 12): partial scan -> fine-tune (+30/-5/+5) -> return MUST resume missing tiles without re-fetching loaded ones!
           app.toggleChapterDrawer("scan_scenes");
-          await new Promise((r) => setTimeout(r, 120));
+          // Interrupt scan mid-stream (only first few tiles loaded, remaining tiles still url=null)
+          await new Promise((r) => setTimeout(r, 12));
+          const totalTiles = app.chaptersModal.scanTiles.length;
+          if (totalTiles !== 24) throw new Error(`Expected default 24 scan tiles, got ${{totalTiles}}`);
+          const partialUrlsBeforeFineTune = app.chaptersModal.scanTiles.map((t) => t.url);
+          const loadedBeforeFineTune = partialUrlsBeforeFineTune.filter(Boolean).length;
+          if (loadedBeforeFineTune === 0 || loadedBeforeFineTune >= totalTiles) {{
+            throw new Error(`Expected partial scan before fine-tune, got ${{loadedBeforeFineTune}}/${{totalTiles}}`);
+          }}
+          // Fine-tune a tile and nudge +30s / -5s / +5s like live user flow
+          app.fineTuneScanTile(app.chaptersModal.scanTiles[0].tsMs);
+          app.nudgeChapterDraftPeek(30);
+          app.nudgeChapterDraftPeek(-5);
+          app.nudgeChapterDraftPeek(5);
+          await new Promise((r) => setTimeout(r, 350));
+          // Navigate back to Scan Scenes -> MUST resume ONLY missing tiles and preserve already-loaded URLs!
+          frameFetchLog.length = 0;
+          app.toggleChapterDrawer("scan_scenes");
+          await new Promise((r) => setTimeout(r, 180));
+          if (!app.chaptersModal.scanTiles.every((t) => Boolean(t.url))) {{
+            throw new Error("Returning to partial Scan Scenes MUST finish loading all remaining tiles!");
+          }}
+          if (app.chaptersModal.scanLoadedCount !== totalTiles) {{
+            throw new Error(`Expected scanLoadedCount=${{totalTiles}}, got ${{app.chaptersModal.scanLoadedCount}}`);
+          }}
+          for (let i = 0; i < loadedBeforeFineTune; i++) {{
+            if (app.chaptersModal.scanTiles[i].url !== partialUrlsBeforeFineTune[i]) {{
+              throw new Error(`Tile #${{i}} was unexpectedly re-fetched instead of preserved in RAM!`);
+            }}
+          }}
+          if (frameFetchLog.length !== totalTiles - loadedBeforeFineTune) {{
+            throw new Error(`Expected exactly ${{totalTiles - loadedBeforeFineTune}} resumed fetches, got ${{frameFetchLog.length}}`);
+          }}
           app.selectScanScenesDensity(12);
           await new Promise((r) => setTimeout(r, 120));
           if (storage.get("mkvforge.scene_scan_density") !== "12") throw new Error("Density not persisted");
-          if (app.chaptersModal.scanTiles.length !== 12) throw new Error("Expected 12 scan tiles");
+          if (app.chaptersModal.scanTiles.length !== 12) throw new Error("Expected 12 scan tiles after density switch");
           app.toggleScanTileSelection(app.chaptersModal.scanTiles[1].tsMs);
           app.addSelectedScanTiles();
           if (app.chaptersModal.drawer !== "main") throw new Error("Expected return to main drawer");
 
-          // 8. Quick Skip, Renumber, Shift All, Export .txt & .xml, Paste/Upload, Reset, Clear
+          // 8. Mutually-exclusive toolbar transitions (at most ONE of Quick Skip / Paste / Scan Scenes / Shift All active!)
+          const assertExclusive = (label) => {{
+            const m = app.chaptersModal;
+            const activeCount =
+              (m.quickSkipOpen ? 1 : 0) +
+              (m.shiftOpen ? 1 : 0) +
+              (m.drawer === "paste" ? 1 : 0) +
+              (m.drawer === "scan_scenes" ? 1 : 0);
+            if (activeCount > 1) {{
+              throw new Error(`Multiple chapter toolbar modes active after ${{label}}: quickSkip=${{m.quickSkipOpen}} shift=${{m.shiftOpen}} drawer=${{m.drawer}}`);
+            }}
+          }};
+          app.toggleChapterDrawer("paste");
+          assertExclusive("open paste");
+          app.toggleChapterQuickSkip();
+          assertExclusive("paste -> quickSkip");
+          if (!app.chaptersModal.quickSkipOpen || app.chaptersModal.drawer !== "main") {{
+            throw new Error("Quick Skip must close Paste drawer and return to main");
+          }}
+          app.toggleChapterDrawer("scan_scenes");
+          assertExclusive("quickSkip -> scan_scenes");
+          app.toggleChapterQuickSkip();
+          assertExclusive("scan_scenes -> quickSkip");
+          if (app.chaptersModal.drawer !== "main" || app.chaptersModal.scanLoading) {{
+            throw new Error("Quick Skip must stop Scan Scenes and return to main");
+          }}
+          app.toggleChapterShiftBar();
+          assertExclusive("quickSkip -> shift");
+          if (!app.chaptersModal.shiftOpen || app.chaptersModal.quickSkipOpen) {{
+            throw new Error("Shift All must close Quick Skip");
+          }}
+          app.toggleChapterShiftBar(); // toggle off
+          app.toggleChapterDrawer("paste");
+          app.addManualChapterRow();
+          assertExclusive("paste -> + Add");
+          if (app.chaptersModal.drawer !== "main") {{
+            throw new Error("+ Add must close Paste drawer and return to main");
+          }}
+
+          // Quick Skip, Renumber, Shift All, Export .txt & .xml, Paste/Upload, Reset, Clear
           app.applyQuickSkipInterval(1);
           if (app.chaptersModal.chapters.length !== 2) throw new Error("Expected 2 quick-skip chapters for 120s/1m");
           app.renumberChapters();
@@ -818,10 +931,13 @@ class TestChaptersControllerLifecycle:
             throw new Error(`ObjectURL leak! created=${{createdSeq}} revoked=${{revokedUrls.length}}`);
           }}
 
-          // 11. Re-opening when already loaded skips GET /chapters and loads edited list
+          // 11. Re-opening when already loaded skips GET /chapters, starts Done DISABLED until Reset/Clear
           await app.openChaptersModal();
+          if (app.chaptersModalHasChanges() !== false) throw new Error("Done must be disabled on reopen before editing");
           app.resetChaptersToOriginal();
+          if (app.chaptersModalHasChanges() !== true) throw new Error("Reset to Original must enable Done");
           app.clearAllChapters();
+          if (app.chaptersModalHasChanges() !== true) throw new Error("Clear All must enable Done");
           app.commitChaptersModal();
           if (app.editor.chaptersAction !== "clear" || !app.editor.stripChapters) {{
             throw new Error("Expected clear + stripChapters=true after Clear All");
@@ -996,15 +1112,22 @@ class TestChaptersControllerLifecycle:
             currentTarget: {{ getBoundingClientRect: () => ({{ left: 0, width: 100 }}) }},
           }});
           await new Promise((r) => setTimeout(r, 20));
-          // Nudge and WAIT full debounce so _refreshDraftPeekCenterAccurate executes and revokes old center URL
+          // Nudge and WAIT full debounce so _refreshDraftPeekFrames refreshes all 3 frames & revokes old URLs
           app.nudgeChapterDraftPeek(5);
-          await new Promise((r) => setTimeout(r, 210));
-          // Stale runId guard before fetch & stale close mid-fetch in _refreshDraftPeekCenterAccurate
-          await app._refreshDraftPeekCenterAccurate(-1);
+          await new Promise((r) => setTimeout(r, 350));
+          // Cover 204 failure and 409 conflict branches during _refreshDraftPeekFrames
+          frameBehavior = "204";
+          app.nudgeChapterDraftPeek(1);
+          await new Promise((r) => setTimeout(r, 350));
+          frameBehavior = "conflict";
+          app.nudgeChapterDraftPeek(1);
+          await new Promise((r) => setTimeout(r, 350));
+          // Stale runId guard before fetch & stale close mid-fetch in _refreshDraftPeekFrames
+          await app._refreshDraftPeekFrames(-1);
           frameBehavior = "delay";
           app.nudgeChapterDraftPeek(1);
-          await new Promise((r) => setTimeout(r, 195));
-          app.openChapterDraftPeek(60000); // bumps peekRunSeq while accurate fetch is in-flight
+          await new Promise((r) => setTimeout(r, 315));
+          app.openChapterDraftPeek(60000); // bumps peekRunSeq while nudge refresh is in-flight
           await new Promise((r) => setTimeout(r, 30));
           frameBehavior = "ok";
           await app.openChapterDraftPeek(60000);
@@ -1027,12 +1150,12 @@ class TestChaptersControllerLifecycle:
           frameBehavior = "204";
           await app.toggleChapterRowPreview(k0); // expandedFrameError on open
           app.nudgeChapterRow(k0, 2);
-          await new Promise((r) => setTimeout(r, 210)); // expandedFrameError on debounced refresh
+          await new Promise((r) => setTimeout(r, 330)); // expandedFrameError on debounced refresh
           frameBehavior = "ok";
           app.nudgeChapterRow(k0, 1);
-          await new Promise((r) => setTimeout(r, 210)); // success on debounced refresh (revokes previous)
+          await new Promise((r) => setTimeout(r, 330)); // success on debounced refresh (revokes previous)
           app.nudgeChapterRow(k0, 1);
-          await new Promise((r) => setTimeout(r, 210)); // revokes previous expandedFrameUrl
+          await new Promise((r) => setTimeout(r, 330)); // revokes previous expandedFrameUrl
           // Close modal mid-fetch to exercise stale-modal guards
           frameBehavior = "delay";
           const k1 = app.chaptersModal.chapters[1]._key;
@@ -1075,12 +1198,16 @@ class TestChaptersControllerLifecycle:
           app.toggleChapterDrawer("scan_scenes");
           await new Promise((r) => setTimeout(r, 3));
           app.toggleChapterDrawer("main"); // triggers stopScanScenesGrid
+          frameBehavior = "204";
+          app.chaptersModal.scanTiles = [];
+          await app.loadScanScenesGrid(); // exercises !res.url branch in scan grid
           frameBehavior = "conflict";
           app.chaptersModal.scanTiles = [];
           await app.loadScanScenesGrid();
           frameBehavior = "ok";
           app.selectScanScenesDensity(12);
           await new Promise((r) => setTimeout(r, 40));
+          await app.loadScanScenesGrid(); // all tiles loaded -> !hasMissingTiles early return
           app.selectScanScenesDensity(24); // revokes loaded 12 tile URLs!
           await new Promise((r) => setTimeout(r, 40));
           app.toggleScanTileSelection(app.chaptersModal.scanTiles[0].tsMs);
@@ -1106,6 +1233,10 @@ class TestChaptersControllerLifecycle:
           frameBehavior = "ok";
 
           // Quick skip, renumber, shift, export (with and without document)
+          app.toggleChapterQuickSkip();
+          app.toggleChapterQuickSkip(); // toggle off
+          app.toggleChapterShiftBar();
+          app.toggleChapterShiftBar(); // toggle off
           app.applyQuickSkipInterval(1);
           app.renumberChapters();
           app.chaptersModal.shiftDraftSec = "2";
@@ -1151,8 +1282,16 @@ class TestChaptersControllerLifecycle:
           revokeThrows = true;
           const appNoVid = makeApp({{ ...file, duration_us: 0 }});
           await appNoVid._fetchChapterFrameObjectUrl(0, "fast", null); // !modal branch
+          appNoVid.chaptersModalHasChanges(); // !modal branch
+          appNoVid.commitChaptersModal(); // !modal branch
+          appNoVid._resetChapterToolbarModes(); // !modal branch
+          appNoVid.toggleChapterQuickSkip(); // !modal branch
+          appNoVid.toggleChapterShiftBar(); // !modal branch
           getBehavior = "conflict";
           await appNoVid.openChaptersModal();
+          appNoVid.toggleChapterQuickSkip(); // !modal.hasVideo branch
+          appNoVid.chaptersModal.chapters = [];
+          appNoVid.toggleChapterShiftBar(); // chapters.length === 0 branch
           await appNoVid._fetchChapterFrameObjectUrl(0, "fast", null); // !modal.hasVideo branch
           appNoVid.closeChaptersModal();
           getBehavior = "error";

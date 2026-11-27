@@ -622,6 +622,7 @@
       editor: null,
       editorSubmitting: false,
       editorRescanning: false,
+      editorDiscardConfirmOpen: false,
 
       // Unified + Add / Convert Track menu, Convert Audio modal & Import External Track modal
       addAudioMenuOpen: false,
@@ -764,11 +765,20 @@
               this._scheduleMobileNavSync();
             }
           );
+          this.$watch(
+            () => this.hasActiveModalOverlay,
+            (locked) => {
+              this._syncBodyScrollLock(locked);
+            }
+          );
         }
+        this._syncBodyScrollLock(this.hasActiveModalOverlay);
 
         window.addEventListener("keydown", (event) => {
           if (event.key === "Escape") {
-            if (this.scanMenuOpen) {
+            if (this.editorDiscardConfirmOpen) {
+              this.cancelDiscardEditorChanges();
+            } else if (this.scanMenuOpen) {
               this.scanMenuOpen = false;
             } else if (this.contextMenu) {
               this.closeContextMenu();
@@ -798,6 +808,8 @@
               this.addAudioMenuOpen = false;
             } else if (this.jobsDrawerOpen) {
               this.closeJobsDrawer();
+            } else if (this.route === C.ROUTES.EDITOR) {
+              this.requestCloseEditor("escape");
             }
           }
         });
@@ -2832,6 +2844,44 @@
       },
 
       // Routing helpers
+      get isEditorOpen() {
+        return this.route === C.ROUTES.EDITOR;
+      },
+
+      get showLibraryViewport() {
+        return this.route === C.ROUTES.LIBRARY || this.route === C.ROUTES.EDITOR;
+      },
+
+      get hasActiveModalOverlay() {
+        return Boolean(
+          this.isEditorOpen ||
+            this.editorDiscardConfirmOpen ||
+            this.chaptersModal ||
+            this.addAudioModalOpen ||
+            this.importTrackModal ||
+            this.folderPickerOpen ||
+            this.batchModal ||
+            this.infoModal ||
+            this.isSettingsOpen ||
+            this.jobsDrawerOpen ||
+            this.testMediaModalOpen ||
+            this.deleteModal ||
+            this.renameModal ||
+            this.newFolderModal ||
+            this.cancelJobModal ||
+            this.factoryResetModalOpen ||
+            this.logoutConfirmOpen
+        );
+      },
+
+      _syncBodyScrollLock(locked = this.hasActiveModalOverlay) {
+        if (typeof document === "undefined" || !document.body) return;
+        const nextOverflow = locked ? "hidden" : "";
+        if (document.body.style.overflow !== nextOverflow) {
+          document.body.style.overflow = nextOverflow;
+        }
+      },
+
       get isSettingsOpen() {
         return Boolean(this.settingsModalOpen || this.route === C.ROUTES.SETTINGS);
       },
@@ -3089,6 +3139,10 @@
         } else if (parsed.route === C.ROUTES.EDITOR) {
           this.editorFileId = parsed.editorFileId;
         }
+        if (parsed.route !== C.ROUTES.EDITOR) {
+          this.editorDiscardConfirmOpen = false;
+        }
+        this._syncBodyScrollLock(this.hasActiveModalOverlay);
 
         if (!shouldLoad) return;
         this._loadCurrentRoute();
@@ -3116,6 +3170,9 @@
         if (this.renameModal) active.push(L.RENAME_MODAL || "rename_modal");
         if (this.newFolderModal) active.push(L.NEW_FOLDER_MODAL || "new_folder_modal");
         if (this.cancelJobModal) active.push(L.CANCEL_JOB_MODAL || "cancel_job_modal");
+        if (this.editorDiscardConfirmOpen) {
+          active.push(L.EDITOR_DISCARD_MODAL || "editor_discard_modal");
+        }
         if (this.contextMenu) active.push(L.CONTEXT_MENU || "context_menu");
         if (this.folderBarMenuOpen) active.push(L.FOLDER_BAR_MENU || "folder_bar_menu");
         if (this.scanMenuOpen) active.push(L.SCAN_MENU || "scan_menu");
@@ -3155,6 +3212,9 @@
             break;
           case L.CANCEL_JOB_MODAL || "cancel_job_modal":
             this.closeCancelJobModal();
+            break;
+          case L.EDITOR_DISCARD_MODAL || "editor_discard_modal":
+            this.cancelDiscardEditorChanges();
             break;
           case L.NEW_FOLDER_MODAL || "new_folder_modal":
             this.newFolderModal = null;
@@ -3611,15 +3671,52 @@
         }
       },
 
+      requestCloseEditor(source = "button") {
+        if (this.editorDiscardConfirmOpen) return;
+        const hasUnsaved = Boolean(
+          this.editor &&
+            this.editorFile &&
+            this.editorHasChanges &&
+            !this.isEditorFileBusy &&
+            !this.editorSubmitting
+        );
+        if (hasUnsaved) {
+          if (source === "backdrop") {
+            return;
+          }
+          this.editorDiscardConfirmOpen = true;
+          this._scheduleMobileNavSync();
+          this._syncBodyScrollLock(true);
+          return;
+        }
+        this.backToParentFolder();
+      },
+
+      cancelDiscardEditorChanges() {
+        this.editorDiscardConfirmOpen = false;
+        this._scheduleMobileNavSync();
+        this._syncBodyScrollLock(this.hasActiveModalOverlay);
+      },
+
+      confirmDiscardEditorChanges() {
+        this.editorDiscardConfirmOpen = false;
+        this._scheduleMobileNavSync();
+        this.backToParentFolder();
+      },
+
       backToParentFolder() {
+        this.editorDiscardConfirmOpen = false;
         if (this.returnToLibraryOrigin()) {
+          this._syncBodyScrollLock(this.hasActiveModalOverlay);
           return;
         }
         if (this.editorFile) {
           this.openFolderInLibrary(this.editorFile.folder);
+          this._syncBodyScrollLock(this.hasActiveModalOverlay);
           return;
         }
         this.backToLibrary();
+        this._syncBodyScrollLock(this.hasActiveModalOverlay);
       },
 
       backToLibrary() {
@@ -4936,6 +5033,7 @@
         this.editorError = null;
         this.editorConflictMessage = null;
         this.editorExternalChange = null;
+        this.editorDiscardConfirmOpen = false;
         this.addAudioMenuOpen = false;
         this.addAudioModalOpen = false;
         this.addAudioDraft = null;
@@ -4945,6 +5043,7 @@
         }
         this.folderPickerOpen = false;
         this.folderTree = null;
+        this._syncBodyScrollLock(true);
         try {
           const detail = await Api.getFileDetail(fileId);
           this.editorFile = detail;
@@ -4957,14 +5056,31 @@
             this._pendingOpenChaptersFileId = null;
             this.openChaptersModal();
           }
+          this._hydrateLibraryBehindColdEditor(detail);
         } catch (err) {
           if (err && err.status === 401) return;
           this.editorFile = null;
           this.editor = null;
           this.editorError = err.message || "Failed to load media file details";
+          this._hydrateLibraryBehindColdEditor(null);
         } finally {
           this.editorLoading = false;
         }
+      },
+
+      _hydrateLibraryBehindColdEditor(detail) {
+        if (this._lastLoadedLibraryHash || this.files.length > 0 || this.libraryLoading) {
+          return;
+        }
+        if (
+          detail &&
+          detail.folder &&
+          this.isDirView &&
+          !this._getLibraryReturnOrigin()
+        ) {
+          this.currentDir = FT.normalizeFolderPath(detail.folder);
+        }
+        this.loadLibrary({ clearStale: false });
       },
 
       // Chapters Sheet controller methods (delegated from chapters_controller.js)

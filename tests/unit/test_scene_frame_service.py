@@ -600,3 +600,120 @@ class TestExtractSceneFrameCancellationIoniceAndErrors:
         )
         assert "-err_detect" in fb_acc and "ignore_err" in fb_acc
         assert fb_acc[fb_acc.index("-ss") + 1] == "15.000"
+
+    async def test_server_latest_wins_superseding_and_different_file_isolation(
+        self, tmp_path: Path
+    ) -> None:
+        """Rapid bombardment on the same file immediately cancels obsolete ffmpeg without affecting other files."""
+        movie_a = tmp_path / "movie_a.mkv"
+        movie_b = tmp_path / "movie_b.mkv"
+        movie_a.write_bytes(b"mkv-a")
+        movie_b.write_bytes(b"mkv-b")
+
+        from app.services import scene_frame_service as sfs
+
+        # 1. In-flight superseding even when is_disconnected always returns False (lagging reverse proxy)
+        req1_started = asyncio.Event()
+        req1_terminated = False
+        spawn_count = 0
+
+        async def _fake_exec(*argv, **_kwargs):
+            nonlocal req1_terminated, spawn_count
+            spawn_count += 1
+            call_num = spawn_count
+            if call_num == 1:
+                req1_started.set()
+
+                async def _slow_comm():
+                    await asyncio.sleep(5)
+                    return FAKE_JPEG, b""
+
+                def _term():
+                    nonlocal req1_terminated
+                    req1_terminated = True
+
+                async def _wait_after_term():
+                    await asyncio.sleep(0.02)
+                    return -15
+
+                return SimpleNamespace(
+                    returncode=None,
+                    communicate=AsyncMock(side_effect=_slow_comm),
+                    terminate=_term,
+                    kill=lambda: None,
+                    wait=AsyncMock(side_effect=_wait_after_term),
+                )
+            return SimpleNamespace(
+                returncode=0,
+                communicate=AsyncMock(return_value=(FAKE_JPEG, b"")),
+                terminate=lambda: None,
+                kill=lambda: None,
+                wait=AsyncMock(return_value=0),
+            )
+
+        async def _never_disconnected() -> bool:
+            return False
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_fake_exec):
+            # Request #1 starts slow ffmpeg; Request #2 arrives mid-flight, then Request #3 immediately supersedes #2 while queued!
+            t1 = asyncio.create_task(
+                extract_scene_frame(
+                    movie_a,
+                    ts_ms=10_000,
+                    is_disconnected=_never_disconnected,
+                    disconnect_poll_sec=0.2,
+                )
+            )
+            await asyncio.wait_for(req1_started.wait(), timeout=1.0)
+            t2 = asyncio.create_task(
+                extract_scene_frame(
+                    movie_a,
+                    ts_ms=20_000,
+                    is_disconnected=_never_disconnected,
+                    disconnect_poll_sec=0.2,
+                )
+            )
+            await asyncio.sleep(0.005)
+            t3 = asyncio.create_task(
+                extract_scene_frame(
+                    movie_a,
+                    ts_ms=30_000,
+                    is_disconnected=_never_disconnected,
+                    disconnect_poll_sec=0.2,
+                )
+            )
+
+            with pytest.raises(SceneFrameCancelledError):
+                await t1
+            with pytest.raises(SceneFrameCancelledError, match="Superseded"):
+                await t2
+            latest_bytes = await t3
+
+        assert req1_terminated is True
+        assert latest_bytes == FAKE_JPEG
+        # Only Request #1 and Request #3 spawned ffmpeg; superseded queued Request #2 NEVER launched ffmpeg!
+        assert spawn_count == 2
+        assert sfs._ACTIVE_FILE_CANCEL_EVENTS == {}
+
+        # 2. Different files do NOT supersede each other (both complete cleanly in serial order)
+        async def _fast_exec(*_argv, **_kwargs):
+            async def _comm():
+                await asyncio.sleep(0.02)
+                return FAKE_JPEG, b""
+
+            return SimpleNamespace(
+                returncode=0,
+                communicate=AsyncMock(side_effect=_comm),
+                terminate=lambda: None,
+                kill=lambda: None,
+                wait=AsyncMock(return_value=0),
+            )
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_fast_exec):
+            res_a, res_b = await asyncio.gather(
+                extract_scene_frame(movie_a, ts_ms=1_000, disconnect_poll_sec=0.005),
+                extract_scene_frame(movie_b, ts_ms=2_000, disconnect_poll_sec=0.005),
+            )
+        assert res_a == FAKE_JPEG
+        assert res_b == FAKE_JPEG
+        assert sfs._ACTIVE_FILE_CANCEL_EVENTS == {}

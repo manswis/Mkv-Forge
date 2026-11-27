@@ -190,15 +190,15 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p19.1" in html
-        assert "/static/js/constants.js?v=0.1.0-p19.1" in html
+        assert "/static/js/constants.js?v=0.1.0-p19.3" in html
         assert "/static/js/api.js?v=0.1.0-p19.1" in html
         assert "/static/js/chapters.js?v=0.1.0-p19.1" in html
-        assert "/static/js/chapters_controller.js?v=0.1.0-p19.4" in html
+        assert "/static/js/chapters_controller.js?v=0.1.0-p19.8" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
         assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
         assert "/static/js/editor.js?v=0.1.0-p19.1" in html
-        assert "/static/js/app.js?v=0.1.0-p19.2" in html
+        assert "/static/js/app.js?v=0.1.0-p19.3" in html
         assert "/static/js/batch.js?v=0.1.0-p18.23" in html
         assert html.index(
             "/static/js/chapters.js") < html.index("/static/js/editor.js")
@@ -554,3 +554,68 @@ class TestIndexHtmlStructure:
         # Material Design inline SVG visibility icon instead of raw eye emoji
         assert "👁" not in html
         assert "M12 4.5C7 4.5 2.73 7.61 1 12" in html
+        # In-frame loading spinner overlays, centered nudge bars with center divider, and live scrubber time readout
+        assert 'x-show="frame.loading"' in html
+        assert 'x-show="chaptersModal.expandedFrameLoading"' in html
+        assert "flex flex-wrap items-center justify-center gap-1.5" in html
+        assert "Math.floor(C.CHAPTERS.NUDGE_STEPS_SEC.length / 2)" in html
+        assert "chaptersModal.draftPeek ? chaptersModal.draftPeek.timeText : ''" in html
+        # Mutually-exclusive chapter toolbar toggles (never allow multiple toolbar panels active simultaneously)
+        assert '@click="toggleChapterQuickSkip()"' in html
+        assert '@click="toggleChapterShiftBar()"' in html
+        assert "chaptersModal.quickSkipOpen = !chaptersModal.quickSkipOpen" not in html
+        # Done button disabled until chapters modified; Cancel always active; Instant Edit pill & CTA have no unicode flash icon
+        assert ':disabled="!chaptersModalHasChanges()"' in html
+        assert "⚡ Apply Instant Edit" not in html
+        assert "⚡ Instant Edit" not in html
+        assert "'Apply Instant Edit'" in html
+        assert "Instant Edit (&lt;1s · no rewrite)" in html
+        # Zero Unicode pictographic emoji icons anywhere in index.html (use offline Material inline SVGs instead)
+        for bad_icon in ("⚡", "📋", "🎬", "🖼", "👁", "✎"):
+            assert bad_icon not in html, f"Unexpected Unicode icon {bad_icon!r} found in index.html"
+
+    def test_single_file_editor_popup_shell_parity_and_z_index_stacking(self) -> None:
+        """Single File Editor matches Batch Studio popup shell (max-w-4xl, z-40) with safe child stacking."""
+        html = INDEX_HTML_PATH.read_text(encoding="utf-8")
+
+        ed_start = html.index("<!-- SCREEN 3: FILE EDITOR")
+        ed_end = html.index("<!-- SCREEN 4: JOBS PAGE", ed_start)
+        ed_block = html[ed_start:ed_end]
+
+        # 1. Popup shell parity with Batch Studio (dialog, z-40, ui-sheet, max-h-[92dvh], max-w-4xl, blurred backdrop)
+        assert 'role="dialog"' in ed_block
+        assert 'aria-modal="true"' in ed_block
+        assert 'aria-label="File Editor"' in ed_block
+        assert "fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4" in ed_block
+        assert "bg-black/75 backdrop-blur-xs" in ed_block
+        assert "ui-sheet relative z-10 flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden" in ed_block
+        assert "<!-- Sticky Bottom Action Bar (File Editor Only)" in ed_block
+
+        # 2. Unsaved-changes guard wired to backdrop and single top-right Close (✕) button (no redundant Back link) + z-[55] confirm alertdialog
+        assert "@click=\"requestCloseEditor('backdrop')\"" in ed_block
+        assert "@click=\"requestCloseEditor('button')\"" in ed_block
+        assert 'aria-label="Close File Editor"' in ed_block
+        assert ':title="editorBackLabel"' in ed_block
+        assert 'x-text="editorBackLabel"' not in ed_block
+        assert 'x-show="editorDiscardConfirmOpen"' in html
+        discard_idx = html.index('x-show="editorDiscardConfirmOpen"')
+        discard_block = html[discard_idx : discard_idx + 2200]
+        assert "z-[55]" in discard_block
+        assert 'role="alertdialog"' in discard_block
+        assert "cancelDiscardEditorChanges()" in discard_block
+        assert "confirmDiscardEditorChanges()" in discard_block
+
+        # 3. Library stays visible behind blurred backdrop and locks internal scroll while any modal is active
+        assert 'x-show="showLibraryViewport"' in html
+        assert ":class=\"hasActiveModalOverlay ? 'overflow-hidden' : 'overflow-y-auto'\"" in html
+
+        # 4. Child modals stack strictly above z-40 Single File Editor (z-50 / z-[55] / z-[60])
+        for marker, expected_z in (
+            ('x-show="addAudioModalOpen && addAudioDraft"', "z-50"),
+            ('x-show="importTrackModal !== null"', "z-50"),
+            ('x-show="chaptersModal !== null"', "z-50"),
+            ('x-show="jobsDrawerOpen"', "z-50"),
+            ('x-show="folderPickerOpen && folderTree"', "z-[60]"),
+        ):
+            idx = html.index(marker)
+            assert expected_z in html[idx : idx + 220], f"Expected {expected_z} on {marker}"

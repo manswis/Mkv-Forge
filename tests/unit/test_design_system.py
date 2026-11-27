@@ -303,11 +303,11 @@ class TestDesignSystemTokensAndPrimitives:
         ed_end = html.index("<!-- SCREEN 4: JOBS PAGE", ed_start)
         ed_block = html[ed_start:ed_end]
 
-        bar_start = html.index("<!-- Sticky Bottom Action Bar")
-        bar_end = html.index("<!-- + Add Audio: Base Audio Selector", bar_start)
+        bar_start = html.index("<!-- Sticky Bottom Action Bar", ed_start)
+        bar_end = ed_end
         bar_block = html[bar_start:bar_end]
 
-        phase4_html = ed_block + "\n" + bar_block
+        phase4_html = ed_block
 
         # Guardrail 4: Zero stray text-[10px] or text-[9px] inside Phase 4 ranges
         assert "text-[10px]" not in phase4_html
@@ -377,7 +377,7 @@ class TestDesignSystemTokensAndPrimitives:
         constants_js = (ROOT_DIR / "app" / "static" / "js" / "constants.js").read_text(encoding="utf-8")
 
         settings_start = html.index("<!-- SCREEN 5: FULL-SCREEN SETTINGS POPUP")
-        settings_end = html.index("<!-- Sticky Bottom Action Bar", settings_start)
+        settings_end = html.index("<!-- + Add Audio: Base Audio Selector", settings_start)
         settings_block = html[settings_start:settings_end]
 
         modals_start = html.index("<!-- + Add Audio: Base Audio Selector")

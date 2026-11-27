@@ -451,6 +451,7 @@ window.MKVForgeConstants = Object.freeze({
       RENAME_MODAL: "rename_modal",
       NEW_FOLDER_MODAL: "new_folder_modal",
       CANCEL_JOB_MODAL: "cancel_job_modal",
+      EDITOR_DISCARD_MODAL: "editor_discard_modal",
       CONTEXT_MENU: "context_menu",
       FOLDER_BAR_MENU: "folder_bar_menu",
       SCAN_MENU: "scan_menu",
@@ -471,6 +472,7 @@ window.MKVForgeConstants = Object.freeze({
       "rename_modal",
       "new_folder_modal",
       "cancel_job_modal",
+      "editor_discard_modal",
       "context_menu",
       "folder_bar_menu",
       "scan_menu",
@@ -942,7 +944,7 @@ window.MKVForgeConstants = Object.freeze({
     SCAN_DEFAULT_DENSITY: 24,
     SCAN_MAX_SLOTS: 60,
     SCAN_DENSITY_STORAGE_KEY: "mkvforge.scene_scan_density",
-    FINE_TUNE_DEBOUNCE_MS: 180,
+    FINE_TUNE_DEBOUNCE_MS: 300,
   }),
 
   TIMINGS_MS: Object.freeze({
