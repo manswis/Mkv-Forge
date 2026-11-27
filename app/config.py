@@ -777,6 +777,7 @@ class AppConstants:
     HTTP_OK: int = 200
     HTTP_CREATED: int = 201
     HTTP_ACCEPTED: int = 202
+    HTTP_NO_CONTENT: int = 204
     HTTP_BAD_REQUEST: int = 400
     HTTP_UNAUTHORIZED: int = 401
     HTTP_FORBIDDEN: int = 403

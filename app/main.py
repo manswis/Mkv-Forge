@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.batch import router as batch_router
+from app.api.chapters import router as chapters_router
 from app.api.dashboard import router as dashboard_router
 from app.api.events import router as events_router
 from app.api.file_ops import router as file_ops_router
@@ -203,6 +204,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(uploads_router)
     application.include_router(file_ops_router)
     application.include_router(files_router)
+    application.include_router(chapters_router)
     application.include_router(folders_router)
     application.include_router(scan_router)
     application.include_router(batch_router)

@@ -44,28 +44,28 @@ Goal: Build the completely isolated, 100% unit-tested chapter parsing, serializa
 
 Goal: Deliver the fast, zero-disk-cache (`pipe:1`) frame extraction engine and REST endpoints with all 3 technical guardrails locked down before wiring the save pipeline or UI.
 
-- [ ] **C2.1 Stateless Scene Frame Extractor (`app/services/scene_frame_service.py`)**
-  - [ ] Implement `clamp_frame_timestamp_ms(ts_ms, duration_us)` clamping to `[0, max(0, duration_ms - SCENE_FRAME_EOF_MARGIN_MS)]`.
-  - [ ] **Guardrail #1 (Fix `±1s` Keyframe Trap + Lightweight 10-bit HDR):** Implement `build_scene_frame_ffmpeg_command(abs_path, *, ts_ms, mode)`:
+- [x] **C2.1 Stateless Scene Frame Extractor (`app/services/scene_frame_service.py`)**
+  - [x] Implement `clamp_frame_timestamp_ms(ts_ms, duration_us)` clamping to `[0, max(0, duration_ms - SCENE_FRAME_EOF_MARGIN_MS)]`.
+  - [x] **Guardrail #1 (Fix `±1s` Keyframe Trap + Lightweight 10-bit HDR):** Implement `build_scene_frame_ffmpeg_command(abs_path, *, ts_ms, mode)`:
     - `mode="fast"`: `-v error -ss <ts> -i <file> -an -sn -dn -frames:v 1 -vf scale='min(320,iw)':-2,format=yuvj420p -q:v 5 -f image2pipe -vcodec mjpeg pipe:1`
     - `mode="accurate"`: `pre_seek = max(0.0, ts - 10.0)`, `post_seek = ts - pre_seek` → `-v error -ss <pre_seek> -i <file> -ss <post_seek> -an -sn -dn -frames:v 1 -vf scale='min(480,iw)':-2,format=yuvj420p -q:v 4 -f image2pipe -vcodec mjpeg pipe:1`
-  - [ ] **Guardrail #2 (Real Instant Disconnect Cancellation):** Implement async `extract_scene_frame(...)`:
+  - [x] **Guardrail #2 (Real Instant Disconnect Cancellation):** Implement async `extract_scene_frame(...)`:
     - Bounded by `asyncio.Semaphore(AppConstants.SCENE_FRAME_MAX_CONCURRENCY)` (`1`), with best-effort low I/O priority (`ionice`/`nice`) when an unrelated job is active.
     - Races `proc.communicate()` against `is_disconnected()` polling (`0.15s`) and `SCENE_FRAME_TIMEOUT_SEC` (`10s`); immediately `proc.terminate()` → grace `0.5s` → `proc.kill()` + `await proc.wait()` on disconnect or timeout.
     - Validates JPEG magic bytes (`\xff\xd8\xff`) directly in memory (zero server disk writes — **Option A**).
 
-- [ ] **C2.2 Chapters & Frame API Router (`app/api/chapters.py`, `app/main.py`)**
-  - [ ] **Guardrail #3 (Active-Job `409 Conflict`):** Add `_ensure_file_safe_for_chapter_read(file_row, job_repo)` returning `409 Conflict` when a `replace` job (or `delete_original` `save_as` job) is actively running on this file, or when `scan_status != "ready"`.
-  - [ ] `GET /api/files/{file_id}/chapters` — Fast-returns `[]` when `chapters_count == 0` (zero subprocesses); otherwise calls `extract_chapters_from_file(...)`.
-  - [ ] `POST /api/files/{file_id}/chapters/parse` — Validates payload size (≤ 512 KB), calls `parse_chapters_text(...)`, returns `{ detected_format, chapters, warnings }`.
-  - [ ] `GET /api/files/{file_id}/frame?ts_ms=<int>&mode=<fast|accurate>&v=<fingerprint>` — Validates video file (`duration_us > 0`), enforces `409` active-job guard, returns `image/jpeg` with `Cache-Control: private, max-age=86400`, zero disk writes.
-  - [ ] Mount `chapters.router` in `app/main.py`.
+- [x] **C2.2 Chapters & Frame API Router (`app/api/chapters.py`, `app/main.py`)**
+  - [x] **Guardrail #3 (Active-Job `409 Conflict`):** Add `_ensure_file_safe_for_chapter_read(file_row, job_repo)` returning `409 Conflict` when a `replace` job (or `delete_original` `save_as` job) is actively running on this file, or when `scan_status != "ready"`.
+  - [x] `GET /api/files/{file_id}/chapters` — Fast-returns `[]` when `chapters_count == 0` (zero subprocesses); otherwise calls `extract_chapters_from_file(...)`.
+  - [x] `POST /api/files/{file_id}/chapters/parse` — Validates payload size (≤ 512 KB), calls `parse_chapters_text(...)`, returns `{ detected_format, chapters, warnings }`.
+  - [x] `GET /api/files/{file_id}/frame?ts_ms=<int>&mode=<fast|accurate>&v=<fingerprint>` — Validates video file (`duration_us > 0`), enforces `409` active-job guard, returns `image/jpeg` with `Cache-Control: private, max-age=86400`, zero disk writes.
+  - [x] Mount `chapters.router` in `app/main.py`.
 
-- [ ] **C2.3 Phase C2 Verification Gate (`tests/unit/test_scene_frame_service.py`, `tests/integration/test_chapters_api.py`)**
-  - [ ] Verify exact `fast` vs `accurate` argv (`ts < 10s`, `ts == 0`, `ts >= duration` clamping, `pipe:1`, `format=yuvj420p`), disconnect subprocess kill, zero files written to `<data_dir>`.
-  - [ ] Verify real `ffmpeg` on synthetic 10-bit `yuv420p10le` MKV returns distinct JPEGs 1 second apart (`mode="accurate"` at `1000ms` vs `2000ms`).
-  - [ ] Verify `409 Conflict` on active `replace` job, `200 OK` on unrelated active job, `404`/`400` error guards, and `Cache-Control: private, max-age=86400`.
-  - [ ] Run `pytest tests/unit/test_scene_frame_service.py tests/integration/test_chapters_api.py -v` and confirm 100% green.
+- [x] **C2.3 Phase C2 Verification Gate (`tests/unit/test_scene_frame_service.py`, `tests/integration/test_chapters_api.py`)**
+  - [x] Verify exact `fast` vs `accurate` argv (`ts < 10s`, `ts == 0`, `ts >= duration` clamping, `pipe:1`, `format=yuvj420p`), disconnect subprocess kill, zero files written to `<data_dir>`.
+  - [x] Verify real `ffmpeg` on synthetic 10-bit `yuv420p10le` MKV returns distinct JPEGs 1 second apart (`mode="accurate"` at `1000ms` vs `2000ms`).
+  - [x] Verify `409 Conflict` on active `replace` job, `200 OK` on unrelated active job, `404`/`400` error guards, and `Cache-Control: private, max-age=86400`.
+  - [x] Run `pytest tests/unit/test_scene_frame_service.py tests/integration/test_chapters_api.py -v` and confirm 100% green.
 
 ---
 
