@@ -190,15 +190,15 @@ class TestIndexHtmlStructure:
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
         assert "/static/css/app.css?v=0.1.0-p19.1" in html
-        assert "/static/js/constants.js?v=0.1.0-p19.3" in html
-        assert "/static/js/api.js?v=0.1.0-p19.1" in html
+        assert "/static/js/constants.js?v=0.1.0-p19.4" in html
+        assert "/static/js/api.js?v=0.1.0-p19.4" in html
         assert "/static/js/chapters.js?v=0.1.0-p19.1" in html
         assert "/static/js/chapters_controller.js?v=0.1.0-p19.8" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
         assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
         assert "/static/js/editor.js?v=0.1.0-p19.1" in html
-        assert "/static/js/app.js?v=0.1.0-p19.3" in html
+        assert "/static/js/app.js?v=0.1.0-p19.4" in html
         assert "/static/js/batch.js?v=0.1.0-p18.23" in html
         assert html.index(
             "/static/js/chapters.js") < html.index("/static/js/editor.js")
@@ -336,7 +336,7 @@ class TestIndexHtmlStructure:
 
         # File context menu 3-group Finder/HIG ordering:
         # Group 1 (Open & Read): Process -> Chapters -> Info -> Download
-        # Group 2 (Organize & Maintain): Rename -> Move -> Duplicate -> Refresh
+        # Group 2 (Organize & Maintain): Rename -> Move -> Copy -> Refresh
         # Group 3 (Destructive): Delete
         menu_start = html.index('aria-label="Item actions"')
         menu_end = html.index(
@@ -350,8 +350,7 @@ class TestIndexHtmlStructure:
             "runContextMenuAction('download')")
         rename_pos = file_menu_slice.index("runContextMenuAction('rename')")
         move_pos = file_menu_slice.index("runContextMenuAction('move')")
-        duplicate_pos = file_menu_slice.index(
-            "runContextMenuAction('duplicate')")
+        copy_pos = file_menu_slice.index("runContextMenuAction('copy')")
         rescan_pos = file_menu_slice.index("runContextMenuAction('rescan')")
         delete_pos = file_menu_slice.index("runContextMenuAction('delete')")
         assert (
@@ -361,10 +360,12 @@ class TestIndexHtmlStructure:
             < download_pos
             < rename_pos
             < move_pos
-            < duplicate_pos
+            < copy_pos
             < rescan_pos
             < delete_pos
         )
+        assert "runContextMenuAction('duplicate')" not in file_menu_slice
+        assert "<span>Copy…</span>" in file_menu_slice
         assert file_menu_slice.count('class="ui-menu-divider"') == 2
         assert "<span>Process</span>" in file_menu_slice
         assert "<span>Chapters</span>" in file_menu_slice
@@ -472,8 +473,10 @@ class TestIndexHtmlStructure:
         ms_html = html[ms_start:ms_end]
         assert ms_html.index("toggleSelectAllPage()") < ms_html.index("clearSelection()") < ms_html.index(
             "openBatchModalForSelection()") < ms_html.index("openDeleteSelectedFilesModal()")
-        assert "order-2 ml-auto" in ms_html
-        assert "lg:order-3" in ms_html
+        assert "sm:hidden" in ms_html
+        assert "sm:inline" in ms_html
+        assert "bulkActionsMenuOpen" in ms_html
+        assert "openCopyFilesModal(selectedFileIds)" in ms_html
 
         # Clickable job folder path appears across all 3 history surfaces (Dashboard, Jobs Page, Live Jobs Drawer)
         assert html.count('openJobFolder(') == 3

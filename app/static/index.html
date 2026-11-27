@@ -44,11 +44,11 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p19.1" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p19.3"></script>
+  <script defer src="/static/js/constants.js?v=0.1.0-p19.4"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
-  <script defer src="/static/js/api.js?v=0.1.0-p19.1"></script>
+  <script defer src="/static/js/api.js?v=0.1.0-p19.4"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/chapters.js?v=0.1.0-p19.1"></script>
   <script defer src="/static/js/editor.js?v=0.1.0-p19.1"></script>
@@ -61,7 +61,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p19.3"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p19.4"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -1413,18 +1413,18 @@
 
             <!-- Multi-Select Bulk Action Bar (Elevated Surface) -->
             <div x-cloak x-show="selectedFileCount > 0" x-transition
-              class="flex flex-wrap items-center gap-2 rounded-ui-md border border-strong bg-elevated px-3.5 py-2.5 text-xs shadow-elevated">
-              <div class="order-1 flex items-center gap-2.5">
+              class="flex flex-wrap items-center justify-between gap-2 rounded-ui-md border border-strong bg-elevated px-3.5 py-2.5 text-xs shadow-elevated">
+              <div class="flex items-center gap-2.5">
                 <span class="ui-num font-semibold text-ink-primary" x-text="`${selectedFileCount} selected`"></span>
                 <button type="button" @click="toggleSelectAllPage()"
                   class="text-xs font-medium text-accent transition hover:underline"
                   x-text="allPageFilesSelected ? 'Deselect All' : 'Select All'"></button>
               </div>
               <button type="button" @click="clearSelection()"
-                class="order-2 ml-auto shrink-0 rounded-ui-sm px-2 py-1 text-xs font-medium text-ink-secondary transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary lg:order-3 lg:ml-1">
+                class="shrink-0 rounded-ui-sm px-2 py-1 text-xs font-medium text-ink-secondary transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary sm:hidden">
                 Clear
               </button>
-              <div class="order-3 flex w-full flex-wrap items-center gap-1.5 lg:order-2 lg:ml-auto lg:w-auto">
+              <div class="flex w-full items-center justify-between gap-2 sm:w-auto">
                 <button type="button" @click="openBatchModalForSelection()" class="ui-btn ui-btn-sm ui-btn-primary">
                   <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path
@@ -1433,30 +1433,65 @@
                   </svg>
                   <span>Batch Process…</span>
                 </button>
-                <button type="button" x-show="singleSelectedFile" @click="openRenameFileModal(singleSelectedFile)"
-                  class="ui-btn ui-btn-sm ui-btn-secondary">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path
-                      d="M18.41 5.8L17.2 4.59c-.78-.78-2.05-.78-2.83 0l-2.68 2.68L3 15.96V20h4.04l8.74-8.74 2.63-2.63c.79-.78.79-2.05 0-2.83zM6.21 18H5v-1.21l8.66-8.66 1.21 1.21L6.21 18zM11 20l4-4h6v4H11z">
-                    </path>
-                  </svg>
-                  <span>Rename</span>
+                <button type="button" @click="clearSelection()"
+                  class="hidden shrink-0 rounded-ui-sm px-2 py-1 text-xs font-medium text-ink-secondary transition hover:bg-[var(--color-hover-fill)] hover:text-ink-primary sm:inline">
+                  Clear
                 </button>
-                <button type="button" @click="openMoveFilesModal(selectedFileIds)"
-                  class="ui-btn ui-btn-sm ui-btn-secondary">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path
-                      d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z">
-                    </path>
-                  </svg>
-                  <span>Move…</span>
-                </button>
-                <button type="button" @click="openDeleteSelectedFilesModal()" class="ui-btn ui-btn-sm ui-btn-danger">
-                  <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
-                  </svg>
-                  <span>Delete…</span>
-                </button>
+                <div class="relative shrink-0">
+                  <button type="button" @click="bulkActionsMenuOpen = !bulkActionsMenuOpen; _scheduleMobileNavSync()"
+                    :aria-expanded="bulkActionsMenuOpen ? 'true' : 'false'" aria-haspopup="menu"
+                    aria-label="Selection actions" title="Selection actions"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-ui-sm border border-subtle bg-inset text-ink-secondary transition hover:border-default hover:text-ink-primary">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path
+                        d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z">
+                      </path>
+                    </svg>
+                  </button>
+                  <div x-cloak x-show="bulkActionsMenuOpen" x-transition.opacity.duration.100ms
+                    @click.outside="bulkActionsMenuOpen = false; _scheduleMobileNavSync()" role="menu" aria-label="More selection actions"
+                    class="ui-menu-panel bg-elevated border border-default shadow-elevated absolute right-0 top-10 z-40 w-44 max-w-[calc(100vw-1.5rem)] overflow-hidden">
+                    <button type="button" role="menuitem" x-show="singleSelectedFile"
+                      @click="bulkActionsMenuOpen = false; openRenameFileModal(singleSelectedFile)"
+                      class="ui-menu-item justify-start">
+                      <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M18.41 5.8L17.2 4.59c-.78-.78-2.05-.78-2.83 0l-2.68 2.68L3 15.96V20h4.04l8.74-8.74 2.63-2.63c.79-.78.79-2.05 0-2.83zM6.21 18H5v-1.21l8.66-8.66 1.21 1.21L6.21 18zM11 20l4-4h6v4H11z">
+                        </path>
+                      </svg>
+                      <span>Rename…</span>
+                    </button>
+                    <button type="button" role="menuitem"
+                      @click="bulkActionsMenuOpen = false; openCopyFilesModal(selectedFileIds)"
+                      class="ui-menu-item justify-start">
+                      <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z">
+                        </path>
+                      </svg>
+                      <span>Copy…</span>
+                    </button>
+                    <button type="button" role="menuitem"
+                      @click="bulkActionsMenuOpen = false; openMoveFilesModal(selectedFileIds)"
+                      class="ui-menu-item justify-start">
+                      <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path
+                          d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-4h4V8l5 5-5 5z">
+                        </path>
+                      </svg>
+                      <span>Move…</span>
+                    </button>
+                    <div class="ui-menu-divider"></div>
+                    <button type="button" role="menuitem"
+                      @click="bulkActionsMenuOpen = false; openDeleteSelectedFilesModal()"
+                      class="ui-menu-item ui-menu-item-danger justify-start">
+                      <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
+                      </svg>
+                      <span>Delete…</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -6685,10 +6720,10 @@
           </span>
         </button>
 
-        <!-- File-only Duplicate -->
+        <!-- File-only Copy (opens Folder Picker and runs as background job with progress) -->
         <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
-          @click="runContextMenuAction('duplicate')"
-          :disabled="isContextMenuFileBusy || isContextMenuFileScanning || (contextMenu && contextMenu.file && isDuplicating(contextMenu.file.id))"
+          @click="runContextMenuAction('copy')"
+          :disabled="isContextMenuFileBusy || isContextMenuFileScanning"
           class="ui-menu-item">
           <span class="flex items-center gap-2.5">
             <svg class="h-4 w-4 shrink-0 text-ink-muted" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -6696,7 +6731,7 @@
                 d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z">
               </path>
             </svg>
-            <span>Duplicate</span>
+            <span>Copy…</span>
           </span>
         </button>
 

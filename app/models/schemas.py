@@ -997,6 +997,8 @@ class JobConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    operation: Literal["remux", "copy"] = AppConstants.JOB_OP_REMUX
+    copy_destination_folder: str | None = None
     container: ContainerMetadataConfig = Field(default_factory=ContainerMetadataConfig)
     audio_conversion: AudioConversionConfig = Field(
         default_factory=AudioConversionConfig
@@ -1013,6 +1015,15 @@ class JobConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_save_as_output_path(self) -> "JobConfig":
+        if self.operation == AppConstants.JOB_OP_COPY:
+            if (
+                self.copy_destination_folder is None
+                or not self.copy_destination_folder.strip()
+            ):
+                raise ValueError(
+                    "copy_destination_folder is required when operation is 'copy'"
+                )
+            return self
         if self.output_mode == "save_as":
             if self.output_path is None or not self.output_path.strip():
                 raise ValueError(
@@ -1138,6 +1149,27 @@ class FilesMoveRequest(BaseModel):
 
     file_ids: list[int] = Field(min_length=1)
     destination_folder: str
+
+
+class FilesCopyRequest(BaseModel):
+    """Request payload for POST /api/files/copy (single or multi-select)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    file_ids: list[int] = Field(min_length=1)
+    destination_folder: str
+
+
+class BatchCopyEnqueueResponse(BaseModel):
+    """Aggregated outcome for POST /api/files/copy background job enqueueing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    enqueued: int
+    failed: int
+    batch_id: str | None = None
+    jobs: list[JobItemResponse] = Field(default_factory=list)
+    results: list[BatchFileOpItemResult] = Field(default_factory=list)
 
 
 class FilesDeleteRequest(BaseModel):

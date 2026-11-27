@@ -741,6 +741,20 @@ class AppConstants:
     LIBRARY_SUBSCRIBER_QUEUE_MAXSIZE: int = 64
 
     # Job queue & worker
+    JOB_OP_REMUX: str = "remux"
+    JOB_OP_COPY: str = "copy"
+    JOB_STAGE_COPYING: str = "copying"
+    JOB_STAGE_COPYING_LABEL: str = "Copying file"
+    FILE_COPY_CHUNK_BYTES: int = 4 * 1024 * 1024
+    FILE_COPY_MIN_CHUNK_BYTES: int = 64 * 1024
+    FILE_COPY_PROGRESS_EMIT_INTERVAL_SEC: float = 0.25
+    FILE_COPY_SPEED_EMA_ALPHA: float = 0.3
+    FILE_COPY_DISK_MARGIN_BYTES: int = 50 * 1024 * 1024
+    FILE_COPY_BYTES_PER_GB: float = 1024.0 * 1024.0 * 1024.0
+    FILE_COPY_BYTES_PER_MB: float = 1024.0 * 1024.0
+    FILE_COPY_BYTES_PER_KB: float = 1024.0
+    FILE_COPY_TEMP_PREFIX: str = "copy-"
+    FILE_COPY_PROBE_PREFIX: str = ".mkvforge.copyprobe-"
     JOB_STATUS_QUEUED: str = "queued"
     JOB_STATUS_RUNNING: str = "running"
     JOB_STATUS_COMPLETED: str = "completed"

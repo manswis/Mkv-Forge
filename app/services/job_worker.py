@@ -15,7 +15,9 @@ from typing import Any
 from app.config import AppConstants, Settings
 from app.db.repositories import JobRepository, MediaFileRepository
 from app.models.schemas import JobConfig, ParsedTrackInfo
+from app.services.file_copy_runner import execute_file_copy
 from app.services.folder_sync import FolderReconcileCache
+from app.services.library_events import LibraryEventBroker
 from app.services.mkv_runner import JobCancelledError, execute_two_stage_pipeline
 from app.services.probe_parser import parse_mkvmerge_json
 from app.services.processing_policy import (
@@ -264,6 +266,7 @@ class JobWorker:
         broker: JobSSEBroker,
         upload_service: UploadService | None = None,
         folder_cache: FolderReconcileCache | None = None,
+        library_broker: LibraryEventBroker | None = None,
         user_settings_service: UserSettingsService | None = None,
         cancel_grace_sec: float = AppConstants.SUBPROCESS_CANCEL_GRACE_SEC,
     ) -> None:
@@ -274,6 +277,7 @@ class JobWorker:
         self._broker = broker
         self._upload_service = upload_service or UploadService(settings)
         self._folder_cache = folder_cache
+        self._library_broker = library_broker
         self._user_settings_service = user_settings_service
         self._cancel_grace_sec = cancel_grace_sec
 
@@ -553,11 +557,18 @@ class JobWorker:
                 percent=0,
             )
 
-        def _on_progress(percent: int, speed: str | None) -> None:
+        def _on_progress(
+            percent: int,
+            speed: str | None,
+            eta: str | None = None,
+        ) -> None:
             nonlocal last_reported_percent
             bounded = max(0, min(100, int(percent)))
             last_reported_percent = bounded
             progress_persister.schedule(current_stage, bounded)
+            resolved_eta = (
+                eta if eta is not None else estimate_eta(duration_us, bounded, speed)
+            )
             self._broker.publish_progress(
                 job_id=job_id,
                 filepath=rel_filepath,
@@ -565,7 +576,7 @@ class JobWorker:
                 stage_label=current_stage_label,
                 percent=bounded,
                 speed=speed,
-                eta=estimate_eta(duration_us, bounded, speed),
+                eta=resolved_eta,
             )
 
         def _on_log(line: str) -> None:
@@ -589,40 +600,58 @@ class JobWorker:
             source_path = await asyncio.to_thread(
                 safe_resolve_path, rel_filepath, self._settings.storage_dir
             )
-            processing_policy = await asyncio.to_thread(
-                self._resolve_processing_policy
-            )
-            chapter_language = await asyncio.to_thread(
-                self._resolve_chapter_language
-            )
-            source_tracks: list[ParsedTrackInfo] | None = None
-            if media_row is not None and media_row.get("raw_json"):
-                try:
-                    parsed_probe = parse_mkvmerge_json(
-                        json.loads(str(media_row["raw_json"]))
-                    )
-                    source_tracks = parsed_probe.tracks
-                except Exception:
-                    source_tracks = None
+            if config.operation == AppConstants.JOB_OP_COPY:
+                assert config.copy_destination_folder is not None
+                result = await execute_file_copy(
+                    source_path,
+                    destination_folder=config.copy_destination_folder,
+                    storage_root=self._settings.storage_dir,
+                    media_repo=self._media_repo,
+                    media_row=media_row,
+                    scanner=self._scanner,
+                    folder_cache=self._folder_cache,
+                    library_broker=self._library_broker,
+                    on_stage=_on_stage,
+                    on_progress=_on_progress,
+                    on_log=_on_log,
+                    is_cancelled=lambda: cancel_event.is_set()
+                    or self._stop_event.is_set(),
+                )
+            else:
+                processing_policy = await asyncio.to_thread(
+                    self._resolve_processing_policy
+                )
+                chapter_language = await asyncio.to_thread(
+                    self._resolve_chapter_language
+                )
+                source_tracks: list[ParsedTrackInfo] | None = None
+                if media_row is not None and media_row.get("raw_json"):
+                    try:
+                        parsed_probe = parse_mkvmerge_json(
+                            json.loads(str(media_row["raw_json"]))
+                        )
+                        source_tracks = parsed_probe.tracks
+                    except Exception:
+                        source_tracks = None
 
-            result = await execute_two_stage_pipeline(
-                source_path,
-                config,
-                storage_root=self._settings.storage_dir,
-                duration_us=duration_us,
-                media_repo=self._media_repo,
-                scanner=self._scanner,
-                upload_service=self._upload_service,
-                folder_cache=self._folder_cache,
-                processing_policy=processing_policy,
-                source_tracks=source_tracks,
-                chapter_language=chapter_language,
-                on_stage=_on_stage,
-                on_progress=_on_progress,
-                on_log=_on_log,
-                on_process_started=_on_process_started,
-                check_cancelled=_check_cancelled,
-            )
+                result = await execute_two_stage_pipeline(
+                    source_path,
+                    config,
+                    storage_root=self._settings.storage_dir,
+                    duration_us=duration_us,
+                    media_repo=self._media_repo,
+                    scanner=self._scanner,
+                    upload_service=self._upload_service,
+                    folder_cache=self._folder_cache,
+                    processing_policy=processing_policy,
+                    source_tracks=source_tracks,
+                    chapter_language=chapter_language,
+                    on_stage=_on_stage,
+                    on_progress=_on_progress,
+                    on_log=_on_log,
+                    on_process_started=_on_process_started,
+                    check_cancelled=_check_cancelled,
+                )
 
             await progress_persister.close_and_drain()
             await asyncio.to_thread(

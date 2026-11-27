@@ -428,7 +428,7 @@ class TestFolderOperationsAndReadOnlyGuards:
         assert "openFileContextMenu" in html
         assert "openFolderContextMenu" in html
         assert "runContextMenuAction('rescan')" in html
-        assert "runContextMenuAction('duplicate')" in html
+        assert "runContextMenuAction('copy')" in html
         assert "runContextMenuAction('rename')" in html
         assert "runContextMenuAction('move')" in html
         assert "runContextMenuAction('delete')" in html

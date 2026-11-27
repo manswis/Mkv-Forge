@@ -86,6 +86,21 @@ def summarize_job_changes(
     if not isinstance(raw, dict):
         return None, []
 
+    if str(raw.get("operation") or "").strip().lower() == AppConstants.JOB_OP_COPY:
+        dest_raw = output_filepath or str(raw.get("copy_destination_folder") or "").strip()
+        if dest_raw:
+            dest_display = (
+                "/" if dest_raw.strip() == "/" else f"/{dest_raw.strip().lstrip('/')}"
+            )
+        else:
+            dest_display = "/"
+        label = (
+            f"Copied → {dest_display}"
+            if output_filepath
+            else f"Copy → {dest_display}"
+        )
+        return AppConstants.JOB_OP_COPY, [JobChangeItem(kind="output", label=label)]
+
     changes: list[JobChangeItem] = []
 
     # 1. Stage 1 Added Audio & optional dropped source audio

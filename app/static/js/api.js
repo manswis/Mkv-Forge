@@ -363,6 +363,15 @@
       requestJson(`${API.FILES}/${encodeURIComponent(fileId)}/duplicate`, {
         method: "POST",
       }),
+    copyFiles: (fileIds, destinationFolder) =>
+      requestJson(`${API.FILES}/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_ids: fileIds,
+          destination_folder: destinationFolder,
+        }),
+      }),
     moveFiles: (fileIds, destinationFolder) =>
       requestJson(`${API.FILES}/move`, {
         method: "POST",

@@ -570,6 +570,7 @@
       selectedFileIds: [],
       mobileSelectMode: false,
       folderBarMenuOpen: false,
+      bulkActionsMenuOpen: false,
       contextMenu: null,
       libraryLoading: false,
       libraryError: null,
@@ -604,7 +605,6 @@
       page: C.PAGINATION.DEFAULT_PAGE,
       limit: C.PAGINATION.DEFAULT_LIMIT,
       rescanningIds: {},
-      duplicatingIds: {},
       thumbLoadErrors: {},
       otherThumbLoadErrors: {},
       _searchTimer: null,
@@ -780,6 +780,10 @@
               this.cancelDiscardEditorChanges();
             } else if (this.scanMenuOpen) {
               this.scanMenuOpen = false;
+            } else if (this.bulkActionsMenuOpen) {
+              this.bulkActionsMenuOpen = false;
+            } else if (this.folderBarMenuOpen) {
+              this.folderBarMenuOpen = false;
             } else if (this.contextMenu) {
               this.closeContextMenu();
             } else if (this.infoModal) {
@@ -2889,6 +2893,7 @@
       openSettings(sectionId = null) {
         this.scanMenuOpen = false;
         this.folderBarMenuOpen = false;
+        this.bulkActionsMenuOpen = false;
         this.closeContextMenu();
         const nextSection = sectionId || C.SETTINGS_SECTIONS.APPEARANCE;
         this.activeSettingsSection = nextSection;
@@ -3174,6 +3179,9 @@
           active.push(L.EDITOR_DISCARD_MODAL || "editor_discard_modal");
         }
         if (this.contextMenu) active.push(L.CONTEXT_MENU || "context_menu");
+        if (this.bulkActionsMenuOpen) {
+          active.push(L.BULK_ACTIONS_MENU || "bulk_actions_menu");
+        }
         if (this.folderBarMenuOpen) active.push(L.FOLDER_BAR_MENU || "folder_bar_menu");
         if (this.scanMenuOpen) active.push(L.SCAN_MENU || "scan_menu");
         return active;
@@ -3206,6 +3214,9 @@
             break;
           case L.FOLDER_BAR_MENU || "folder_bar_menu":
             this.folderBarMenuOpen = false;
+            break;
+          case L.BULK_ACTIONS_MENU || "bulk_actions_menu":
+            this.bulkActionsMenuOpen = false;
             break;
           case L.CONTEXT_MENU || "context_menu":
             this.closeContextMenu();
@@ -3843,6 +3854,7 @@
       _hasBlockingOverlayOpen() {
         return Boolean(
           this.contextMenu ||
+            this.bulkActionsMenuOpen ||
             this.folderBarMenuOpen ||
             this.scanMenuOpen ||
             this.infoModal ||
@@ -5686,12 +5698,30 @@
       async openMoveFilesModal(fileIds) {
         const ids = Array.isArray(fileIds) ? fileIds.filter(Boolean) : [];
         if (ids.length === 0) return;
+        this.bulkActionsMenuOpen = false;
         const countLabel = ids.length === 1 ? "1 File" : `${ids.length} Files`;
         await this._openFolderPickerWithConfig({
           purpose: "move_files",
           initialPath: this.isDirView ? this.currentDir : C.FOLDER_TREE.ROOT_PATH,
           title: `Move ${countLabel} To…`,
           confirmLabel: `Move ${countLabel}`,
+          context: { fileIds: ids },
+        });
+      },
+
+      async openCopyFilesModal(fileIds, { initialPath = null } = {}) {
+        const ids = Array.isArray(fileIds) ? fileIds.filter(Boolean) : [];
+        if (ids.length === 0) return;
+        this.bulkActionsMenuOpen = false;
+        const countLabel = ids.length === 1 ? "1 File" : `${ids.length} Files`;
+        const resolvedInitial =
+          initialPath ||
+          (this.isDirView ? this.currentDir : C.FOLDER_TREE.ROOT_PATH);
+        await this._openFolderPickerWithConfig({
+          purpose: "copy_files",
+          initialPath: resolvedInitial,
+          title: `Copy ${countLabel} To…`,
+          confirmLabel: "Copy Here",
           context: { fileIds: ids },
         });
       },
@@ -6028,6 +6058,41 @@
             }
           } catch (err) {
             this.folderTree.error = err.message || "Failed to move files.";
+          } finally {
+            this.folderPickerSubmitting = false;
+          }
+          return;
+        }
+
+        if (this.folderPickerPurpose === "copy_files") {
+          const fileIds =
+            (this.folderPickerContext && this.folderPickerContext.fileIds) || [];
+          if (fileIds.length === 0) return;
+          this.folderPickerSubmitting = true;
+          this.folderTree.error = null;
+          try {
+            const res = await Api.copyFiles(fileIds, chosenPath);
+            this.closeFolderPicker();
+            this.clearSelection();
+            this.loadJobs({ force: true });
+            const enqueuedCount = Number(res.enqueued || 0);
+            const failedCount = Number(res.failed || 0);
+            if (failedCount > 0) {
+              const firstErr =
+                (res.results.find((r) => !r.ok) || {}).error ||
+                "some files skipped";
+              this.showToast(
+                `Queued ${enqueuedCount} ${enqueuedCount === 1 ? "copy" : "copies"}, skipped ${failedCount}: ${firstErr}`,
+                "info"
+              );
+            } else {
+              this.showToast(
+                `Queued copy of ${enqueuedCount} ${enqueuedCount === 1 ? "file" : "files"} to ${chosenPath}.`,
+                "success"
+              );
+            }
+          } catch (err) {
+            this.folderTree.error = err.message || "Failed to queue copy.";
           } finally {
             this.folderPickerSubmitting = false;
           }
@@ -6431,8 +6496,10 @@
             this.openRenameFileModal(menu.file);
           } else if (action === "move") {
             this.openMoveFilesModal([menu.file.id]);
-          } else if (action === "duplicate") {
-            this.duplicateSingleFile(menu.file);
+          } else if (action === "copy") {
+            this.openCopyFilesModal([menu.file.id], {
+              initialPath: menu.file.folder,
+            });
           } else if (action === "rescan") {
             this.rescanSingleFile(menu.file);
           } else if (action === "delete") {
@@ -6501,6 +6568,7 @@
       clearSelection() {
         this.selectedFileIds = [];
         this.mobileSelectMode = false;
+        this.bulkActionsMenuOpen = false;
         this._scheduleMobileNavSync();
       },
 
@@ -7288,30 +7356,6 @@
 
       isRescanning(fileId) {
         return Boolean(this.rescanningIds[fileId]);
-      },
-
-      isDuplicating(fileId) {
-        return Boolean(this.duplicatingIds[fileId]);
-      },
-
-      async duplicateSingleFile(file) {
-        if (!file || this.isDuplicating(file.id) || this.isFileBusy(file)) return;
-        this.duplicatingIds = { ...this.duplicatingIds, [file.id]: true };
-        try {
-          const created = await Api.duplicateFile(file.id);
-          await this.loadLibrary({ preserveSelection: true });
-          this.loadDashboard();
-          this.showToast(`Created duplicate ${created.filename}.`, "success");
-        } catch (err) {
-          this.showToast(
-            err.message || `Failed to duplicate ${file.filename}.`,
-            "error"
-          );
-        } finally {
-          const next = { ...this.duplicatingIds };
-          delete next[file.id];
-          this.duplicatingIds = next;
-        }
       },
 
       async rescanSingleFile(file) {
