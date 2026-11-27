@@ -95,26 +95,26 @@ Goal: Wire chapter saving cleanly into both `mkvpropedit` (`<1s` in-place) and `
 
 Goal: Build all pure, zero-DOM frontend chapter logic (`chapters.js`), constants, API wrappers, and File Editor state/payload integration, locked down with Node VM unit tests before touching HTML markup.
 
-- [ ] **C4.1 Frontend Constants & API Helpers (`app/static/js/constants.js`, `app/static/js/api.js`)**
-  - [ ] Add `CHAPTERS` & `SCENE_PICKER` constants (`ACTION_KEEP/REPLACE/CLEAR`, `MAX_COUNT: 500`, `MAX_TITLE_LEN: 200`, `QUICK_INTERVALS_MIN: [5, 10, 15]`, `QUICK_NAME_CHIPS: ["Intro", "Opening", "Intermission", "Song", "Credits"]`, `NUDGE_STEPS_SEC: [-30, -5, -1, 1, 5, 30]`, `PEEK_OFFSET_SEC: 15`, `EOF_MARGIN_MS: 500`, `SCAN_DENSITY_PRESETS: [12, 24, 40]`, `SCAN_DEFAULT_DENSITY: 24`, `SCAN_DENSITY_STORAGE_KEY: "mkvforge.scene_scan_density"`, `FINE_TUNE_DEBOUNCE_MS: 180`).
-  - [ ] Add `getFileChapters(fileId)`, `parseFileChapters(fileId, rawText, filename)`, and `buildSceneFrameUrl(fileId, tsMs, mode, videoFingerprint)` to `app/static/js/api.js`.
+- [x] **C4.1 Frontend Constants & API Helpers (`app/static/js/constants.js`, `app/static/js/api.js`)**
+  - [x] Add `CHAPTERS` & `SCENE_PICKER` constants (`ACTION_KEEP/REPLACE/CLEAR`, `MAX_COUNT: 500`, `MAX_TITLE_LEN: 200`, `QUICK_INTERVALS_MIN: [5, 10, 15]`, `QUICK_NAME_CHIPS: ["Intro", "Opening", "Intermission", "Song", "Credits"]`, `NUDGE_STEPS_SEC: [-30, -5, -1, 1, 5, 30]`, `PEEK_OFFSET_SEC: 15`, `EOF_MARGIN_MS: 500`, `SCAN_DENSITY_PRESETS: [12, 24, 40]`, `SCAN_DEFAULT_DENSITY: 24`, `SCAN_DENSITY_STORAGE_KEY: "mkvforge.scene_scan_density"`, `FINE_TUNE_DEBOUNCE_MS: 180`).
+  - [x] Add `getFileChapters(fileId)`, `parseFileChapters(fileId, rawText, filename)`, and `buildSceneFrameUrl(fileId, tsMs, mode, videoFingerprint)` to `app/static/js/api.js`.
 
-- [ ] **C4.2 Pure Chapters & Timeline Helper Module (`app/static/js/chapters.js`)**
-  - [ ] `formatChapterTime(ms)` & forgiving `parseChapterTimeInput(rawStr)`.
-  - [ ] `generateQuickSkipChapters(durationMs, intervalMin)` & `ensureZeroStartChapter(chapters)` (TV-player `00:00:00` guard).
-  - [ ] `sortAndNormalizeChapters(chapters, durationMs)` & `renumberGenericChapters(chapters)` (renumbers `Chapter NN` only, preserving custom names).
-  - [ ] `shiftAllChapters(chapters, deltaMs, durationMs)` (clamped to `[0, durationMs]`).
-  - [ ] `clampFrameTimestampMs(tsMs, durationMs)` (clamped to `[0, max(0, durationMs - 500)]`) & `buildPeekFrameTimestamps(centerMs, durationMs)` (`[max(0, center - 15s), center, min(maxFrameMs, center + 15s)]`).
-  - [ ] `buildScanSceneSlots(durationMs, densityCount)` (clean `12 / 24 / 40` evenly spaced slots across `[0, maxFrameMs]`).
-  - [ ] `buildVideoFingerprint(fileDetail)`, `exportChaptersAsOggText(chapters)`, `exportChaptersAsXml(chapters)`, and `areChapterListsEqual(a, b)`.
+- [x] **C4.2 Pure Chapters & Timeline Helper Module (`app/static/js/chapters.js`)**
+  - [x] `formatChapterTime(ms)` & forgiving `parseChapterTimeInput(rawStr)`.
+  - [x] `generateQuickSkipChapters(durationMs, intervalMin)` & `ensureZeroStartChapter(chapters)` (TV-player `00:00:00` guard).
+  - [x] `sortAndNormalizeChapters(chapters, durationMs)` & `renumberGenericChapters(chapters)` (renumbers `Chapter NN` only, preserving custom names).
+  - [x] `shiftAllChapters(chapters, deltaMs, durationMs)` (clamped to `[0, durationMs]`).
+  - [x] `clampFrameTimestampMs(tsMs, durationMs)` (clamped to `[0, max(0, durationMs - 500)]`) & `buildPeekFrameTimestamps(centerMs, durationMs)` (`[max(0, center - 15s), center, min(maxFrameMs, center + 15s)]`).
+  - [x] `buildScanSceneSlots(durationMs, densityCount)` (clean `12 / 24 / 40` evenly spaced slots across `[0, maxFrameMs]`).
+  - [x] `buildVideoFingerprint(fileDetail)`, `exportChaptersAsOggText(chapters)`, `exportChaptersAsXml(chapters)`, and `areChapterListsEqual(a, b)`.
 
-- [ ] **C4.3 File Editor State & Instant-Edit Parity (`app/static/js/editor.js`)**
-  - [ ] Extend `createEditorState(...)`: add `chaptersAction: "keep"`, `chapters: []`, `originalChapters: null`, `chaptersLoaded: false`, synced 1:1 with `stripChapters`.
-  - [ ] Update `hasPendingChanges(...)`, `isInstantHeaderEditEligible(...)` (MKV `replace` + chapter edits/clears → **eligible for `⚡ Instant Edit`**), `buildPendingSummary(...)`, and `buildJobRequestPayload(...)`.
+- [x] **C4.3 File Editor State & Instant-Edit Parity (`app/static/js/editor.js`)**
+  - [x] Extend `createEditorState(...)`: add `chaptersAction: "keep"`, `chapters: []`, `originalChapters: null`, `chaptersLoaded: false`, synced 1:1 with `stripChapters`.
+  - [x] Update `hasPendingChanges(...)`, `isInstantHeaderEditEligible(...)` (MKV `replace` + chapter edits/clears → **eligible for `⚡ Instant Edit`**), `buildPendingSummary(...)`, and `buildJobRequestPayload(...)`.
 
-- [ ] **C4.4 Phase C4 Verification Gate (`tests/unit/test_chapters_frontend.py`)**
-  - [ ] Node VM tests covering `chapters.js` and `editor.js` (parsing, Quick Skip, auto-`00:00:00` guard, generic-only renumber, Shift All clamping, 3-frame peek timestamps, 60-slot scan cap, `isInstantHeaderEditEligible` parity, untouched `"keep"` omission).
-  - [ ] Run `node --check app/static/js/constants.js app/static/js/api.js app/static/js/chapters.js app/static/js/editor.js && pytest tests/unit/test_chapters_frontend.py -v` and confirm 100% green.
+- [x] **C4.4 Phase C4 Verification Gate (`tests/unit/test_chapters_frontend.py`)**
+  - [x] Node VM tests covering `chapters.js` and `editor.js` (parsing, Quick Skip, auto-`00:00:00` guard, generic-only renumber, Shift All clamping, 3-frame peek timestamps, 60-slot scan cap, `isInstantHeaderEditEligible` parity, untouched `"keep"` omission).
+  - [x] Run `node --check app/static/js/constants.js app/static/js/api.js app/static/js/chapters.js app/static/js/editor.js && pytest tests/unit/test_chapters_frontend.py -v` and confirm 100% green.
 
 ---
 

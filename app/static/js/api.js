@@ -1,7 +1,7 @@
 /* Thin HTTP API client and auto-reconnecting SSE manager for MKV Forge. */
 
 (function attachApiClient(global) {
-  const { API, TIMINGS_MS } = global.MKVForgeConstants;
+  const { API, TIMINGS_MS, SCENE_PICKER } = global.MKVForgeConstants;
 
   const AUTH_ENDPOINTS_PREFIX = `${API.AUTH}/`;
   let _unauthorizedHandler = null;
@@ -398,6 +398,36 @@
       }),
     getFileDetail: (fileId) => requestJson(`${API.FILES}/${encodeURIComponent(fileId)}`),
     getFileInfo: (fileId) => requestJson(`${API.FILES}/${encodeURIComponent(fileId)}/info`),
+    getFileChapters: (fileId, options = {}) =>
+      requestJson(`${API.FILES}/${encodeURIComponent(fileId)}/chapters`, options),
+    parseFileChapters: (fileId, rawText, filename = null) =>
+      requestJson(`${API.FILES}/${encodeURIComponent(fileId)}/chapters/parse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          raw_text: String(rawText ?? ""),
+          filename: filename ? String(filename) : null,
+        }),
+      }),
+    buildSceneFrameUrl: (
+      fileId,
+      tsMs,
+      mode = SCENE_PICKER.MODE_FAST,
+      videoFingerprint = ""
+    ) => {
+      const safeTs = Math.max(0, Math.round(Number(tsMs) || 0));
+      const safeMode =
+        mode === SCENE_PICKER.MODE_ACCURATE
+          ? SCENE_PICKER.MODE_ACCURATE
+          : SCENE_PICKER.MODE_FAST;
+      const qs = new URLSearchParams({
+        ts_ms: String(safeTs),
+        mode: safeMode,
+      });
+      const fp = String(videoFingerprint || "").trim();
+      if (fp) qs.set("v", fp);
+      return `${API.FILES}/${encodeURIComponent(fileId)}/frame?${qs.toString()}`;
+    },
     rescanFile: (fileId) =>
       requestJson(`${API.FILES}/${encodeURIComponent(fileId)}/rescan`, {
         method: "POST",

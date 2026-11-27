@@ -443,6 +443,7 @@ window.MKVForgeConstants = Object.freeze({
       TEST_MEDIA_MODAL: "test_media_modal",
       IMPORT_TRACK_MODAL: "import_track_modal",
       ADD_AUDIO_MODAL: "add_audio_modal",
+      CHAPTERS_MODAL: "chapters_modal",
       FACTORY_RESET_MODAL: "factory_reset_modal",
       INFO_MODAL: "info_modal",
       FOLDER_PICKER: "folder_picker",
@@ -462,6 +463,7 @@ window.MKVForgeConstants = Object.freeze({
       "test_media_modal",
       "import_track_modal",
       "add_audio_modal",
+      "chapters_modal",
       "factory_reset_modal",
       "info_modal",
       "folder_picker",
@@ -504,6 +506,7 @@ window.MKVForgeConstants = Object.freeze({
     LIBRARY_RETURN_STATE: "mkvforge.libraryReturnState",
     DASH_STORAGE_LENS: "mkvforge.dashStorageLens",
     DASH_AUDIO_LENS: "mkvforge.dashAudioLens",
+    SCENE_SCAN_DENSITY: "mkvforge.scene_scan_density",
   }),
 
   DASHBOARD_LENSES: Object.freeze({
@@ -903,6 +906,43 @@ window.MKVForgeConstants = Object.freeze({
       lit: "Lithuanian",
       cat: "Catalan",
     }),
+  }),
+
+  CHAPTERS: Object.freeze({
+    ACTION_KEEP: "keep",
+    ACTION_REPLACE: "replace",
+    ACTION_CLEAR: "clear",
+    MAX_COUNT: 500,
+    MAX_TITLE_LEN: 200,
+    MAX_UPLOAD_BYTES: 512 * 1024,
+    QUICK_INTERVALS_MIN: Object.freeze([5, 10, 15]),
+    QUICK_NAME_CHIPS: Object.freeze([
+      "Intro",
+      "Opening",
+      "Intermission",
+      "Song",
+      "Credits",
+    ]),
+    NUDGE_STEPS_SEC: Object.freeze([-30, -5, -1, 1, 5, 30]),
+    DEFAULT_LANGUAGE: "und",
+    DEFAULT_START_TITLE: "Intro",
+    TITLE_PREFIX: "Chapter ",
+    TITLE_PAD_WIDTH: 2,
+    EDITION_UID: 1,
+    ATOM_UID_BASE: 1000001,
+    IMPORT_ACCEPT: ".xml,.txt,.csv",
+  }),
+
+  SCENE_PICKER: Object.freeze({
+    MODE_FAST: "fast",
+    MODE_ACCURATE: "accurate",
+    PEEK_OFFSET_SEC: 15,
+    EOF_MARGIN_MS: 500,
+    SCAN_DENSITY_PRESETS: Object.freeze([12, 24, 40]),
+    SCAN_DEFAULT_DENSITY: 24,
+    SCAN_MAX_SLOTS: 60,
+    SCAN_DENSITY_STORAGE_KEY: "mkvforge.scene_scan_density",
+    FINE_TUNE_DEBOUNCE_MS: 180,
   }),
 
   TIMINGS_MS: Object.freeze({

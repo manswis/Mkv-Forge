@@ -1,7 +1,7 @@
 /* Pure File Editor state factory, logical codec matrix, track preview, and Job payload serializer. */
 
 (function attachEditorHelpers(global) {
-  const { EDITOR, EXTERNAL_TRACKS } = global.MKVForgeConstants;
+  const { EDITOR, EXTERNAL_TRACKS, CHAPTERS } = global.MKVForgeConstants;
 
   function formatChannelLabel(channels) {
     const count = Number(channels || 0);
@@ -949,6 +949,11 @@
       stripTrackTags: removeAllMetadata ? hasTrackTagsPresent : false,
       stripAttachments: removeAllMetadata ? hasAttachmentsPresent : false,
       stripChapters: false,
+      chaptersAction: CHAPTERS.ACTION_KEEP,
+      chapters: [],
+      originalChapters: null,
+      chaptersLoaded: false,
+      hasComplexChapters: false,
       attachments: editableAttachments,
       tagEntries,
       initialTrackOrderIds: initialOrderIds,
@@ -1000,6 +1005,111 @@
       }));
     }
     editorState.stripAttachments = !keep;
+  }
+
+  function _normalizeChapterEntries(chapters, durationMs = null) {
+    if (
+      global.MKVForgeChapters &&
+      typeof global.MKVForgeChapters.sortAndNormalizeChapters === "function"
+    ) {
+      return global.MKVForgeChapters.sortAndNormalizeChapters(chapters, durationMs);
+    }
+    if (!Array.isArray(chapters)) return [];
+    return chapters
+      .filter(
+        (ch) =>
+          ch &&
+          typeof ch === "object" &&
+          Number.isFinite(Number(ch.start_ms)) &&
+          Number(ch.start_ms) >= 0
+      )
+      .map((ch, idx) => ({
+        start_ms: Math.round(Number(ch.start_ms)),
+        title:
+          String(ch.title || "").trim().slice(0, CHAPTERS.MAX_TITLE_LEN) ||
+          `${CHAPTERS.TITLE_PREFIX}${String(idx + 1).padStart(
+            CHAPTERS.TITLE_PAD_WIDTH,
+            "0"
+          )}`,
+      }))
+      .sort((a, b) => a.start_ms - b.start_ms)
+      .slice(0, CHAPTERS.MAX_COUNT);
+  }
+
+  function _chapterListsMatch(listA, listB) {
+    if (
+      global.MKVForgeChapters &&
+      typeof global.MKVForgeChapters.areChapterListsEqual === "function"
+    ) {
+      return global.MKVForgeChapters.areChapterListsEqual(listA, listB);
+    }
+    const normA = _normalizeChapterEntries(listA);
+    const normB = _normalizeChapterEntries(listB);
+    if (normA.length !== normB.length) return false;
+    return normA.every(
+      (item, idx) =>
+        item.start_ms === normB[idx].start_ms && item.title === normB[idx].title
+    );
+  }
+
+  function resolveEffectiveChaptersAction(editorState) {
+    if (!editorState) return CHAPTERS.ACTION_KEEP;
+    if (
+      editorState.chaptersAction === CHAPTERS.ACTION_REPLACE &&
+      Array.isArray(editorState.chapters) &&
+      editorState.chapters.length > 0
+    ) {
+      return CHAPTERS.ACTION_REPLACE;
+    }
+    if (
+      editorState.chaptersAction === CHAPTERS.ACTION_CLEAR ||
+      Boolean(editorState.stripChapters)
+    ) {
+      return CHAPTERS.ACTION_CLEAR;
+    }
+    return CHAPTERS.ACTION_KEEP;
+  }
+
+  function setStripChapters(editorState, strip) {
+    if (!editorState) return;
+    const shouldClear = Boolean(strip);
+    editorState.stripChapters = shouldClear;
+    if (shouldClear) {
+      editorState.chaptersAction = CHAPTERS.ACTION_CLEAR;
+      editorState.chapters = [];
+    } else if (editorState.chaptersAction === CHAPTERS.ACTION_CLEAR) {
+      editorState.chaptersAction = CHAPTERS.ACTION_KEEP;
+      editorState.chapters = Array.isArray(editorState.originalChapters)
+        ? editorState.originalChapters.map((ch) => ({ ...ch }))
+        : [];
+    }
+  }
+
+  function applyChapterEdits(editorState, nextChapters, durationMs = null) {
+    if (!editorState) return;
+    const normalized = _normalizeChapterEntries(nextChapters, durationMs);
+    const hasOriginals = Array.isArray(editorState.originalChapters);
+    const originalList = hasOriginals ? editorState.originalChapters : [];
+
+    if (normalized.length === 0) {
+      editorState.chapters = [];
+      if (hasOriginals && originalList.length === 0) {
+        editorState.chaptersAction = CHAPTERS.ACTION_KEEP;
+        editorState.stripChapters = false;
+      } else {
+        editorState.chaptersAction = CHAPTERS.ACTION_CLEAR;
+        editorState.stripChapters = true;
+      }
+      return;
+    }
+
+    editorState.chapters = normalized;
+    editorState.stripChapters = false;
+    if (hasOriginals && _chapterListsMatch(normalized, originalList)) {
+      editorState.chaptersAction = CHAPTERS.ACTION_KEEP;
+    } else {
+      editorState.chaptersAction = CHAPTERS.ACTION_REPLACE;
+    }
   }
 
   function findSelectedSourceAudio(editorState) {
@@ -1363,7 +1473,7 @@
       editorState.stripGlobalTags ||
       editorState.stripTrackTags ||
       editorState.stripAttachments ||
-      editorState.stripChapters
+      resolveEffectiveChaptersAction(editorState) !== CHAPTERS.ACTION_KEEP
     ) {
       return true;
     }
@@ -1416,8 +1526,7 @@
     if (
       editorState.stripGlobalTags ||
       editorState.stripTrackTags ||
-      editorState.stripAttachments ||
-      editorState.stripChapters
+      editorState.stripAttachments
     ) {
       return false;
     }
@@ -1498,10 +1607,17 @@
     if (
       editorState.stripGlobalTags ||
       editorState.stripTrackTags ||
-      editorState.stripAttachments ||
-      editorState.stripChapters
+      editorState.stripAttachments
     ) {
       parts.push("Strip Metadata");
+    }
+
+    const effectiveChaptersAction = resolveEffectiveChaptersAction(editorState);
+    if (effectiveChaptersAction === CHAPTERS.ACTION_REPLACE) {
+      const chCount = editorState.chapters.length;
+      parts.push(`Update ${chCount} ${chCount === 1 ? "Chapter" : "Chapters"}`);
+    } else if (effectiveChaptersAction === CHAPTERS.ACTION_CLEAR) {
+      parts.push("Clear Chapters");
     }
 
     const attachments = Array.isArray(editorState.attachments)
@@ -1671,6 +1787,15 @@
         ? keptAttachmentIds
         : null;
 
+    const effectiveChaptersAction = resolveEffectiveChaptersAction(editorState);
+    const chapterPayloadEntries =
+      effectiveChaptersAction === CHAPTERS.ACTION_REPLACE
+        ? _normalizeChapterEntries(editorState.chapters).map((ch) => ({
+            start_ms: ch.start_ms,
+            title: ch.title,
+          }))
+        : null;
+
     return {
       file_id: fileDetail.id,
       config: {
@@ -1680,7 +1805,9 @@
           strip_track_tags: Boolean(editorState.stripTrackTags),
           strip_attachments: stripAllAttachments,
           keep_attachment_ids: partialKeptAttachmentIds,
-          strip_chapters: Boolean(editorState.stripChapters),
+          strip_chapters: effectiveChaptersAction === CHAPTERS.ACTION_CLEAR,
+          chapters_action: effectiveChaptersAction,
+          chapters: chapterPayloadEntries,
         },
         audio_conversion: {
           enabled: convertEnabled,
@@ -1806,6 +1933,9 @@
     createEditorState,
     toggleAttachmentEnabled,
     setAllAttachmentsEnabled,
+    resolveEffectiveChaptersAction,
+    setStripChapters,
+    applyChapterEdits,
     findSelectedSourceAudio,
     moveTrack,
     moveOrderedTrack,
