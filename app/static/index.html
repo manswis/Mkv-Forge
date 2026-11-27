@@ -7433,9 +7433,11 @@
                           @click="toggleChapterRowPreview(row._key)"
                           :aria-expanded="chaptersModal.expandedChapterKey === row._key ? 'true' : 'false'"
                           aria-label="Preview and fine-tune chapter frame"
-                          :class="chaptersModal.expandedChapterKey === row._key ? 'border-accent text-accent' : ''"
-                          class="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ui-sm border border-subtle bg-surface text-sm transition hover:border-default">
-                          👁
+                          :class="chaptersModal.expandedChapterKey === row._key ? 'border-accent text-accent' : 'text-ink-muted'"
+                          class="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ui-sm border border-subtle bg-surface transition hover:border-default hover:text-ink-primary">
+                          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5ZM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5Zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3Z" />
+                          </svg>
                         </button>
                         <button type="button" @click="deleteChapterRow(row._key)"
                           aria-label="Delete chapter"

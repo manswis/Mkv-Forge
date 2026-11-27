@@ -551,3 +551,6 @@ class TestIndexHtmlStructure:
         assert "revokeObjectURL" in ch_ctrl_js
         assert "/api/files/" not in html or "/frame" not in html
         assert 'buildSceneFrameUrl' not in html
+        # Material Design inline SVG visibility icon instead of raw eye emoji
+        assert "👁" not in html
+        assert "M12 4.5C7 4.5 2.73 7.61 1 12" in html

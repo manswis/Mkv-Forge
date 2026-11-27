@@ -156,12 +156,12 @@ Goal: Wire the Alpine.js controller (`app.js`) and responsive UI (`index.html`) 
 
 Goal: Prove the entire vertical slice works seamlessly across unit, integration, real FFmpeg/MKVToolNix, desktop & mobile viewports, and zero regressions.
 
-- [ ] **C6.1 End-to-End Integration Suite (`tests/integration/test_chapters_e2e.py`)**
-  - [ ] Real synthetic MKV end-to-end: `GET /chapters` (`[]`) → `POST /chapters/parse` → `GET /frame?mode=fast` & `mode=accurate` → `POST /api/jobs` (`replace` mode) → verify `<1s` `mkvpropedit` instant edit runs → verify `GET /chapters` returns written chapters and SQLite `chapters_count` updates immediately.
-  - [ ] Clear flow (`chapters_action="clear"`) → verify `mkvpropedit --chapters ""` clears chapters and `chapters_count == 0`.
-  - [ ] Full remux flow (`keep_both` + chapters replace) → verify Stage 2 `mkvmerge` writes chapters to `.remux.mkv` while keeping original untouched.
+- [x] **C6.1 End-to-End Integration Suite (`tests/integration/test_chapters_e2e.py`)**
+  - [x] Real synthetic MKV end-to-end: `GET /chapters` (`[]`) → `POST /chapters/parse` → `GET /frame?mode=fast` & `mode=accurate` → `POST /api/jobs` (`replace` mode) → verify `<1s` `mkvpropedit` instant edit runs → verify `GET /chapters` returns written chapters and SQLite `chapters_count` updates immediately.
+  - [x] Clear flow (`chapters_action="clear"`) → verify `mkvpropedit --chapters ""` clears chapters and `chapters_count == 0`.
+  - [x] Full remux flow (`keep_both` + chapters replace) → verify Stage 2 `mkvmerge` writes chapters to `.remux.mkv` while keeping original untouched.
 
 - [ ] **C6.2 Full Regression Gate**
-  - [ ] Run full suite: `pytest tests/unit tests/integration -q` — 0 failures.
-  - [ ] Verify `git diff` cleanliness: zero magic numbers, zero dead code, zero files written into `<data_dir>` during frame extraction, zero new global Settings.
+  - [x] Run full suite: `pytest tests/unit tests/integration -q` — 0 failures.
+  - [x] Verify `git diff` cleanliness: zero magic numbers, zero dead code, zero files written into `<data_dir>` during frame extraction, zero new global Settings.
   - [ ] Manual smoke check on desktop + mobile viewport (all 3 entry points, tap horizontal scrubber → 3-frame Draft Peek → `+ Add Chapter`, tap `[👁]` on vertical rail → inline accurate `±1s` fine-tune, `🎬 Scan Scenes` instant cancel, and `<1s` Instant Edit apply).
