@@ -122,33 +122,33 @@ Goal: Build all pure, zero-DOM frontend chapter logic (`chapters.js`), constants
 
 Goal: Wire the Alpine.js controller (`app.js`) and responsive UI (`index.html`) matching the unified single-screen design with `44px` touch targets and leak-free `AbortController` / `URL.revokeObjectURL` lifecycle.
 
-- [ ] **C5.1 Alpine Controller State & Serial Fetch Lifecycle (`app/static/js/app.js`)**
-  - [ ] Extend `openEditor(file, { openChapters = false })` and `runContextMenuAction("chapters")` so all 3 entry points open the exact same Chapters Sheet cleanly.
-  - [ ] Manage `chaptersModal` state (`drawer: "main" | "scan_scenes" | "paste"`, `expandedChapterKey`, `draftPeek` `{ tsMs, title, frames, centerObjectUrl, loading }`, `undoSnapshot`, `quickSkipOpen`, `menuOpen`, `shiftDraft`, `pasteDraft`).
-  - [ ] Implement serial 1-at-a-time frame loader with single `_sceneFetchAbortController`:
+- [x] **C5.1 Alpine Controller State & Serial Fetch Lifecycle (`app/static/js/app.js`)**
+  - [x] Extend `openEditor(file, { openChapters = false })` and `runContextMenuAction("chapters")` so all 3 entry points open the exact same Chapters Sheet cleanly.
+  - [x] Manage `chaptersModal` state (`drawer: "main" | "scan_scenes" | "paste"`, `expandedChapterKey`, `draftPeek` `{ tsMs, title, frames, centerObjectUrl, loading }`, `undoSnapshot`, `quickSkipOpen`, `menuOpen`, `shiftDraft`, `pasteDraft`).
+  - [x] Implement serial 1-at-a-time frame loader with single `_sceneFetchAbortController`:
     - Fetches 3-frame Draft Peek (`-15s | tapped | +15s`, `mode="fast"`) on timeline bar tap, switching center frame to `mode="accurate"` on any `±` nudge (optimistic instant timestamp update + `180ms` debounce).
     - Fetches single `mode="accurate"` frame when expanding `[👁]` inline on a chapter row (1 expanded at a time; zero frames fetched on modal open).
     - Supports opt-in **`[ 🖼 Show Previews ]`** on existing chapters (`chapters.length > 0`): serially streams `320px` `mode="fast"` thumbnails down the vertical rail (`Loading N/M… [Stop]` → `Hide Previews`), aborting cleanly on Stop or modal close.
     - Fetches 1-level `Scan Scenes` grid serially (single clean 3-preset density row `12 / 24 / 40` persisted in `localStorage`), preserving loaded `objectUrl`s in RAM while modal stays open and revoking **all** `objectUrl`s on density change or modal close.
     - Immediately aborts on modal close, **Stop**, row switch, timeline re-tap, or nudge; gracefully renders `409 Conflict` active-job banner.
-  - [ ] Implement 1-tap Undo snapshot, Quick Skip popover, Unified Paste/Upload (`POST /parse` + file drop/picker), Renumber, Shift All, Export `.txt`/`.xml`, Reset to Original, and Clear All.
+  - [x] Implement 1-tap Undo snapshot, Quick Skip popover, Unified Paste/Upload (`POST /parse` + file drop/picker), Renumber, Shift All, Export `.txt`/`.xml`, Reset to Original, and Clear All.
 
-- [ ] **C5.2 Responsive HTML Surfaces (`app/static/index.html`)**
-  - [ ] Load `/static/js/chapters.js?v=...` once before `editor.js` / `app.js` and bump cache-busters.
-  - [ ] Wire all 3 entry points:
+- [x] **C5.2 Responsive HTML Surfaces (`app/static/index.html`)**
+  - [x] Load `/static/js/chapters.js?v=...` once before `editor.js` / `app.js` and bump cache-busters.
+  - [x] Wire all 3 entry points:
     - **File Editor Section 1 `Chapters` row:** Always visible (`12 chapters [Edit…]` / `No chapters [+ Add Chapters]` / `[Modified]` / `[Will Clear]`) synced with `Strip Chapters`.
     - **File Info Modal:** Secondary **`Chapters`** button next to `Open in Editor →` + tappable `N Chapters` pill → `openEditor(target, { openChapters: true })`.
     - **Right-Click / 3-Dot Context Menu:** **`Chapters`** right under **`Process`** in Group 1 (`Process` → `Chapters` → `Info` → `Download`), disabled when busy/scanning/scan-error.
-  - [ ] Build the Unified Chapters Sheet (`max-h-[90dvh]`, `Escape` close with abort cleanup):
+  - [x] Build the Unified Chapters Sheet (`max-h-[90dvh]`, `Escape` close with abort cleanup):
     - **Sticky Horizontal Movie Scrubber (`40px` tap zone)** with chapter dots + **Action Chip Strip** (`⚡ Quick Skip ▾`, `📋 Paste / Upload`, `🎬 Scan Scenes`, `+ Add`, `⋯`).
     - **Draft Peek Card** (`Not added yet`, 3 fast frames, `±30s/-5s/-1s/+1s/+5s/+30s`, Title + Quick-Name Chips, `+ Add Chapter` / `×`).
     - **Vertical Left Timeline Rail (both Desktop & Mobile):** Shows 1-line amber complex-chapter warning banner when `has_complex_chapters === true`; empty hint for `0` chapters; `●` nodes for existing chapters with opt-in **`[ 🖼 Show Previews ]`** (`Loading N/M… [Stop]` / `Hide Previews`) header toggle and inline accordion `[👁]` accurate preview + `±` nudges + Quick-Name Chips right under the tapped row (`○ End of movie` footer node).
     - **Optional 1-Level `🎬 Scan Scenes` Grid** (single clean 3-preset density row `Compact · 12` / `Balanced · 24` / `Detailed · 40` persisted in `localStorage`, Stop button, tap to fine-tune in Draft Peek or multi-select) & **Unified `📋 Paste / Upload` Drawer**.
 
-- [ ] **C5.3 Phase C5 Verification Gate (`tests/unit/test_index_html_structure.py`)**
-  - [ ] Update script cache-buster assertions, Group 1 context-menu ordering (`Process` → `Chapters` → `Info` → `Download`), and verify zero duplicate `<script>` tags + balanced HTML tags.
-  - [ ] Add landmark assertions for all 3 entry points, sticky horizontal scrubber, Draft Peek Card, vertical left-rail inline preview, Quick-Name Chips, 1-level Scan Scenes grid, `⋯` menu, `AbortController` + `URL.revokeObjectURL`, and zero parallel `<img :src="/api/files/.../frame">` patterns.
-  - [ ] Run `node --check app/static/js/app.js && pytest tests/unit/test_index_html_structure.py -v` and confirm 100% green.
+- [x] **C5.3 Phase C5 Verification Gate (`tests/unit/test_index_html_structure.py`)**
+  - [x] Update script cache-buster assertions, Group 1 context-menu ordering (`Process` → `Chapters` → `Info` → `Download`), and verify zero duplicate `<script>` tags + balanced HTML tags.
+  - [x] Add landmark assertions for all 3 entry points, sticky horizontal scrubber, Draft Peek Card, vertical left-rail inline preview, Quick-Name Chips, 1-level Scan Scenes grid, `⋯` menu, `AbortController` + `URL.revokeObjectURL`, and zero parallel `<img :src="/api/files/.../frame">` patterns.
+  - [x] Run `node --check app/static/js/app.js && pytest tests/unit/test_index_html_structure.py -v` and confirm 100% green.
 
 ---
 

@@ -5,6 +5,10 @@
   const Api = global.MKVForgeApi;
   const Fmt = global.MKVForgeFormatters;
   const Ed = global.MKVForgeEditor;
+  const Ch = global.MKVForgeChapters || null;
+  const ChCtrl = global.MKVForgeChaptersController || {
+    createMethods: () => ({}),
+  };
   const FT = global.MKVForgeFolderTree;
   const TS = global.MKVForgeToastStack;
   const NavHistory = global.MKVForgeNavHistory || null;
@@ -409,6 +413,7 @@
       FT,
       PP,
       TM,
+      Ch,
       Theme,
       I18n,
 
@@ -623,6 +628,8 @@
       addAudioModalOpen: false,
       addAudioDraft: null,
       importTrackModal: null,
+      chaptersModal: null,
+      _pendingOpenChaptersFileId: null,
 
       // Unified Folder Tree Picker modal state (Save As / Move Files / Move Folder / Browse)
       folderPickerOpen: false,
@@ -783,6 +790,8 @@
               this.closeTestMediaModal();
             } else if (this.importTrackModal) {
               this.closeImportTrackModal();
+            } else if (this.chaptersModal) {
+              this.closeChaptersModal();
             } else if (this.addAudioModalOpen) {
               this.closeAddAudioModal();
             } else if (this.addAudioMenuOpen) {
@@ -2305,6 +2314,7 @@
             this.newFolderModal ||
             this.folderPickerOpen ||
             this.importTrackModal ||
+            this.chaptersModal ||
             this.addAudioModalOpen ||
             this.addAudioMenuOpen ||
             this.jobsDrawerOpen
@@ -3097,6 +3107,7 @@
         if (this.batchModal) active.push(L.BATCH_MODAL || "batch_modal");
         if (this.testMediaModalOpen) active.push(L.TEST_MEDIA_MODAL || "test_media_modal");
         if (this.importTrackModal) active.push(L.IMPORT_TRACK_MODAL || "import_track_modal");
+        if (this.chaptersModal) active.push(L.CHAPTERS_MODAL || "chapters_modal");
         if (this.addAudioModalOpen) active.push(L.ADD_AUDIO_MODAL || "add_audio_modal");
         if (this.factoryResetModalOpen) active.push(L.FACTORY_RESET_MODAL || "factory_reset_modal");
         if (this.infoModal) active.push(L.INFO_MODAL || "info_modal");
@@ -3165,6 +3176,9 @@
             break;
           case L.ADD_AUDIO_MODAL || "add_audio_modal":
             this.closeAddAudioModal();
+            break;
+          case L.CHAPTERS_MODAL || "chapters_modal":
+            this.closeChaptersModal();
             break;
           case L.IMPORT_TRACK_MODAL || "import_track_modal":
             this.closeImportTrackModal();
@@ -3476,7 +3490,7 @@
         }
       },
 
-      openEditor(file) {
+      openEditor(file, { openChapters = false } = {}) {
         if (!file || !file.id) return;
         if (this.isFileScanning(file)) {
           this.showToast("Scanning metadata — ready in a moment.", "info");
@@ -3489,6 +3503,7 @@
           );
           return;
         }
+        this._pendingOpenChaptersFileId = openChapters ? file.id : null;
         if (this.route === C.ROUTES.LIBRARY) {
           this._captureLibraryOrigin(file.id);
         }
@@ -3740,6 +3755,7 @@
             this.newFolderModal ||
             this.folderPickerOpen ||
             this.importTrackModal ||
+            this.chaptersModal ||
             this.addAudioModalOpen ||
             this.addAudioMenuOpen ||
             this.jobsDrawerOpen ||
@@ -4924,6 +4940,9 @@
         this.addAudioModalOpen = false;
         this.addAudioDraft = null;
         this.importTrackModal = null;
+        if (this.chaptersModal) {
+          this.closeChaptersModal();
+        }
         this.folderPickerOpen = false;
         this.folderTree = null;
         try {
@@ -4934,6 +4953,10 @@
           if (activeJob && activeJob.state === C.STATUSES.QUEUED) {
             this.showToast(this._busyLockMessage(detail), "info");
           }
+          if (this._pendingOpenChaptersFileId === detail.id) {
+            this._pendingOpenChaptersFileId = null;
+            this.openChaptersModal();
+          }
         } catch (err) {
           if (err && err.status === 401) return;
           this.editorFile = null;
@@ -4943,6 +4966,9 @@
           this.editorLoading = false;
         }
       },
+
+      // Chapters Sheet controller methods (delegated from chapters_controller.js)
+      ...ChCtrl.createMethods(),
 
       // Editor actions (+ Add Audio dropdown -> Progressive-Disclosure modal -> Inline track)
       _resolveDefaultBitrateForDraft(targetCodec, resolvedChannels) {
@@ -6271,6 +6297,10 @@
           }
           if (action === "process") {
             this.openEditor(menu.file);
+            return;
+          }
+          if (action === "chapters") {
+            this.openEditor(menu.file, { openChapters: true });
             return;
           }
           if (action === "info") {

@@ -43,14 +43,16 @@
       } catch (_e) { }
     })();
   </script>
-  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p18.18" />
-  <script defer src="/static/js/constants.js?v=0.1.0-p18.28"></script>
+  <link rel="stylesheet" href="/static/css/app.css?v=0.1.0-p19.1" />
+  <script defer src="/static/js/constants.js?v=0.1.0-p19.1"></script>
   <script defer src="/static/js/theme.js?v=0.1.0-p17.1"></script>
   <script defer src="/static/js/i18n.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/formatters.js?v=0.1.0-p18.18"></script>
-  <script defer src="/static/js/api.js?v=0.1.0-p18.25"></script>
+  <script defer src="/static/js/api.js?v=0.1.0-p19.1"></script>
   <script defer src="/static/js/folder_tree.js?v=0.1.0-p12.2"></script>
-  <script defer src="/static/js/editor.js?v=0.1.0-p18.28"></script>
+  <script defer src="/static/js/chapters.js?v=0.1.0-p19.1"></script>
+  <script defer src="/static/js/editor.js?v=0.1.0-p19.1"></script>
+  <script defer src="/static/js/chapters_controller.js?v=0.1.0-p19.4"></script>
   <script defer src="/static/js/pull_refresh.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/toast_stack.js?v=0.1.0-p12.2"></script>
   <script defer src="/static/js/charts.js?v=0.1.0-p17.7"></script>
@@ -59,7 +61,7 @@
   <script defer src="/static/js/test_media.js?v=0.1.0-p16.3"></script>
   <script defer src="/static/js/batch.js?v=0.1.0-p18.23"></script>
   <script defer src="/static/js/nav_history.js?v=0.1.0-p18.13"></script>
-  <script defer src="/static/js/app.js?v=0.1.0-p18.27"></script>
+  <script defer src="/static/js/app.js?v=0.1.0-p19.2"></script>
   <script defer src="/static/js/alpine.min.js?v=0.1.0-p12.2"></script>
 </head>
 
@@ -2292,19 +2294,34 @@
                     </div>
                   </label>
 
-                  <!-- Chapters Checkbox Row (default checked = kept) -->
-                  <label x-show="editorFile.chapters_count > 0"
-                    class="ui-row flex cursor-pointer items-center gap-3 px-4 py-3"
-                    :class="editor.stripChapters ? 'opacity-60' : ''">
-                    <input type="checkbox" :checked="!editor.stripChapters"
-                      @change="editor.stripChapters = !$event.target.checked" aria-label="Keep Chapters"
-                      class="h-4 w-4 shrink-0 rounded border-default bg-inset text-accent focus:ring-accent" />
-                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <!-- Chapters Row (always visible: View / Edit / Add / Clear) -->
+                  <div class="ui-row flex flex-wrap items-center justify-between gap-2.5 px-4 py-3"
+                    :class="Ed.resolveEffectiveChaptersAction(editor) === C.CHAPTERS.ACTION_CLEAR ? 'opacity-75' : ''">
+                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">
+                      <input type="checkbox"
+                        x-show="editorFile.chapters_count > 0 || Ed.resolveEffectiveChaptersAction(editor) !== C.CHAPTERS.ACTION_KEEP"
+                        :checked="Ed.resolveEffectiveChaptersAction(editor) !== C.CHAPTERS.ACTION_CLEAR"
+                        @change="Ed.setStripChapters(editor, !$event.target.checked)"
+                        aria-label="Keep Chapters"
+                        class="h-4 w-4 shrink-0 cursor-pointer rounded border-default bg-inset text-accent focus:ring-accent" />
                       <span class="ui-tag font-mono">Chapters</span>
                       <span class="ui-num font-mono text-xs text-ink-secondary"
-                        x-text="`${editorFile.chapters_count} ${editorFile.chapters_count === 1 ? 'chapter' : 'chapters'}`"></span>
+                        x-text="Ed.resolveEffectiveChaptersAction(editor) === C.CHAPTERS.ACTION_REPLACE
+                          ? `${editor.chapters.length} ${editor.chapters.length === 1 ? 'chapter' : 'chapters'}`
+                          : Ed.resolveEffectiveChaptersAction(editor) === C.CHAPTERS.ACTION_CLEAR
+                            ? (editorFile.chapters_count > 0 ? `${editorFile.chapters_count} → 0 chapters` : '0 chapters')
+                            : (editorFile.chapters_count > 0 ? `${editorFile.chapters_count} ${editorFile.chapters_count === 1 ? 'chapter' : 'chapters'}` : 'No chapters')"></span>
+                      <span x-show="Ed.resolveEffectiveChaptersAction(editor) === C.CHAPTERS.ACTION_REPLACE"
+                        class="ui-status ui-status-ok">Modified</span>
+                      <span x-show="Ed.resolveEffectiveChaptersAction(editor) === C.CHAPTERS.ACTION_CLEAR"
+                        class="ui-status ui-status-warn">Will Clear</span>
                     </div>
-                  </label>
+                    <button type="button" @click="openChaptersModal()" :disabled="isEditorFileBusy"
+                      class="ui-btn ui-btn-secondary min-h-[36px] shrink-0 px-3 py-1.5 text-xs">
+                      <span
+                        x-text="(editorFile.chapters_count > 0 || Ed.resolveEffectiveChaptersAction(editor) === C.CHAPTERS.ACTION_REPLACE) ? 'Edit…' : '+ Add Chapters'"></span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2842,7 +2859,8 @@
                         class="ui-row flex cursor-pointer items-center justify-between gap-3 px-3.5 py-2.5 text-xs text-ink-primary">
                         <span
                           x-text="editorFile.chapters_count > 0 ? `Strip Chapters (${editorFile.chapters_count})` : 'Strip Chapters'"></span>
-                        <input type="checkbox" x-model="editor.stripChapters"
+                        <input type="checkbox" :checked="editor.stripChapters"
+                          @change="Ed.setStripChapters(editor, $event.target.checked)"
                           class="h-4 w-4 rounded border-default bg-inset text-accent" />
                       </label>
                     </div>
@@ -6528,6 +6546,19 @@
           </span>
         </button>
 
+        <!-- File-only Chapters (opens Unified Chapters Sheet directly in Editor) -->
+        <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
+          @click="runContextMenuAction('chapters')"
+          :disabled="isContextMenuFileBusy || isContextMenuFileScanning || isContextMenuFileScanError"
+          class="ui-menu-item">
+          <span class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 shrink-0 text-ink-secondary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M4 6h16v2H4V6zm0 5h10v2H4v-2zm0 5h16v2H4v-2zm13-5l4 2.5L17 16v-5z"></path>
+            </svg>
+            <span>Chapters</span>
+          </span>
+        </button>
+
         <!-- File-only Info (read-only metadata inspection; disabled while scanning) -->
         <button type="button" role="menuitem" x-show="contextMenu && contextMenu.kind === 'file'"
           @click="runContextMenuAction('info')" :disabled="isContextMenuFileScanning" class="ui-menu-item">
@@ -6716,8 +6747,11 @@
                     x-text="`${infoModal.data.subtitle_tracks.length} ${infoModal.data.subtitle_tracks.length === 1 ? 'Subtitle' : 'Subtitles'}`"></span>
                   <span class="ui-tag ui-num font-mono"
                     x-text="`${infoModal.data.container.attachments_count} ${infoModal.data.container.attachments_count === 1 ? 'Attachment' : 'Attachments'}`"></span>
-                  <span class="ui-tag ui-num font-mono"
-                    x-text="`${infoModal.data.container.chapters_count} ${infoModal.data.container.chapters_count === 1 ? 'Chapter' : 'Chapters'}`"></span>
+                  <button type="button"
+                    @click="const target = infoModal.data; closeFileInfoModal(); openEditor(target, { openChapters: true });"
+                    class="ui-tag ui-num cursor-pointer font-mono transition hover:border-default hover:text-accent"
+                    title="Edit or add chapters"
+                    x-text="`${infoModal.data.container.chapters_count} ${infoModal.data.container.chapters_count === 1 ? 'Chapter' : 'Chapters'}`"></button>
                 </div>
 
                 <!-- Section 1: Container & File Properties -->
@@ -6977,15 +7011,496 @@
 
           <!-- Pinned Footer -->
           <div
-            class="flex shrink-0 items-center justify-between gap-2 border-t border-subtle bg-surface px-5 py-3.5 pb-safe-modal sm:px-6">
-            <button type="button" x-show="infoModal.data"
-              @click="const target = infoModal.data; closeFileInfoModal(); openEditor(target);"
-              class="ui-btn ui-btn-primary">
-              Open in Editor →
-            </button>
+            class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-subtle bg-surface px-5 py-3.5 pb-safe-modal sm:px-6">
+            <div x-show="infoModal.data" class="flex flex-wrap items-center gap-2">
+              <button type="button"
+                @click="const target = infoModal.data; closeFileInfoModal(); openEditor(target);"
+                class="ui-btn ui-btn-primary">
+                Open in Editor →
+              </button>
+              <button type="button"
+                @click="const target = infoModal.data; closeFileInfoModal(); openEditor(target, { openChapters: true });"
+                class="ui-btn ui-btn-secondary">
+                Chapters
+              </button>
+            </div>
             <button type="button" @click="closeFileInfoModal()" class="ui-btn ui-btn-secondary ml-auto">
               Close
             </button>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- =================================================================== -->
+    <!-- UNIFIED CHAPTERS EDITOR & INTERACTIVE TIMELINE SHEET                -->
+    <!-- =================================================================== -->
+    <div x-cloak x-show="chaptersModal !== null" role="dialog" aria-modal="true"
+      aria-labelledby="chapters-modal-title"
+      class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div x-show="chaptersModal !== null" x-transition.opacity @click="closeChaptersModal()"
+        class="fixed inset-0 bg-black/75 backdrop-blur-sm" aria-hidden="true"></div>
+      <template x-if="chaptersModal">
+        <div x-show="chaptersModal !== null" x-transition
+          class="ui-sheet relative z-10 flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden">
+
+          <!-- Pinned Header -->
+          <div class="flex shrink-0 items-center justify-between gap-3 border-b border-subtle bg-surface px-4 py-3.5 sm:px-6">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 id="chapters-modal-title" class="ui-section-title text-base">Chapters</h2>
+                <span class="ui-tag ui-num font-mono"
+                  x-text="`${chaptersModal.chapters.length} ${chaptersModal.chapters.length === 1 ? 'chapter' : 'chapters'}`"></span>
+              </div>
+              <p class="mt-0.5 truncate font-mono text-xs text-ink-muted"
+                :title="chaptersModal.filename" x-text="chaptersModal.filename"></p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <button type="button" x-show="chaptersModal.undoSnapshot !== null"
+                @click="undoChapterEdit()"
+                class="ui-btn ui-btn-secondary min-h-[36px] px-3 py-1.5 text-xs">
+                Undo
+              </button>
+              <button type="button" @click="closeChaptersModal()" aria-label="Close chapters editor"
+                class="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ui-sm border border-subtle bg-inset text-ink-secondary transition hover:border-default hover:text-ink-primary">
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <!-- Sticky Movie Scrubber + Action Chip Strip -->
+          <div class="shrink-0 space-y-2.5 border-b border-subtle bg-surface/95 px-4 py-3 sm:px-6">
+            <!-- 409 Active-Job Conflict Banner -->
+            <div x-show="chaptersModal.conflictMessage"
+              class="flex items-start justify-between gap-2 rounded-ui-md border border-[var(--color-status-warn-border)] bg-[var(--color-status-warn-bg)] px-3 py-2 text-xs text-[var(--color-status-warn)]">
+              <span class="min-w-0 flex-1 break-words" x-text="chaptersModal.conflictMessage"></span>
+              <button type="button" @click="chaptersModal.conflictMessage = null"
+                aria-label="Dismiss conflict notice" class="shrink-0 px-1 font-bold">✕</button>
+            </div>
+
+            <!-- 1-Line Amber Complex-Chapter Warning Banner -->
+            <div x-show="chaptersModal.hasComplexChapters"
+              class="rounded-ui-md border border-[var(--color-status-warn-border)] bg-[var(--color-status-warn-bg)] px-3 py-2 text-xs text-[var(--color-status-warn)]">
+              This file contains multi-edition, ordered, or nested chapters — saving will flatten them into a standard chapter list.
+            </div>
+
+            <!-- Horizontal Movie Scrubber (44px tap zone) -->
+            <div x-show="chaptersModal.hasVideo" class="space-y-1">
+              <div class="flex items-center justify-between text-[11px] font-mono text-ink-muted">
+                <span>Tap timeline to preview &amp; add chapter</span>
+                <span class="ui-num" x-text="`00:00:00 — ${Ch.formatChapterTime(chaptersModal.durationMs)}`"></span>
+              </div>
+              <div role="slider" tabindex="0" aria-label="Movie timeline scrubber"
+                :aria-valuemin="0" :aria-valuemax="chaptersModal.durationMs"
+                :aria-valuenow="chaptersModal.draftPeek ? chaptersModal.draftPeek.tsMs : 0"
+                @click="onChapterScrubberClick($event)"
+                class="relative flex min-h-[44px] w-full cursor-pointer items-center select-none">
+                <div class="relative h-2.5 w-full rounded-full border border-subtle bg-inset">
+                  <!-- Existing Chapter Dots -->
+                  <template x-for="dot in chaptersModal.chapters" :key="`dot-${dot._key}`">
+                    <span
+                      :style="`left:${chaptersModal.durationMs > 0 ? Math.min(100, Math.max(0, (dot.start_ms / chaptersModal.durationMs) * 100)) : 0}%`"
+                      :title="`${dot.timeText} · ${dot.title}`"
+                      class="ui-chapter-scrubber-dot pointer-events-none h-3 w-3 rounded-full border bg-accent shadow"></span>
+                  </template>
+                  <!-- Active Draft Peek Marker -->
+                  <span x-show="chaptersModal.draftPeek !== null"
+                    :style="chaptersModal.draftPeek && chaptersModal.durationMs > 0 ? `left:${Math.min(100, Math.max(0, (chaptersModal.draftPeek.tsMs / chaptersModal.durationMs) * 100))}%` : 'left:0%'"
+                    class="ui-chapter-scrubber-draft-dot pointer-events-none h-4 w-4 rounded-full border-2 bg-[var(--color-status-warn)] shadow"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Chip Strip -->
+            <div class="ui-chapter-chip-strip no-scrollbar">
+              <button type="button"
+                @click="chaptersModal.quickSkipOpen = !chaptersModal.quickSkipOpen; chaptersModal.menuOpen = false"
+                :disabled="!chaptersModal.hasVideo"
+                :class="chaptersModal.quickSkipOpen ? 'border-accent text-accent' : ''"
+                class="ui-btn ui-btn-secondary ui-chapter-touch shrink-0 whitespace-nowrap px-3 py-1.5 text-xs">
+                ⚡ Quick Skip ▾
+              </button>
+              <button type="button"
+                @click="toggleChapterDrawer('paste')"
+                :class="chaptersModal.drawer === 'paste' ? 'border-accent text-accent' : ''"
+                class="ui-btn ui-btn-secondary ui-chapter-touch shrink-0 whitespace-nowrap px-3 py-1.5 text-xs">
+                📋 Paste / Upload
+              </button>
+              <button type="button" x-show="chaptersModal.hasVideo"
+                @click="toggleChapterDrawer('scan_scenes')"
+                :class="chaptersModal.drawer === 'scan_scenes' ? 'border-accent text-accent' : ''"
+                class="ui-btn ui-btn-secondary ui-chapter-touch shrink-0 whitespace-nowrap px-3 py-1.5 text-xs">
+                🎬 Scan Scenes
+              </button>
+              <button type="button" @click="addManualChapterRow()"
+                class="ui-btn ui-btn-secondary ui-chapter-touch shrink-0 whitespace-nowrap px-3 py-1.5 text-xs">
+                + Add
+              </button>
+              <div class="relative ml-auto shrink-0">
+                <button type="button"
+                  @click="chaptersModal.menuOpen = !chaptersModal.menuOpen; chaptersModal.quickSkipOpen = false"
+                  aria-label="More chapter actions"
+                  class="ui-btn ui-btn-secondary ui-chapter-touch-icon px-2.5 py-1.5 text-xs">
+                  ⋯
+                </button>
+                <div x-show="chaptersModal.menuOpen" @click.outside="chaptersModal.menuOpen = false"
+                  class="ui-menu-panel ui-chapter-overflow-menu absolute right-0 z-30 w-48 overflow-hidden border border-default bg-elevated shadow-elevated">
+                  <button type="button" @click="renumberChapters()"
+                    :disabled="chaptersModal.chapters.length === 0"
+                    class="ui-menu-item">Renumber generic</button>
+                  <button type="button" @click="chaptersModal.shiftOpen = !chaptersModal.shiftOpen; chaptersModal.menuOpen = false"
+                    :disabled="chaptersModal.chapters.length === 0"
+                    class="ui-menu-item">Shift All…</button>
+                  <div class="ui-menu-divider"></div>
+                  <button type="button" @click="exportChaptersFile('txt')"
+                    :disabled="chaptersModal.chapters.length === 0"
+                    class="ui-menu-item">Export .txt (OGG)</button>
+                  <button type="button" @click="exportChaptersFile('xml')"
+                    :disabled="chaptersModal.chapters.length === 0"
+                    class="ui-menu-item">Export .xml (Matroska)</button>
+                  <div class="ui-menu-divider"></div>
+                  <button type="button" @click="resetChaptersToOriginal()"
+                    class="ui-menu-item">Reset to Original</button>
+                  <button type="button" @click="clearAllChapters()"
+                    :disabled="chaptersModal.chapters.length === 0"
+                    class="ui-menu-item text-[var(--color-status-err)]">Clear All</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inline Quick Skip Popover -->
+            <div x-show="chaptersModal.quickSkipOpen"
+              class="flex flex-wrap items-center gap-2 rounded-ui-md border border-subtle bg-inset p-2.5 text-xs">
+              <span class="font-medium text-ink-secondary">Interval:</span>
+              <template x-for="mins in C.CHAPTERS.QUICK_INTERVALS_MIN" :key="`qs-${mins}`">
+                <button type="button" @click="applyQuickSkipInterval(mins)"
+                  class="ui-btn ui-btn-secondary ui-chapter-touch-sm px-2.5 py-1 text-xs font-mono"
+                  x-text="`Every ${mins}m`"></button>
+              </template>
+              <form @submit.prevent="applyQuickSkipInterval(chaptersModal.quickSkipCustomMin)"
+                class="flex items-center gap-1.5">
+                <input type="number" min="1" max="120" step="1" x-model="chaptersModal.quickSkipCustomMin"
+                  placeholder="Custom min" aria-label="Custom quick skip minutes"
+                  class="ui-input ui-chapter-num-input h-9 px-2 font-mono text-xs" />
+                <button type="submit" class="ui-btn ui-btn-primary ui-chapter-touch-sm px-2.5 py-1 text-xs">Apply</button>
+              </form>
+            </div>
+
+            <!-- Inline Shift All Bar -->
+            <form x-show="chaptersModal.shiftOpen" @submit.prevent="applyShiftAllChapters()"
+              class="flex flex-wrap items-center gap-2 rounded-ui-md border border-subtle bg-inset p-2.5 text-xs">
+              <span class="font-medium text-ink-secondary">Shift all chapters (seconds, e.g. +5 or -2.5):</span>
+              <input type="number" step="0.5" x-model="chaptersModal.shiftDraftSec"
+                placeholder="0" aria-label="Shift all chapters seconds"
+                class="ui-input ui-chapter-num-input h-9 px-2 font-mono text-xs" />
+              <button type="submit" class="ui-btn ui-btn-primary ui-chapter-touch-sm px-3 py-1 text-xs">Apply Shift</button>
+              <button type="button" @click="chaptersModal.shiftOpen = false"
+                class="ui-btn ui-btn-secondary ui-chapter-touch-sm px-2.5 py-1 text-xs">Cancel</button>
+            </form>
+          </div>
+
+          <!-- Scrollable Sheet Body -->
+          <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4 sm:px-6">
+            <!-- Initial Loading / Error States -->
+            <div x-show="chaptersModal.loading" class="py-8 text-center text-xs text-ink-muted">
+              Loading chapters…
+            </div>
+            <div x-show="!chaptersModal.loading && chaptersModal.error"
+              class="rounded-ui-md border border-[var(--color-status-err-border)] bg-[var(--color-status-err-bg)] px-3.5 py-2.5 text-xs text-[var(--color-status-err)]"
+              x-text="chaptersModal.error"></div>
+
+            <!-- DRAWER: Paste / Upload -->
+            <div x-show="!chaptersModal.loading && chaptersModal.drawer === 'paste'"
+              class="space-y-3 rounded-ui-lg border border-subtle bg-inset p-3.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 class="text-xs font-semibold text-ink-primary">Paste or Upload Chapters</h3>
+                  <p class="text-[11px] text-ink-muted">Auto-detects Matroska XML, OGG Simple Text, YouTube timestamps, or CSV.</p>
+                </div>
+                <label class="ui-btn ui-btn-secondary min-h-[36px] cursor-pointer px-3 py-1.5 text-xs">
+                  Choose File
+                  <input type="file" :accept="C.CHAPTERS.IMPORT_ACCEPT" @change="onChapterFileSelected($event)"
+                    class="sr-only" />
+                </label>
+              </div>
+              <p x-show="chaptersModal.pasteFilename" class="font-mono text-[11px] text-accent"
+                x-text="`Loaded file: ${chaptersModal.pasteFilename}`"></p>
+              <textarea x-model="chaptersModal.pasteText" rows="6"
+                placeholder="00:00 Intro&#10;01:45 Opening Credits&#10;12:30 Act I"
+                aria-label="Paste chapter text"
+                class="ui-input w-full font-mono text-xs"></textarea>
+              <div x-show="chaptersModal.pasteError"
+                class="rounded-ui-sm border border-[var(--color-status-err-border)] bg-[var(--color-status-err-bg)] px-2.5 py-1.5 text-xs text-[var(--color-status-err)]"
+                x-text="chaptersModal.pasteError"></div>
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <button type="button" @click="toggleChapterDrawer('main')"
+                  class="ui-btn ui-btn-secondary min-h-[40px] px-3 text-xs">Cancel</button>
+                <button type="button" @click="parseAndApplyPastedChapters('append')"
+                  :disabled="chaptersModal.pasteBusy"
+                  class="ui-btn ui-btn-secondary min-h-[40px] px-3 text-xs">Parse &amp; Append</button>
+                <button type="button" @click="parseAndApplyPastedChapters('replace')"
+                  :disabled="chaptersModal.pasteBusy"
+                  class="ui-btn ui-btn-primary min-h-[40px] px-3 text-xs">
+                  <span x-text="chaptersModal.pasteBusy ? 'Parsing…' : 'Parse &amp; Replace'"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- DRAWER: 1-Level Scan Scenes Grid (12 / 24 / 40) -->
+            <div x-show="!chaptersModal.loading && chaptersModal.drawer === 'scan_scenes'"
+              class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2 rounded-ui-md border border-subtle bg-inset p-2.5">
+                <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Scan scenes density">
+                  <template x-for="preset in C.SCENE_PICKER.SCAN_DENSITY_PRESETS" :key="`dens-${preset}`">
+                    <button type="button" @click="selectScanScenesDensity(preset)"
+                      :class="chaptersModal.scanDensity === preset ? 'ui-btn-primary' : 'ui-btn-secondary'"
+                      class="ui-btn min-h-[36px] px-2.5 py-1 text-xs font-mono"
+                      x-text="preset === 12 ? 'Compact · 12' : preset === 24 ? 'Balanced · 24' : 'Detailed · 40'"></button>
+                  </template>
+                </div>
+                <div class="flex items-center gap-2 text-xs font-mono text-ink-muted">
+                  <span x-show="chaptersModal.scanTotalCount > 0" class="ui-num"
+                    x-text="`${chaptersModal.scanLoadedCount} / ${chaptersModal.scanTotalCount}`"></span>
+                  <button type="button" x-show="chaptersModal.scanLoading" @click="stopScanScenesGrid()"
+                    class="ui-btn ui-btn-secondary min-h-[36px] px-2.5 py-1 text-xs text-[var(--color-status-warn)]">
+                    Stop
+                  </button>
+                </div>
+              </div>
+
+              <div x-show="chaptersModal.scanSelectedTsList.length > 0"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-ui-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
+                <span class="font-medium text-ink-primary"
+                  x-text="`${chaptersModal.scanSelectedTsList.length} ${chaptersModal.scanSelectedTsList.length === 1 ? 'scene' : 'scenes'} selected`"></span>
+                <button type="button" @click="addSelectedScanTiles()"
+                  class="ui-btn ui-btn-primary min-h-[36px] px-3 py-1 text-xs">
+                  + Add Selected
+                </button>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                <template x-for="tile in chaptersModal.scanTiles" :key="`scan-${tile.tsMs}`">
+                  <div
+                    :class="chaptersModal.scanSelectedTsList.includes(tile.tsMs) ? 'border-accent ring-1 ring-accent' : 'border-subtle'"
+                    class="overflow-hidden rounded-ui-md border bg-inset">
+                    <button type="button" @click="fineTuneScanTile(tile.tsMs)"
+                      class="ui-chapter-aspect relative block w-full overflow-hidden text-left">
+                      <img x-show="tile.url" :src="tile.url" :alt="`Scene at ${tile.timeText}`"
+                        class="h-full w-full object-cover" />
+                      <span x-show="!tile.url"
+                        class="flex h-full w-full items-center justify-center text-[11px] font-mono text-ink-muted">
+                        <span x-text="chaptersModal.scanLoading ? 'Loading…' : '—'"></span>
+                      </span>
+                    </button>
+                    <div class="flex items-center justify-between gap-1 px-2 py-1.5">
+                      <button type="button" @click="fineTuneScanTile(tile.tsMs)"
+                        class="ui-num truncate font-mono text-[11px] text-ink-primary hover:text-accent"
+                        x-text="tile.timeText"></button>
+                      <button type="button" @click="toggleScanTileSelection(tile.tsMs)"
+                        :aria-pressed="chaptersModal.scanSelectedTsList.includes(tile.tsMs) ? 'true' : 'false'"
+                        class="ui-chapter-touch-sm-icon rounded-ui-sm border border-subtle px-2 text-xs font-medium"
+                        :class="chaptersModal.scanSelectedTsList.includes(tile.tsMs) ? 'border-accent bg-accent text-accent-fg' : 'bg-surface text-ink-secondary'"
+                        x-text="chaptersModal.scanSelectedTsList.includes(tile.tsMs) ? '✓' : '+'"></button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- DRAWER: Main Unified Timeline -->
+            <div x-show="!chaptersModal.loading && chaptersModal.drawer === 'main'" class="space-y-4">
+              <!-- Draft Peek Card ("Not added yet" -> "✓ Added", stays pinned with zero layout jump) -->
+              <template x-if="chaptersModal.draftPeek">
+                <div class="space-y-3 rounded-ui-lg border border-accent bg-inset p-3.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span x-show="!chaptersModal.draftPeek.added" class="ui-status ui-status-warn">Not added yet</span>
+                      <span x-show="chaptersModal.draftPeek.added" class="ui-status ui-status-ok">✓ Added</span>
+                      <span class="ui-num font-mono text-xs font-semibold text-ink-primary"
+                        x-text="chaptersModal.draftPeek.timeText"></span>
+                      <span x-show="chaptersModal.draftPeek.loading" class="text-[11px] text-ink-muted">Loading frame…</span>
+                    </div>
+                    <button type="button" @click="closeChapterDraftPeek()" aria-label="Dismiss draft peek"
+                      class="ui-chapter-touch-sm-icon inline-flex items-center justify-center rounded-ui-sm border border-subtle bg-surface text-xs text-ink-secondary">
+                      ✕
+                    </button>
+                  </div>
+
+                  <!-- 3-Frame Fast Context Strip (-15s | Selected | +15s) -->
+                  <div x-show="chaptersModal.hasVideo" class="grid grid-cols-3 gap-2">
+                    <template x-for="(frame, fi) in chaptersModal.draftPeek.frames" :key="frame._id">
+                      <button type="button" @click="selectDraftPeekFrame(fi)"
+                        :class="frame.isCenter ? 'border-accent ring-1 ring-accent' : 'border-subtle opacity-85 hover:opacity-100'"
+                        class="overflow-hidden rounded-ui-md border text-left">
+                        <div class="ui-chapter-aspect w-full overflow-hidden">
+                          <img x-show="frame.url" :src="frame.url" :alt="`${frame.label} preview`"
+                            class="h-full w-full object-cover" />
+                          <span x-show="!frame.url"
+                            class="flex h-full w-full items-center justify-center text-[11px] font-mono text-ink-muted"
+                            x-text="frame.failed ? 'Retry' : '…'"></span>
+                        </div>
+                        <div class="flex items-center justify-between bg-surface px-1.5 py-1 text-[11px] font-mono text-ink-secondary">
+                          <span x-text="frame.label"></span>
+                          <span class="ui-num" x-text="Ch.formatChapterTime(frame.tsMs)"></span>
+                        </div>
+                      </button>
+                    </template>
+                  </div>
+
+                  <!-- Nudge Chips (-30s -5s -1s +1s +5s +30s) -->
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <template x-for="step in C.CHAPTERS.NUDGE_STEPS_SEC" :key="`dn-${step}`">
+                      <button type="button" @click="nudgeChapterDraftPeek(step)"
+                        class="ui-btn ui-btn-secondary ui-chapter-touch-sm px-2.5 py-1 font-mono text-xs"
+                        x-text="step > 0 ? `+${step}s` : `${step}s`"></button>
+                    </template>
+                  </div>
+
+                  <!-- Editable Time + Title + Quick-Name Chips -->
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <input type="text" x-model="chaptersModal.draftPeek.timeText"
+                      @blur="commitChapterDraftPeekTime()" @keydown.enter.prevent="commitChapterDraftPeekTime()"
+                      aria-label="Draft chapter timestamp"
+                      class="ui-input ui-chapter-time-input h-10 shrink-0 font-mono text-xs" />
+                    <input type="text" x-model="chaptersModal.draftPeek.title"
+                      :maxlength="C.CHAPTERS.MAX_TITLE_LEN"
+                      placeholder="Chapter title (optional)"
+                      aria-label="Draft chapter title"
+                      class="ui-input h-10 min-w-0 flex-1 text-xs" />
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex flex-wrap items-center gap-1">
+                      <template x-for="chip in C.CHAPTERS.QUICK_NAME_CHIPS" :key="`dq-${chip}`">
+                        <button type="button" @click="setDraftPeekQuickTitle(chip)"
+                          class="ui-tag cursor-pointer transition hover:border-accent hover:text-accent"
+                          x-text="chip"></button>
+                      </template>
+                    </div>
+                    <button type="button" @click="commitChapterDraftPeek()"
+                      :disabled="chaptersModal.draftPeek.added"
+                      class="ui-btn ui-btn-primary ui-chapter-touch shrink-0 px-3.5 text-xs disabled:opacity-60">
+                      <span x-text="chaptersModal.draftPeek.added ? '✓ Added · Tap timeline for next' : '+ Add Chapter'"></span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Vertical Left Timeline Rail Header (with opt-in Show Previews toggle) -->
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-muted">Timeline</h3>
+                <button type="button"
+                  x-show="chaptersModal.chapters.length > 0 && chaptersModal.hasVideo"
+                  @click="toggleChapterRailPreviews()"
+                  class="ui-btn ui-btn-secondary ui-chapter-touch-sm px-3 py-1 text-xs">
+                  <span x-show="!chaptersModal.previewsActive">🖼 Show Previews</span>
+                  <span x-show="chaptersModal.previewsLoading"
+                    x-text="`Loading ${chaptersModal.previewsLoadedCount}/${chaptersModal.previewsTotalCount}… Stop`"></span>
+                  <span x-show="chaptersModal.previewsActive && !chaptersModal.previewsLoading">Hide Previews</span>
+                </button>
+              </div>
+
+              <!-- Empty State -->
+              <div x-show="chaptersModal.chapters.length === 0"
+                class="rounded-ui-lg border border-dashed border-default bg-inset/60 px-4 py-6 text-center space-y-1.5">
+                <p class="text-sm font-medium text-ink-primary">No chapters yet</p>
+                <p class="text-xs text-ink-muted">Tap the movie timeline above to preview a frame, use ⚡ Quick Skip, 📋 Paste / Upload, or 🎬 Scan Scenes.</p>
+              </div>
+
+              <!-- Vertical Left Timeline Rail (Desktop & Mobile) -->
+              <div x-show="chaptersModal.chapters.length > 0"
+                class="ui-chapter-rail relative space-y-2 border-l-2 border-subtle">
+                <template x-for="row in chaptersModal.chapters" :key="row._key">
+                  <div class="relative rounded-ui-md border border-subtle bg-inset/70 p-2.5 space-y-2">
+                    <!-- Rail Dot Node -->
+                    <span aria-hidden="true"
+                      class="ui-chapter-rail-dot h-3 w-3 rounded-full border-2 bg-accent"></span>
+
+                    <!-- Chapter Row Controls -->
+                    <div class="ui-chapter-row-controls">
+                      <img x-show="row.thumbUrl" :src="row.thumbUrl" :alt="`${row.title} thumbnail`"
+                        class="h-10 w-16 shrink-0 rounded-ui-sm border border-subtle object-cover" />
+                      <input type="text" x-model="row.timeText"
+                        @blur="commitChapterRowTime(row._key)"
+                        @keydown.enter.prevent="commitChapterRowTime(row._key)"
+                        aria-label="Chapter timestamp"
+                        class="ui-input ui-chapter-time-input h-10 shrink-0 font-mono text-xs" />
+                      <input type="text" x-model="row.title"
+                        :maxlength="C.CHAPTERS.MAX_TITLE_LEN"
+                        aria-label="Chapter title"
+                        class="ui-input h-10 min-w-0 flex-1 text-xs" />
+                      <div class="flex shrink-0 items-center gap-1">
+                        <button type="button" x-show="chaptersModal.hasVideo"
+                          @click="toggleChapterRowPreview(row._key)"
+                          :aria-expanded="chaptersModal.expandedChapterKey === row._key ? 'true' : 'false'"
+                          aria-label="Preview and fine-tune chapter frame"
+                          :class="chaptersModal.expandedChapterKey === row._key ? 'border-accent text-accent' : ''"
+                          class="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ui-sm border border-subtle bg-surface text-sm transition hover:border-default">
+                          👁
+                        </button>
+                        <button type="button" @click="deleteChapterRow(row._key)"
+                          aria-label="Delete chapter"
+                          class="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-ui-sm border border-subtle bg-surface text-xs text-ink-muted transition hover:border-[var(--color-status-err-border)] hover:text-[var(--color-status-err)]">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Inline Accordion Preview directly under tapped row -->
+                    <div x-show="chaptersModal.expandedChapterKey === row._key"
+                      class="space-y-2.5 border-t border-subtle pt-2.5">
+                      <div class="overflow-hidden rounded-ui-md border border-subtle">
+                        <div class="ui-chapter-aspect w-full max-w-md mx-auto overflow-hidden">
+                          <img x-show="chaptersModal.expandedFrameUrl"
+                            :src="chaptersModal.expandedFrameUrl"
+                            :alt="`Accurate frame preview for ${row.title}`"
+                            class="h-full w-full object-cover" />
+                          <div x-show="!chaptersModal.expandedFrameUrl"
+                            class="flex h-full w-full items-center justify-center text-xs font-mono text-ink-muted">
+                            <span x-text="chaptersModal.expandedFrameLoading ? 'Extracting accurate frame…' : (chaptersModal.expandedFrameError || 'No preview available')"></span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <template x-for="step in C.CHAPTERS.NUDGE_STEPS_SEC" :key="`rn-${row._key}-${step}`">
+                          <button type="button" @click="nudgeChapterRow(row._key, step)"
+                            class="ui-btn ui-btn-secondary ui-chapter-touch-sm px-2.5 py-1 font-mono text-xs"
+                            x-text="step > 0 ? `+${step}s` : `${step}s`"></button>
+                        </template>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-1">
+                        <template x-for="chip in C.CHAPTERS.QUICK_NAME_CHIPS" :key="`rq-${row._key}-${chip}`">
+                          <button type="button" @click="setChapterRowQuickTitle(row._key, chip)"
+                            class="ui-tag cursor-pointer transition hover:border-accent hover:text-accent"
+                            x-text="chip"></button>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- End-of-movie Rail Footer Node -->
+                <div x-show="chaptersModal.hasVideo" class="relative flex items-center gap-2 pt-1 text-xs font-mono text-ink-muted">
+                  <span aria-hidden="true"
+                    class="ui-chapter-rail-end-dot h-2.5 w-2.5 rounded-full border border-default bg-surface"></span>
+                  <span>End of movie</span>
+                  <span class="ui-num" x-text="Ch.formatChapterTime(chaptersModal.durationMs)"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pinned Footer -->
+          <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-subtle bg-surface px-4 py-3.5 pb-safe-modal sm:px-6">
+            <span class="text-[11px] text-ink-muted">Applies when you save or run Instant Edit.</span>
+            <div class="flex items-center gap-2 ml-auto">
+              <button type="button" @click="closeChaptersModal()" class="ui-btn ui-btn-secondary min-h-[44px] px-4">
+                Cancel
+              </button>
+              <button type="button" @click="commitChaptersModal()" :disabled="chaptersModal.loading"
+                class="ui-btn ui-btn-primary min-h-[44px] px-5">
+                Done
+              </button>
+            </div>
           </div>
         </div>
       </template>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Any, Literal
 
@@ -31,6 +32,7 @@ from app.services.scene_frame_service import (
 )
 from app.utils.paths import PathSafetyError, safe_resolve_path
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/files", tags=["chapters"])
 
 
@@ -236,8 +238,21 @@ async def get_file_scene_frame(
             is_disconnected=request.is_disconnected,
         )
     except SceneFrameCancelledError:
+        logger.info(
+            "Scene frame cancelled by client disconnect (file_id=%s ts_ms=%s mode=%s)",
+            file_id,
+            clamped_ms,
+            mode,
+        )
         return Response(status_code=AppConstants.HTTP_NO_CONTENT)
     except SceneFrameError as exc:
+        logger.warning(
+            "Scene frame request failed (file_id=%s ts_ms=%s mode=%s): %s",
+            file_id,
+            clamped_ms,
+            mode,
+            exc,
+        )
         raise HTTPException(
             status_code=AppConstants.HTTP_BAD_GATEWAY,
             detail=str(exc),

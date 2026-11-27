@@ -479,7 +479,7 @@ window.MKVForgeConstants = Object.freeze({
 
   CONTEXT_MENU: Object.freeze({
     MENU_WIDTH_PX: 196,
-    FILE_MENU_HEIGHT_PX: 344,
+    FILE_MENU_HEIGHT_PX: 384,
     OTHER_FILE_MENU_HEIGHT_PX: 196,
     FOLDER_MENU_HEIGHT_PX: 184,
     VIEWPORT_MARGIN_PX: 12,
@@ -1168,6 +1168,7 @@ window.MKVForgeConstants = Object.freeze({
     BPS_PER_KBPS: 1000,
     BPS_PER_MBPS: 1_000_000,
     HZ_PER_KHZ: 1000,
+    US_PER_MS: 1000,
     US_PER_SEC: 1_000_000,
     SEC_PER_MIN: 60,
     SEC_PER_HOUR: 3600,

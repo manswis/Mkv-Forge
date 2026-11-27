@@ -20,8 +20,12 @@ def _run_node_script(js_code: str) -> str:
         ["node", "-e", js_code],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
+    if proc.returncode != 0:
+        raise AssertionError(
+            f"Node script exited {proc.returncode}:\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+        )
     return proc.stdout
 
 
@@ -525,3 +529,719 @@ class TestEditorJsChaptersIntegration:
         assert req_clear.config.container.chapters_action == "clear"
         assert req_clear.config.container.strip_chapters is True
         assert req_clear.config.container.chapters is None
+
+
+class TestChaptersControllerLifecycle:
+    """Exhaustive Node VM tests for `chapters_controller.js` serial fetch, abort, revoke, and actions."""
+
+    def test_chapters_controller_serial_fetch_abort_revoke_and_all_actions(self) -> None:
+        js_dir = str(STATIC_JS_DIR)
+        script = f"""
+        const fs = require("fs");
+        const vm = require("vm");
+        const path = require("path");
+        const jsDir = {json.dumps(js_dir)};
+
+        const storage = new Map();
+        const revokedUrls = [];
+        let createdSeq = 0;
+        let inFlight = 0;
+        let maxInFlight = 0;
+        let abortEventsCount = 0;
+        let nextFrameBehavior = "ok";
+        let chaptersGetBehavior = "ok";
+        let parsePostBehavior = "ok";
+        const downloadedFiles = [];
+
+        const ctx = {{
+          window: null,
+          globalThis: null,
+          URLSearchParams,
+          encodeURIComponent,
+          AbortController,
+          Blob,
+          setTimeout,
+          clearTimeout,
+          localStorage: {{
+            getItem: (k) => (storage.has(k) ? storage.get(k) : null),
+            setItem: (k, v) => storage.set(k, String(v)),
+          }},
+          URL: {{
+            createObjectURL: () => `blob:test-${{++createdSeq}}`,
+            revokeObjectURL: (u) => revokedUrls.push(u),
+          }},
+          document: {{
+            createElement: () => ({{ click() {{ downloadedFiles.push({{ href: this.href, download: this.download }}); }} }}),
+            body: {{ appendChild() {{}}, removeChild() {{}} }},
+          }},
+          fetch: async (url, opts = {{}}) => {{
+            if (url.endsWith("/chapters")) {{
+              if (chaptersGetBehavior === "conflict") {{
+                return {{ ok: false, status: 409, json: async () => ({{ detail: "Active replace job" }}) }};
+              }}
+              if (chaptersGetBehavior === "error") {{
+                return {{ ok: false, status: 500, json: async () => ({{ detail: "Server boom" }}) }};
+              }}
+              return {{
+                ok: true,
+                status: 200,
+                json: async () => ({{
+                  chapters: [
+                    {{ start_ms: 0, title: "Intro" }},
+                    {{ start_ms: 60000, title: "Chapter 9" }},
+                  ],
+                  has_complex_chapters: true,
+                }}),
+              }};
+            }}
+            if (url.endsWith("/chapters/parse")) {{
+              if (parsePostBehavior === "empty") {{
+                return {{ ok: true, status: 200, json: async () => ({{ detected_format: "youtube_text", chapters: [], warnings: ["No entries"] }}) }};
+              }}
+              if (parsePostBehavior === "error") {{
+                return {{ ok: false, status: 400, json: async () => ({{ detail: "Bad chapter payload" }}) }};
+              }}
+              return {{
+                ok: true,
+                status: 200,
+                json: async () => ({{
+                  detected_format: "youtube_text",
+                  chapters: [{{ start_ms: 30000, title: "Parsed Scene" }}],
+                  warnings: [],
+                }}),
+              }};
+            }}
+            // Frame fetch: enforce strict serial concurrency (max 1 non-aborted in-flight request)
+            let released = false;
+            const release = () => {{
+              if (!released) {{
+                released = true;
+                inFlight -= 1;
+              }}
+            }};
+            inFlight += 1;
+            if (inFlight > maxInFlight) maxInFlight = inFlight;
+            try {{
+              await new Promise((resolve, reject) => {{
+                if (opts.signal && opts.signal.aborted) {{
+                  release();
+                  const err = new Error("Aborted");
+                  err.name = "AbortError";
+                  return reject(err);
+                }}
+                const onAbort = () => {{
+                  clearTimeout(timer);
+                  release();
+                  abortEventsCount += 1;
+                  const err = new Error("Aborted");
+                  err.name = "AbortError";
+                  reject(err);
+                }};
+                const timer = setTimeout(() => {{
+                  if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
+                  resolve();
+                }}, 2);
+                if (opts.signal) opts.signal.addEventListener("abort", onAbort, {{ once: true }});
+              }});
+              if (nextFrameBehavior === "conflict") {{
+                return {{ ok: false, status: 409, json: async () => ({{ detail: "Busy editing file" }}) }};
+              }}
+              if (nextFrameBehavior === "conflict_bad_json") {{
+                return {{ ok: false, status: 409, json: async () => {{ throw new Error("bad json"); }} }};
+              }}
+              if (nextFrameBehavior === "204") {{
+                return {{ ok: true, status: 204 }};
+              }}
+              if (nextFrameBehavior === "neterr") {{
+                throw new Error("Network offline");
+              }}
+              return {{ ok: true, status: 200, blob: async () => new Blob(["jpg"]) }};
+            }} finally {{
+              release();
+            }}
+          }},
+        }};
+        ctx.window = ctx;
+        ctx.globalThis = ctx;
+        vm.createContext(ctx);
+        for (const f of ["constants.js", "api.js", "chapters.js", "editor.js", "chapters_controller.js"]) {{
+          vm.runInContext(fs.readFileSync(path.join(jsDir, f), "utf8"), ctx, {{ filename: f }});
+        }}
+
+        const Ed = ctx.MKVForgeEditor;
+        const ChCtrl = ctx.MKVForgeChaptersController;
+        const file = {{
+          id: 55,
+          filename: "Inception.mkv",
+          filepath: "Movies/Inception.mkv",
+          folder: "/Movies",
+          size_bytes: 5000000,
+          mtime: 1700000000,
+          duration_us: 120000000, // 120s
+          chapters_count: 2,
+          tracks: [{{ id: 0, type: "video", codec: "HEVC", default_track: true }}],
+        }};
+
+        function makeApp() {{
+          return {{
+            editorFile: file,
+            editor: Ed.createEditorState(file, {{ default_output_mode: "replace", default_remove_all_metadata: false }}),
+            userSettings: {{ preferred_language: "eng" }},
+            chaptersModal: null,
+            ...ChCtrl.createMethods(),
+          }};
+        }}
+
+        (async () => {{
+          const app = makeApp();
+          // 1. Open modal -> loads chapters, sets hasComplexChapters, fetches ZERO frames
+          await app.openChaptersModal();
+          if (createdSeq !== 0) throw new Error("Must fetch ZERO frames on modal open");
+          if (!app.chaptersModal.hasComplexChapters) throw new Error("Expected hasComplexChapters=true");
+          if (app.chaptersModal.chapters.length !== 2) throw new Error("Expected 2 loaded chapters");
+
+          // 2. Scrubber tap #1 AND immediate tap #2 under Alpine-like reactive Proxy!
+          const proxiedApp = new Proxy(app, {{
+            set(target, prop, val) {{
+              if (val && typeof val === "object") {{
+                target[prop] = new Proxy(val, {{}});
+              }} else {{
+                target[prop] = val;
+              }}
+              return true;
+            }},
+          }});
+          // Rapid double-tap on scrubber: tap #1 MUST abort cleanly without Proxy TypeError and tap #2 MUST load all 3 frames!
+          proxiedApp.onChapterScrubberClick({{
+            clientX: 25,
+            currentTarget: {{ getBoundingClientRect: () => ({{ left: 0, width: 100 }}) }},
+          }});
+          await new Promise((r) => setTimeout(r, 3));
+          proxiedApp.onChapterScrubberClick({{
+            clientX: 50,
+            currentTarget: {{ getBoundingClientRect: () => ({{ left: 0, width: 100 }}) }},
+          }});
+          await new Promise((r) => setTimeout(r, 40));
+          if (abortEventsCount < 1) throw new Error("Expected tap #1 AbortSignal to fire cleanly under Alpine Proxy");
+          if (maxInFlight !== 1) throw new Error("Frame fetches MUST be strictly serial (maxInFlight=" + maxInFlight + ")");
+          if (
+            !app.chaptersModal.draftPeek ||
+            !app.chaptersModal.draftPeek.frames[0].url ||
+            !app.chaptersModal.draftPeek.frames[1].url ||
+            !app.chaptersModal.draftPeek.frames[2].url
+          ) {{
+            throw new Error("Second tap under Alpine Proxy MUST load all 3 Draft Peek frames!");
+          }}
+
+          // 3. Nudge Draft Peek + debounced accurate refresh + quick title + commit (stays pinned, zero layout jump!)
+          app.nudgeChapterDraftPeek(5);
+          app.setDraftPeekQuickTitle("Dream Level 1");
+          await new Promise((r) => setTimeout(r, 220));
+          app.commitChapterDraftPeek();
+          if (app.chaptersModal.chapters.length !== 3) throw new Error("Expected 3 chapters after adding Draft Peek");
+          if (!app.chaptersModal.draftPeek || app.chaptersModal.draftPeek.added !== true) {{
+            throw new Error("Draft Peek must stay pinned with added=true to prevent layout shift");
+          }}
+          // Duplicate click while added=true is ignored; nudging re-enables adding
+          app.commitChapterDraftPeek();
+          if (app.chaptersModal.chapters.length !== 3) throw new Error("Duplicate commit while added=true should be no-op");
+          app.nudgeChapterDraftPeek(5);
+          if (app.chaptersModal.draftPeek.added !== false) throw new Error("Nudging must clear added=true");
+          app.closeChapterDraftPeek();
+          if (app.chaptersModal.draftPeek !== null) throw new Error("Explicit close should dismiss Draft Peek");
+
+          // 4. Undo restores 2 chapters
+          app.undoChapterEdit();
+          if (app.chaptersModal.chapters.length !== 2) throw new Error("Undo failed");
+
+          // 5. Inline vertical-rail preview ([👁]) + nudge + quick title + delete
+          const firstKey = app.chaptersModal.chapters[0]._key;
+          await app.toggleChapterRowPreview(firstKey);
+          if (app.chaptersModal.expandedChapterKey !== firstKey || !app.chaptersModal.expandedFrameUrl) {{
+            throw new Error("Expected expanded accurate frame");
+          }}
+          app.nudgeChapterRow(firstKey, 1);
+          await new Promise((r) => setTimeout(r, 220));
+          app.setChapterRowQuickTitle(firstKey, "Opening");
+          await app.toggleChapterRowPreview(firstKey); // collapse
+          if (app.chaptersModal.expandedChapterKey !== null) throw new Error("Expected collapsed");
+
+          // 6. Opt-in Show Previews serial stream -> Hide Previews revokes all thumbs
+          await app.toggleChapterRailPreviews();
+          if (!app.chaptersModal.previewsActive || app.chaptersModal.previewsLoadedCount !== 2) {{
+            throw new Error("Expected 2 rail previews loaded");
+          }}
+          await app.toggleChapterRailPreviews(); // hide
+          if (app.chaptersModal.previewsActive) throw new Error("Expected previews hidden");
+
+          // 7. Scan Scenes 1-level grid (12 / 24 / 40) + localStorage persistence + multi-select + add
+          storage.set("mkvforge.scene_scan_density", "12");
+          app.toggleChapterDrawer("scan_scenes");
+          await new Promise((r) => setTimeout(r, 120));
+          app.selectScanScenesDensity(12);
+          await new Promise((r) => setTimeout(r, 120));
+          if (storage.get("mkvforge.scene_scan_density") !== "12") throw new Error("Density not persisted");
+          if (app.chaptersModal.scanTiles.length !== 12) throw new Error("Expected 12 scan tiles");
+          app.toggleScanTileSelection(app.chaptersModal.scanTiles[1].tsMs);
+          app.addSelectedScanTiles();
+          if (app.chaptersModal.drawer !== "main") throw new Error("Expected return to main drawer");
+
+          // 8. Quick Skip, Renumber, Shift All, Export .txt & .xml, Paste/Upload, Reset, Clear
+          app.applyQuickSkipInterval(1);
+          if (app.chaptersModal.chapters.length !== 2) throw new Error("Expected 2 quick-skip chapters for 120s/1m");
+          app.renumberChapters();
+          app.chaptersModal.shiftDraftSec = "5";
+          app.applyShiftAllChapters();
+          if (app.chaptersModal.chapters[0].start_ms !== 5000) throw new Error("Expected shifted to 5000ms");
+          app.exportChaptersFile("txt");
+          app.exportChaptersFile("xml");
+          if (downloadedFiles.length !== 2) throw new Error("Expected 2 exported downloads");
+
+          app.toggleChapterDrawer("paste");
+          await app.onChapterFileSelected({{ target: {{ files: [{{ size: 600000, name: "huge.txt" }}] }} }});
+          if (!app.chaptersModal.pasteError) throw new Error("Expected oversized file rejection");
+          await app.onChapterFileSelected({{ target: {{ files: [{{ size: 50, name: "ch.txt", text: async () => "00:30 Parsed" }}] }} }});
+          await app.parseAndApplyPastedChapters("replace");
+          if (app.chaptersModal.chapters.length !== 2) throw new Error("Expected auto-00:00:00 + parsed chapter");
+
+          // 9. 409 Conflict handling on frame fetch
+          nextFrameBehavior = "conflict";
+          await app.openChapterDraftPeek(10000);
+          if (!app.chaptersModal.conflictMessage) throw new Error("Expected 409 conflict banner");
+          nextFrameBehavior = "ok";
+
+          // 10. Commit edits -> syncs editor.chaptersAction === 'replace' AND revokes ALL ObjectURLs
+          app.commitChaptersModal();
+          if (app.chaptersModal !== null) throw new Error("Modal should close on commit");
+          if (app.editor.chaptersAction !== "replace") throw new Error("Expected editor chaptersAction=replace");
+          if (revokedUrls.length !== createdSeq) {{
+            throw new Error(`ObjectURL leak! created=${{createdSeq}} revoked=${{revokedUrls.length}}`);
+          }}
+
+          // 11. Re-opening when already loaded skips GET /chapters and loads edited list
+          await app.openChaptersModal();
+          app.resetChaptersToOriginal();
+          app.clearAllChapters();
+          app.commitChaptersModal();
+          if (app.editor.chaptersAction !== "clear" || !app.editor.stripChapters) {{
+            throw new Error("Expected clear + stripChapters=true after Clear All");
+          }}
+
+          console.log("CHAPTERS_CONTROLLER_OK");
+        }})().catch((err) => {{
+          console.error(err);
+          process.exit(1);
+        }});
+        """
+        out = _run_node_script(script)
+        assert "CHAPTERS_CONTROLLER_OK" in out
+
+    def test_chapters_controller_edge_branches_and_100pct_v8_coverage(self) -> None:
+        js_dir = str(STATIC_JS_DIR)
+        script = f"""
+        const fs = require("fs");
+        const path = require("path");
+        const vm = require("vm");
+        const inspector = require("inspector");
+
+        const session = new inspector.Session();
+        session.connect();
+        const post = (m, p = {{}}) =>
+          new Promise((res, rej) => session.post(m, p, (e, r) => (e ? rej(e) : res(r))));
+
+        (async () => {{
+          await post("Profiler.enable");
+          await post("Profiler.startPreciseCoverage", {{ callCount: true, detailed: true }});
+
+          const storage = new Map();
+          let storageThrows = false;
+          let revokeThrows = false;
+          let createdSeq = 0;
+          let frameBehavior = "ok";
+          let getBehavior = "ok";
+          let parseBehavior = "ok";
+          let abortCallback = null;
+
+          global.window = global;
+          global.localStorage = {{
+            getItem: (k) => {{
+              if (storageThrows) throw new Error("blocked");
+              return storage.has(k) ? storage.get(k) : null;
+            }},
+            setItem: (k, v) => {{
+              if (storageThrows) throw new Error("blocked");
+              storage.set(k, String(v));
+            }},
+          }};
+          global.URL = {{
+            createObjectURL: () => `blob:cov-${{++createdSeq}}`,
+            revokeObjectURL: () => {{
+              if (revokeThrows) throw new Error("revoke fail");
+            }},
+          }};
+          global.document = {{
+            createElement: () => ({{ click() {{}} }}),
+            body: {{ appendChild() {{}}, removeChild() {{}} }},
+          }};
+          global.fetch = async (url, opts = {{}}) => {{
+            if (url.endsWith("/chapters")) {{
+              if (getBehavior === "conflict") {{
+                return {{ ok: false, status: 409, json: async () => ({{ detail: "Busy" }}) }};
+              }}
+              if (getBehavior === "error") {{
+                return {{ ok: false, status: 500, json: async () => ({{ detail: "Err" }}) }};
+              }}
+              return {{
+                ok: true,
+                status: 200,
+                json: async () => ({{
+                  chapters: [
+                    {{ start_ms: 0, title: "Intro" }},
+                    {{ start_ms: 60000, title: "Chapter 2" }},
+                  ],
+                  has_complex_chapters: false,
+                }}),
+              }};
+            }}
+            if (url.endsWith("/chapters/parse")) {{
+              if (parseBehavior === "empty") {{
+                return {{ ok: true, status: 200, json: async () => ({{ chapters: [], warnings: [] }}) }};
+              }}
+              if (parseBehavior === "error") {{
+                return {{ ok: false, status: 400, json: async () => ({{ detail: "Bad" }}) }};
+              }}
+              return {{
+                ok: true,
+                status: 200,
+                json: async () => ({{ chapters: [{{ start_ms: 10000, title: "P" }}], warnings: [] }}),
+              }};
+            }}
+            if (frameBehavior === "slow_abort_after_fetch") {{
+              await new Promise((r) => setTimeout(r, 1));
+              if (abortCallback) abortCallback();
+              return {{ ok: true, status: 200, blob: async () => new Blob(["x"]) }};
+            }}
+            if (frameBehavior === "slow_abort_after_blob") {{
+              return {{
+                ok: true,
+                status: 200,
+                blob: async () => {{
+                  if (abortCallback) abortCallback();
+                  return new Blob(["x"]);
+                }},
+              }};
+            }}
+            if (frameBehavior === "delay") {{
+              await new Promise((r) => setTimeout(r, 15));
+              if (opts.signal && opts.signal.aborted) {{
+                const e = new Error("Aborted");
+                e.name = "AbortError";
+                throw e;
+              }}
+              return {{ ok: true, status: 200, blob: async () => new Blob(["jpg"]) }};
+            }}
+            if (frameBehavior === "conflict") {{
+              return {{ ok: false, status: 409, json: async () => ({{ detail: "409!" }}) }};
+            }}
+            if (frameBehavior === "conflict_bad_json") {{
+              return {{ ok: false, status: 409, json: async () => {{ throw new Error("bad"); }} }};
+            }}
+            if (frameBehavior === "204") {{
+              return {{ ok: true, status: 204 }};
+            }}
+            if (frameBehavior === "abort_throw") {{
+              const e = new Error("Aborted");
+              e.name = "AbortError";
+              throw e;
+            }}
+            if (frameBehavior === "neterr") {{
+              throw new Error("offline");
+            }}
+            return {{ ok: true, status: 200, blob: async () => new Blob(["jpg"]) }};
+          }};
+
+          const jsDir = {json.dumps(js_dir)};
+          for (const f of ["constants.js", "api.js", "chapters.js", "editor.js", "chapters_controller.js"]) {{
+            const abs = path.join(jsDir, f);
+            vm.runInThisContext(fs.readFileSync(abs, "utf8"), {{ filename: abs }});
+          }}
+
+          const Ed = global.MKVForgeEditor;
+          const ChCtrl = global.MKVForgeChaptersController;
+          const file = {{
+            id: 1,
+            filename: "M.mkv",
+            filepath: "M.mkv",
+            folder: "/",
+            duration_us: 120000000,
+            chapters_count: 2,
+            tracks: [{{ id: 0, type: "video", codec: "HEVC", default_track: true }}],
+          }};
+          const makeApp = (f = file) => ({{
+            editorFile: f,
+            editor: f
+              ? Ed.createEditorState(f, {{ default_output_mode: "replace", default_remove_all_metadata: false }})
+              : null,
+            userSettings: {{ preferred_language: "eng" }},
+            chaptersModal: null,
+            ...ChCtrl.createMethods(),
+          }});
+
+          // A. Main flow + Draft Peek debounced accurate refresh + collapse + error frame + mid-load stop
+          const app = makeApp();
+          storage.set("mkvforge.scene_scan_density", "40");
+          await app.openChaptersModal();
+          app.onChapterScrubberClick({{
+            clientX: 50,
+            currentTarget: {{ getBoundingClientRect: () => ({{ left: 0, width: 100 }}) }},
+          }});
+          await new Promise((r) => setTimeout(r, 20));
+          // Nudge and WAIT full debounce so _refreshDraftPeekCenterAccurate executes and revokes old center URL
+          app.nudgeChapterDraftPeek(5);
+          await new Promise((r) => setTimeout(r, 210));
+          // Stale runId guard before fetch & stale close mid-fetch in _refreshDraftPeekCenterAccurate
+          await app._refreshDraftPeekCenterAccurate(-1);
+          frameBehavior = "delay";
+          app.nudgeChapterDraftPeek(1);
+          await new Promise((r) => setTimeout(r, 195));
+          app.openChapterDraftPeek(60000); // bumps peekRunSeq while accurate fetch is in-flight
+          await new Promise((r) => setTimeout(r, 30));
+          frameBehavior = "ok";
+          await app.openChapterDraftPeek(60000);
+          app.chaptersModal.draftPeek.timeText = "00:01:05";
+          app.commitChapterDraftPeekTime();
+          app.chaptersModal.draftPeek.timeText = "bad";
+          app.commitChapterDraftPeekTime();
+          app.selectDraftPeekFrame(0);
+          await new Promise((r) => setTimeout(r, 20));
+          app.setDraftPeekQuickTitle("Song");
+          app.commitChapterDraftPeek();
+          app.closeChapterDraftPeek();
+          app.undoChapterEdit();
+          app.addManualChapterRow();
+
+          // Row preview expand, collapse, 204 error frame, nudge + debounced refresh (success & error)
+          const k0 = app.chaptersModal.chapters[0]._key;
+          await app.toggleChapterRowPreview(k0);
+          await app.toggleChapterRowPreview(k0); // collapse branch
+          frameBehavior = "204";
+          await app.toggleChapterRowPreview(k0); // expandedFrameError on open
+          app.nudgeChapterRow(k0, 2);
+          await new Promise((r) => setTimeout(r, 210)); // expandedFrameError on debounced refresh
+          frameBehavior = "ok";
+          app.nudgeChapterRow(k0, 1);
+          await new Promise((r) => setTimeout(r, 210)); // success on debounced refresh (revokes previous)
+          app.nudgeChapterRow(k0, 1);
+          await new Promise((r) => setTimeout(r, 210)); // revokes previous expandedFrameUrl
+          // Close modal mid-fetch to exercise stale-modal guards
+          frameBehavior = "delay";
+          const k1 = app.chaptersModal.chapters[1]._key;
+          const pRow = app.toggleChapterRowPreview(k1);
+          app.chaptersModal.expandedChapterKey = "other";
+          await pRow;
+          app.chaptersModal.expandedChapterKey = k1;
+          const pRef = app._refreshExpandedChapterFrame(k1);
+          app.chaptersModal.expandedChapterKey = "other";
+          await pRef;
+          frameBehavior = "ok";
+
+          // Row commit time (valid + invalid) + quick title + rail previews + stop mid-load + conflict stop
+          app.chaptersModal.chapters[0].timeText = "00:00:10";
+          app.commitChapterRowTime(k0);
+          app.chaptersModal.chapters[0].timeText = "bad";
+          app.commitChapterRowTime(k0);
+          app.setChapterRowQuickTitle(k0, "Intro");
+
+          // Start rail previews then stop mid-load
+          frameBehavior = "delay";
+          const pPrev = app.toggleChapterRailPreviews();
+          await new Promise((r) => setTimeout(r, 3));
+          await app.toggleChapterRailPreviews(); // stop while loading
+          await pPrev;
+          // Conflict during rail previews
+          app._clearChapterRailThumbUrls();
+          frameBehavior = "conflict";
+          await app.toggleChapterRailPreviews();
+          // Full rail previews + delete currently expanded row (exercises lines 707-708!) + hide
+          app._clearChapterRailThumbUrls();
+          frameBehavior = "ok";
+          await app.toggleChapterRailPreviews();
+          await app.toggleChapterRowPreview(k0);
+          app.deleteChapterRow(k0);
+          await app.toggleChapterRailPreviews(); // hide
+
+          // Scan Scenes: start, switch drawer mid-scan (triggers stopScanScenesGrid), conflict mid-scan, full scan, density switch (revokes tile URLs!)
+          frameBehavior = "delay";
+          app.toggleChapterDrawer("scan_scenes");
+          await new Promise((r) => setTimeout(r, 3));
+          app.toggleChapterDrawer("main"); // triggers stopScanScenesGrid
+          frameBehavior = "conflict";
+          app.chaptersModal.scanTiles = [];
+          await app.loadScanScenesGrid();
+          frameBehavior = "ok";
+          app.selectScanScenesDensity(12);
+          await new Promise((r) => setTimeout(r, 40));
+          app.selectScanScenesDensity(24); // revokes loaded 12 tile URLs!
+          await new Promise((r) => setTimeout(r, 40));
+          app.toggleScanTileSelection(app.chaptersModal.scanTiles[0].tsMs);
+          app.toggleScanTileSelection(app.chaptersModal.scanTiles[0].tsMs);
+          app.toggleScanTileSelection(app.chaptersModal.scanTiles[1].tsMs);
+          app.addSelectedScanTiles();
+          app.fineTuneScanTile(1000);
+          await new Promise((r) => setTimeout(r, 20));
+          // Draft peek conflict + abort mid-loop (both before and during fetch)
+          frameBehavior = "conflict";
+          await app.openChapterDraftPeek(2000);
+          frameBehavior = "slow_abort_after_fetch";
+          abortCallback = () => {{
+            app._abortChapterFrameRequests();
+          }};
+          await app.openChapterDraftPeek(2500);
+          abortCallback = null;
+          frameBehavior = "delay";
+          const pPeek = app.openChapterDraftPeek(3000);
+          await new Promise((r) => setTimeout(r, 17));
+          app._abortChapterFrameRequests();
+          await pPeek;
+          frameBehavior = "ok";
+
+          // Quick skip, renumber, shift, export (with and without document)
+          app.applyQuickSkipInterval(1);
+          app.renumberChapters();
+          app.chaptersModal.shiftDraftSec = "2";
+          app.applyShiftAllChapters();
+          app.exportChaptersFile("txt");
+          app.exportChaptersFile("xml");
+          const savedDoc = global.document;
+          global.document = null;
+          app.exportChaptersFile("txt"); // triggers _triggerBlobDownload false branch
+          global.document = savedDoc;
+
+          // Paste drawer: empty text, oversized, read error, ok, empty parse, parse error, append
+          app.toggleChapterDrawer("paste");
+          app.chaptersModal.pasteText = "   ";
+          await app.parseAndApplyPastedChapters("replace");
+          await app.onChapterFileSelected({{ target: {{ files: [{{ size: 999999, name: "big.txt" }}] }} }});
+          await app.onChapterFileSelected({{
+            target: {{ files: [{{ size: 10, name: "bad.txt", text: async () => {{ throw new Error("read"); }} }}] }},
+          }});
+          await app.onChapterFileSelected({{
+            target: {{ files: [{{ size: 10, name: "ok.txt", text: async () => "00:10 P" }}] }},
+          }});
+          parseBehavior = "empty";
+          await app.parseAndApplyPastedChapters("replace");
+          parseBehavior = "error";
+          await app.parseAndApplyPastedChapters("replace");
+          parseBehavior = "ok";
+          await app.parseAndApplyPastedChapters("append");
+
+          // Commit non-empty edited chapters and re-open (exercises cached replace branch!)
+          app.commitChaptersModal();
+          await app.openChaptersModal();
+          app.resetChaptersToOriginal();
+          app.clearAllChapters();
+          app.commitChaptersModal();
+
+          // Re-open when already loaded as clear (exercises cached clear branch!)
+          await app.openChaptersModal();
+          app.closeChaptersModal();
+
+          // No-video + abort after fetch/blob + storage/revoke throws + GET conflict/error
+          storageThrows = true;
+          revokeThrows = true;
+          const appNoVid = makeApp({{ ...file, duration_us: 0 }});
+          await appNoVid._fetchChapterFrameObjectUrl(0, "fast", null); // !modal branch
+          getBehavior = "conflict";
+          await appNoVid.openChaptersModal();
+          await appNoVid._fetchChapterFrameObjectUrl(0, "fast", null); // !modal.hasVideo branch
+          appNoVid.closeChaptersModal();
+          getBehavior = "error";
+          await appNoVid.openChaptersModal();
+          appNoVid.closeChaptersModal();
+          getBehavior = "ok";
+
+          const app3 = makeApp();
+          await app3.openChaptersModal();
+          const c1 = new AbortController();
+          abortCallback = () => c1.abort();
+          frameBehavior = "slow_abort_after_fetch";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", c1.signal);
+          const c2 = new AbortController();
+          abortCallback = () => c2.abort();
+          frameBehavior = "slow_abort_after_blob";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", c2.signal);
+          abortCallback = null;
+          frameBehavior = "conflict";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", new AbortController().signal);
+          frameBehavior = "conflict_bad_json";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", new AbortController().signal);
+          frameBehavior = "204";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", new AbortController().signal);
+          frameBehavior = "abort_throw";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", new AbortController().signal);
+          frameBehavior = "neterr";
+          await app3._fetchChapterFrameObjectUrl(0, "fast", new AbortController().signal);
+          // Ensure _refreshExpandedChapterFrame guard on missing row / modal
+          app3.chaptersModal.expandedChapterKey = "missing";
+          await app3._refreshExpandedChapterFrame("missing");
+          app3._refreshExpandedChapterFrame("other");
+          app3.closeChaptersModal();
+
+          const {{ result }} = await post("Profiler.takePreciseCoverage");
+          const abs = path.resolve(jsDir, "chapters_controller.js");
+          const src = fs.readFileSync(abs, "utf8");
+          const lines = src.split("\\n");
+          const offsets = [];
+          let pos = 0;
+          for (const l of lines) {{
+            offsets.push([pos, pos + l.length]);
+            pos += l.length + 1;
+          }}
+          const cov = result.find(
+            (r) => r.url === abs || r.url.endsWith("/app/static/js/chapters_controller.js")
+          );
+          if (!cov) throw new Error("Missing V8 coverage entry for chapters_controller.js");
+          const uncovered = [];
+          for (const fn of cov.functions) {{
+            for (const r of fn.ranges) {{
+              if (r.count === 0) uncovered.push([r.startOffset, r.endOffset]);
+            }}
+          }}
+          let total = 0;
+          const missed = [];
+          for (let i = 0; i < lines.length; i++) {{
+            const t = lines[i].trim();
+            if (
+              !t ||
+              t.startsWith("//") ||
+              t.startsWith("/*") ||
+              t === "{{" ||
+              t === "}}" ||
+              t === "}});" ||
+              t === "]);"
+            ) {{
+              continue;
+            }}
+            total++;
+            const [ls, le] = offsets[i];
+            if (uncovered.some(([us, ue]) => us <= ls && ue >= le)) {{
+              missed.push(`${{i + 1}}: ${{t}}`);
+            }}
+          }}
+          session.disconnect();
+          if (missed.length > 0) {{
+            throw new Error(
+              `chapters_controller.js coverage below 100% (${{total - missed.length}}/${{total}}):\\n` +
+                missed.join("\\n")
+            );
+          }}
+          console.log(`CHAPTERS_CTRL_V8_100PCT:${{total}}/${{total}}`);
+        }})().catch((err) => {{
+          console.error(err);
+          process.exit(1);
+        }});
+        """
+        out = _run_node_script(script)
+        assert "CHAPTERS_CTRL_V8_100PCT:" in out
+
+

@@ -492,3 +492,111 @@ class TestExtractSceneFrameCancellationIoniceAndErrors:
         assert f2.startswith(b"\xff\xd8\xff")
         assert f_fast.startswith(b"\xff\xd8\xff")
         assert f1 != f2
+
+    async def test_resilient_fallback_and_safe_disconnect_poll_exception_handling(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        sample = tmp_path / "open_gop.mkv"
+        sample.write_bytes(b"mkv")
+
+        # 1. Primary returns 0 bytes -> logs WARNING and automatically succeeds via resilient fallback
+        captured_argvs: list[tuple[str, ...]] = []
+
+        async def _empty_then_ok(*argv, **_kwargs):
+            captured_argvs.append(argv)
+            if len(captured_argvs) == 1:
+                return SimpleNamespace(
+                    returncode=0,
+                    communicate=AsyncMock(return_value=(b"", b"")),
+                    terminate=lambda: None,
+                    kill=lambda: None,
+                    wait=AsyncMock(return_value=0),
+                )
+            return SimpleNamespace(
+                returncode=0,
+                communicate=AsyncMock(return_value=(FAKE_JPEG, b"")),
+                terminate=lambda: None,
+                kill=lambda: None,
+                wait=AsyncMock(return_value=0),
+            )
+
+        with (
+            caplog.at_level(logging.WARNING, logger="app.services.scene_frame_service"),
+            patch("asyncio.create_subprocess_exec", side_effect=_empty_then_ok),
+        ):
+            out = await extract_scene_frame(sample, ts_ms=25_000, mode="fast")
+
+        assert out == FAKE_JPEG
+        assert len(captured_argvs) == 2
+        assert "-nostdin" in captured_argvs[0]
+        assert "-map" in captured_argvs[0] and "0:v:0" in captured_argvs[0]
+        assert "-fps_mode" in captured_argvs[0] and "vfr" in captured_argvs[0]
+        assert "-strict" in captured_argvs[0] and "unofficial" in captured_argvs[0]
+        assert "-err_detect" in captured_argvs[1] and "ignore_err" in captured_argvs[1]
+        assert "+genpts+discardcorrupt" in captured_argvs[1]
+        assert any("retrying with resilient fallback" in r.message for r in caplog.records)
+
+        # 2. Middleware exception inside is_disconnected() MUST NOT kill a healthy ffmpeg subprocess!
+        poll_calls = 0
+
+        async def _flaky_poller() -> bool:
+            nonlocal poll_calls
+            poll_calls += 1
+            if poll_calls == 1:
+                return False  # pre-spawn check
+            raise RuntimeError("BaseHTTPMiddleware receive error")
+
+        async def _slow_ok(*_argv, **_kwargs):
+            async def _comm():
+                await asyncio.sleep(0.03)
+                return (FAKE_JPEG, b"")
+
+            return SimpleNamespace(
+                returncode=0,
+                communicate=AsyncMock(side_effect=_comm),
+                terminate=lambda: None,
+                kill=lambda: None,
+                wait=AsyncMock(return_value=0),
+            )
+
+        with patch("asyncio.create_subprocess_exec", side_effect=_slow_ok):
+            out2 = await extract_scene_frame(
+                sample,
+                ts_ms=5_000,
+                is_disconnected=_flaky_poller,
+                disconnect_poll_sec=0.01,
+            )
+        assert out2 == FAKE_JPEG
+
+        # 3. Timeout after flaky poller exited safely still cleans up subprocess
+        poll_calls = 0
+
+        async def _hang_comm():
+            await asyncio.sleep(5)
+            return b"", b""
+
+        fake_hang = SimpleNamespace(
+            returncode=None,
+            communicate=AsyncMock(side_effect=_hang_comm),
+            terminate=lambda: None,
+            kill=lambda: None,
+            wait=AsyncMock(return_value=-15),
+        )
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=fake_hang),
+            pytest.raises(SceneFrameError, match="timed out"),
+        ):
+            await extract_scene_frame(
+                sample,
+                ts_ms=5_000,
+                is_disconnected=_flaky_poller,
+                disconnect_poll_sec=0.005,
+                timeout_sec=0.025,
+            )
+
+        # 4. Accurate mode resilient fallback argv preserves 10s preseek + ignore_err
+        fb_acc = build_scene_frame_ffmpeg_command(
+            sample, ts_ms=25_000, mode="accurate", resilient_fallback=True
+        )
+        assert "-err_detect" in fb_acc and "ignore_err" in fb_acc
+        assert fb_acc[fb_acc.index("-ss") + 1] == "15.000"

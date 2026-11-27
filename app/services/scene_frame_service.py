@@ -61,6 +61,7 @@ def build_scene_frame_ffmpeg_command(
     *,
     ts_ms: int,
     mode: str = AppConstants.SCENE_FRAME_MODE_FAST,
+    resilient_fallback: bool = False,
 ) -> list[str]:
     """Build deterministic, shell-free `ffmpeg` argv streaming a single JPEG to `pipe:1`."""
     if ts_ms < 0:
@@ -72,12 +73,36 @@ def build_scene_frame_ffmpeg_command(
         )
 
     ts_sec = ts_ms / AppConstants.MS_PER_SEC
+    input_flags: list[str] = []
+    if resilient_fallback:
+        input_flags = [
+            "-err_detect",
+            "ignore_err",
+            "-fflags",
+            "+genpts+discardcorrupt",
+        ]
+
     if mode == AppConstants.SCENE_FRAME_MODE_ACCURATE:
         pre_seek_sec = max(0.0, ts_sec - AppConstants.SCENE_FRAME_ACCURATE_PRESEEK_SEC)
         post_seek_sec = max(0.0, ts_sec - pre_seek_sec)
         width_px = AppConstants.SCENE_FRAME_ACCURATE_WIDTH_PX
         quality = AppConstants.SCENE_FRAME_ACCURATE_QUALITY
         seek_args = [
+            *input_flags,
+            "-ss",
+            f"{pre_seek_sec:.3f}",
+            "-i",
+            str(abs_path),
+            "-ss",
+            f"{post_seek_sec:.3f}",
+        ]
+    elif resilient_fallback:
+        pre_seek_sec = max(0.0, ts_sec - AppConstants.SCENE_FRAME_FALLBACK_PRESEEK_SEC)
+        post_seek_sec = max(0.0, ts_sec - pre_seek_sec)
+        width_px = AppConstants.SCENE_FRAME_FAST_WIDTH_PX
+        quality = AppConstants.SCENE_FRAME_FAST_QUALITY
+        seek_args = [
+            *input_flags,
             "-ss",
             f"{pre_seek_sec:.3f}",
             "-i",
@@ -101,16 +126,23 @@ def build_scene_frame_ffmpeg_command(
     )
     return [
         AppConstants.TOOL_FFMPEG,
+        "-nostdin",
         "-v",
         "error",
         *seek_args,
+        "-map",
+        "0:v:0",
         "-an",
         "-sn",
         "-dn",
         "-frames:v",
         "1",
+        "-fps_mode",
+        "vfr",
         "-vf",
         vf,
+        "-strict",
+        "unofficial",
         "-q:v",
         str(quality),
         "-f",
@@ -160,12 +192,16 @@ async def _terminate_subprocess(proc: asyncio.subprocess.Process) -> None:
 async def _poll_disconnect(
     is_disconnected: DisconnectChecker,
     poll_interval_sec: float,
-) -> None:
-    """Resolve as soon as `is_disconnected()` returns True."""
+) -> bool:
+    """Resolve with `True` once `is_disconnected()` reports True; tolerate polling errors safely."""
     while True:
-        if await is_disconnected():
-            return
         await asyncio.sleep(poll_interval_sec)
+        try:
+            if await is_disconnected():
+                return True
+        except Exception as exc:
+            logger.debug("Ignoring transient disconnect-poll error: %s", exc)
+            return False
 
 
 async def _run_frame_subprocess(
@@ -179,12 +215,13 @@ async def _run_frame_subprocess(
     """Execute one FFmpeg frame command with disconnect-aware termination and timeout."""
     proc = await asyncio.create_subprocess_exec(
         *argv,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         preexec_fn=preexec_fn,  # type: ignore[arg-type]
     )
     comm_task = asyncio.create_task(proc.communicate())
-    disc_task: asyncio.Task[None] | None = (
+    disc_task: asyncio.Task[bool] | None = (
         asyncio.create_task(_poll_disconnect(is_disconnected, disconnect_poll_sec))
         if is_disconnected is not None
         else None
@@ -207,10 +244,29 @@ async def _run_frame_subprocess(
             raise asyncio.TimeoutError
 
         if disc_task is not None and disc_task in done and comm_task not in done:
-            await _terminate_subprocess(proc)
-            comm_task.cancel()
-            await asyncio.gather(comm_task, return_exceptions=True)
-            raise SceneFrameCancelledError("Client disconnected during frame extraction")
+            client_gone = (
+                not disc_task.cancelled()
+                and disc_task.exception() is None
+                and bool(disc_task.result())
+            )
+            if client_gone:
+                await _terminate_subprocess(proc)
+                comm_task.cancel()
+                await asyncio.gather(comm_task, return_exceptions=True)
+                raise SceneFrameCancelledError(
+                    "Client disconnected during frame extraction"
+                )
+            # Poller exited safely without disconnect -> wait for ffmpeg to finish
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    comm_task, timeout=timeout_sec
+                )
+            except asyncio.TimeoutError:
+                await _terminate_subprocess(proc)
+                comm_task.cancel()
+                await asyncio.gather(comm_task, return_exceptions=True)
+                raise
+            return int(proc.returncode or 0), stdout_bytes, stderr_bytes
 
         for task in pending:
             task.cancel()
@@ -226,6 +282,85 @@ async def _run_frame_subprocess(
                 task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         raise
+
+
+def _is_valid_jpeg_output(returncode: int, stdout_bytes: bytes) -> bool:
+    """Return True iff FFmpeg exited 0 and streamed a valid JPEG payload."""
+    return (
+        returncode == AppConstants.EXIT_CODE_SUCCESS
+        and len(stdout_bytes) >= _MIN_JPEG_BYTES
+        and stdout_bytes.startswith(_JPEG_MAGIC)
+    )
+
+
+async def _run_with_ionice_fallback(
+    base_argv: list[str],
+    *,
+    abs_path: Path,
+    low_io_priority: bool,
+    preexec_fn: object | None,
+    timeout_sec: float,
+    is_disconnected: DisconnectChecker | None,
+    disconnect_poll_sec: float,
+) -> tuple[int, bytes, bytes]:
+    """Execute `base_argv` with optional latched `ionice` wrapper and unified error mapping."""
+    use_ionice = bool(
+        low_io_priority and not _ionice_frame_disabled and is_ionice_available()
+    )
+    if use_ionice:
+        wrapped_argv = wrap_command_with_io_priority(base_argv, use_ionice_idle=True)
+        try:
+            rc, out_b, err_b = await _run_frame_subprocess(
+                wrapped_argv,
+                timeout_sec=timeout_sec,
+                preexec_fn=preexec_fn,
+                is_disconnected=is_disconnected,
+                disconnect_poll_sec=disconnect_poll_sec,
+            )
+        except (SceneFrameCancelledError, asyncio.CancelledError):
+            raise
+        except asyncio.TimeoutError as exc:
+            logger.warning(
+                "Scene frame extraction timed out after %.1fs for %s",
+                timeout_sec,
+                abs_path.name,
+            )
+            raise SceneFrameError(
+                f"Frame extraction timed out after {timeout_sec}s for {abs_path.name}"
+            ) from exc
+        except (FileNotFoundError, PermissionError, OSError) as exc:
+            _disable_ionice_frame(str(exc))
+        else:
+            if rc == AppConstants.EXIT_CODE_SUCCESS or not _is_ionice_wrapper_failure(
+                err_b
+            ):
+                return rc, out_b, err_b
+            detail = err_b.decode(AppConstants.UTF8_ENCODING, errors="replace").strip()
+            _disable_ionice_frame(f"exit {rc}: {detail}")
+
+    try:
+        return await _run_frame_subprocess(
+            base_argv,
+            timeout_sec=timeout_sec,
+            preexec_fn=preexec_fn,
+            is_disconnected=is_disconnected,
+            disconnect_poll_sec=disconnect_poll_sec,
+        )
+    except (SceneFrameCancelledError, asyncio.CancelledError):
+        raise
+    except asyncio.TimeoutError as exc:
+        logger.warning(
+            "Scene frame extraction timed out after %.1fs for %s",
+            timeout_sec,
+            abs_path.name,
+        )
+        raise SceneFrameError(
+            f"Frame extraction timed out after {timeout_sec}s for {abs_path.name}"
+        ) from exc
+    except FileNotFoundError as exc:
+        raise SceneFrameError("ffmpeg executable not found in PATH") from exc
+    except OSError as exc:
+        raise SceneFrameError(f"Failed to launch ffmpeg: {exc}") from exc
 
 
 async def extract_scene_frame(
@@ -253,70 +388,70 @@ async def extract_scene_frame(
         if is_disconnected is not None and await is_disconnected():
             raise SceneFrameCancelledError("Client disconnected before frame extraction")
 
-        use_ionice = bool(
-            low_io_priority and not _ionice_frame_disabled and is_ionice_available()
+        returncode, stdout_bytes, stderr_bytes = await _run_with_ionice_fallback(
+            base_argv,
+            abs_path=abs_path,
+            low_io_priority=low_io_priority,
+            preexec_fn=preexec_fn,
+            timeout_sec=timeout_sec,
+            is_disconnected=is_disconnected,
+            disconnect_poll_sec=disconnect_poll_sec,
         )
-        result: tuple[int, bytes, bytes] | None = None
 
-        if use_ionice:
-            wrapped_argv = wrap_command_with_io_priority(base_argv, use_ionice_idle=True)
-            try:
-                rc, out_b, err_b = await _run_frame_subprocess(
-                    wrapped_argv,
-                    timeout_sec=timeout_sec,
-                    preexec_fn=preexec_fn,
-                    is_disconnected=is_disconnected,
-                    disconnect_poll_sec=disconnect_poll_sec,
-                )
-            except (SceneFrameCancelledError, asyncio.CancelledError):
-                raise
-            except asyncio.TimeoutError as exc:
-                raise SceneFrameError(
-                    f"Frame extraction timed out after {timeout_sec}s for {abs_path.name}"
-                ) from exc
-            except (FileNotFoundError, PermissionError, OSError) as exc:
-                _disable_ionice_frame(str(exc))
-            else:
-                if rc == AppConstants.EXIT_CODE_SUCCESS or not _is_ionice_wrapper_failure(
-                    err_b
-                ):
-                    result = (rc, out_b, err_b)
-                else:
-                    detail = err_b.decode(
-                        AppConstants.UTF8_ENCODING, errors="replace"
-                    ).strip()
-                    _disable_ionice_frame(f"exit {rc}: {detail}")
+        if not _is_valid_jpeg_output(returncode, stdout_bytes):
+            excerpt = stderr_bytes.decode(
+                AppConstants.UTF8_ENCODING, errors="replace"
+            ).strip()[: AppConstants.MAX_ERROR_EXCERPT_LEN]
+            logger.warning(
+                "Primary scene frame failed for %s (ts_ms=%d mode=%s rc=%d bytes=%d stderr=%r); "
+                "retrying with resilient fallback",
+                abs_path.name,
+                ts_ms,
+                mode,
+                returncode,
+                len(stdout_bytes),
+                excerpt,
+            )
+            fallback_argv = build_scene_frame_ffmpeg_command(
+                abs_path,
+                ts_ms=ts_ms,
+                mode=mode,
+                resilient_fallback=True,
+            )
+            returncode, stdout_bytes, stderr_bytes = await _run_with_ionice_fallback(
+                fallback_argv,
+                abs_path=abs_path,
+                low_io_priority=low_io_priority,
+                preexec_fn=preexec_fn,
+                timeout_sec=timeout_sec,
+                is_disconnected=is_disconnected,
+                disconnect_poll_sec=disconnect_poll_sec,
+            )
 
-        if result is None:
-            try:
-                result = await _run_frame_subprocess(
-                    base_argv,
-                    timeout_sec=timeout_sec,
-                    preexec_fn=preexec_fn,
-                    is_disconnected=is_disconnected,
-                    disconnect_poll_sec=disconnect_poll_sec,
-                )
-            except (SceneFrameCancelledError, asyncio.CancelledError):
-                raise
-            except asyncio.TimeoutError as exc:
-                raise SceneFrameError(
-                    f"Frame extraction timed out after {timeout_sec}s for {abs_path.name}"
-                ) from exc
-            except FileNotFoundError as exc:
-                raise SceneFrameError("ffmpeg executable not found in PATH") from exc
-            except OSError as exc:
-                raise SceneFrameError(f"Failed to launch ffmpeg: {exc}") from exc
-
-    returncode, stdout_bytes, stderr_bytes = result
     if returncode != AppConstants.EXIT_CODE_SUCCESS:
         excerpt = stderr_bytes.decode(
             AppConstants.UTF8_ENCODING, errors="replace"
         ).strip()[: AppConstants.MAX_ERROR_EXCERPT_LEN]
+        logger.warning(
+            "Scene frame extraction failed for %s (ts_ms=%d mode=%s rc=%d): %s",
+            abs_path.name,
+            ts_ms,
+            mode,
+            returncode,
+            excerpt,
+        )
         raise SceneFrameError(
             f"ffmpeg frame extraction failed with exit code {returncode}: {excerpt}"
         )
 
     if len(stdout_bytes) < _MIN_JPEG_BYTES or not stdout_bytes.startswith(_JPEG_MAGIC):
+        logger.warning(
+            "Scene frame produced invalid JPEG for %s (ts_ms=%d mode=%s bytes=%d)",
+            abs_path.name,
+            ts_ms,
+            mode,
+            len(stdout_bytes),
+        )
         raise SceneFrameError(
             f"ffmpeg did not produce a valid JPEG frame for {abs_path.name} at {ts_ms}ms"
         )

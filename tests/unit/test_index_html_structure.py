@@ -189,15 +189,21 @@ class TestIndexHtmlStructure:
         input_css = (
             INDEX_HTML_PATH.parents[2] / "frontend" / "input.css"
         ).read_text(encoding="utf-8")
-        assert "/static/css/app.css?v=0.1.0-p18.18" in html
-        assert "/static/js/constants.js?v=0.1.0-p18.28" in html
-        assert "/static/js/api.js?v=0.1.0-p18.25" in html
+        assert "/static/css/app.css?v=0.1.0-p19.1" in html
+        assert "/static/js/constants.js?v=0.1.0-p19.1" in html
+        assert "/static/js/api.js?v=0.1.0-p19.1" in html
+        assert "/static/js/chapters.js?v=0.1.0-p19.1" in html
+        assert "/static/js/chapters_controller.js?v=0.1.0-p19.4" in html
         assert "/static/js/nav_history.js?v=0.1.0-p18.13" in html
         assert "/static/js/formatters.js?v=0.1.0-p18.18" in html
         assert "/static/js/playback_profile.js?v=0.1.0-p18.23" in html
-        assert "/static/js/editor.js?v=0.1.0-p18.28" in html
-        assert "/static/js/app.js?v=0.1.0-p18.27" in html
+        assert "/static/js/editor.js?v=0.1.0-p19.1" in html
+        assert "/static/js/app.js?v=0.1.0-p19.2" in html
         assert "/static/js/batch.js?v=0.1.0-p18.23" in html
+        assert html.index(
+            "/static/js/chapters.js") < html.index("/static/js/editor.js")
+        assert html.index(
+            "/static/js/chapters_controller.js") < html.index("/static/js/app.js")
         assert html.index(
             "/static/js/nav_history.js") < html.index("/static/js/app.js")
         assert "/static/js/charts.js?v=0.1.0-p17.7" in html
@@ -329,22 +335,28 @@ class TestIndexHtmlStructure:
         assert "openEditor(target)" in html
 
         # File context menu 3-group Finder/HIG ordering:
-        # Group 1 (Open & Read): Process -> Info -> Download
+        # Group 1 (Open & Read): Process -> Chapters -> Info -> Download
         # Group 2 (Organize & Maintain): Rename -> Move -> Duplicate -> Refresh
         # Group 3 (Destructive): Delete
         menu_start = html.index('aria-label="Item actions"')
-        menu_end = html.index("<!-- File Info / Full Media Metadata Modal", menu_start)
+        menu_end = html.index(
+            "<!-- File Info / Full Media Metadata Modal", menu_start)
         file_menu_slice = html[menu_start:menu_end]
         process_pos = file_menu_slice.index("runContextMenuAction('process')")
+        chapters_pos = file_menu_slice.index(
+            "runContextMenuAction('chapters')")
         info_pos = file_menu_slice.index("runContextMenuAction('info')")
-        download_pos = file_menu_slice.index("runContextMenuAction('download')")
+        download_pos = file_menu_slice.index(
+            "runContextMenuAction('download')")
         rename_pos = file_menu_slice.index("runContextMenuAction('rename')")
         move_pos = file_menu_slice.index("runContextMenuAction('move')")
-        duplicate_pos = file_menu_slice.index("runContextMenuAction('duplicate')")
+        duplicate_pos = file_menu_slice.index(
+            "runContextMenuAction('duplicate')")
         rescan_pos = file_menu_slice.index("runContextMenuAction('rescan')")
         delete_pos = file_menu_slice.index("runContextMenuAction('delete')")
         assert (
             process_pos
+            < chapters_pos
             < info_pos
             < download_pos
             < rename_pos
@@ -355,9 +367,11 @@ class TestIndexHtmlStructure:
         )
         assert file_menu_slice.count('class="ui-menu-divider"') == 2
         assert "<span>Process</span>" in file_menu_slice
+        assert "<span>Chapters</span>" in file_menu_slice
         assert "<span>Info</span>" in file_menu_slice
         assert "<span>Download</span>" in file_menu_slice
         assert 'if (action === "process")' in app_js
+        assert 'if (action === "chapters")' in app_js
         assert 'if (action === "download")' in app_js
 
     def test_batch_studio_user_templates_retag_dropdown_and_selectable_chips(self) -> None:
@@ -481,3 +495,59 @@ class TestIndexHtmlStructure:
         assert "Ed.getLanguageOptionsFor(addAudioDraft.language)" in html
         assert "Ed.getLanguageOptionsFor(importTrackModal.language)" in html
         assert "x-for=\"lang in C.EDITOR.LANGUAGE_OPTIONS\"" not in html
+
+    def test_phase_c5_chapters_sheet_entry_points_and_serial_frame_guardrails(self) -> None:
+        html = _read_index_html()
+        app_js = APP_JS_PATH.read_text(encoding="utf-8")
+        ch_ctrl_js = (
+            INDEX_HTML_PATH.parent / "js" / "chapters_controller.js"
+        ).read_text(encoding="utf-8")
+
+        # 1. All 3 entry points exist
+        assert "openChaptersModal()" in html
+        assert "openEditor(target, { openChapters: true })" in html
+        assert "runContextMenuAction('chapters')" in html
+        assert "openEditor(file, { openChapters = false } = {})" in app_js
+
+        # 2. Editor Section 1 Chapters row is always visible & synced with Strip Chapters
+        assert "Ed.setStripChapters(editor, !$event.target.checked)" in html
+        assert "Ed.setStripChapters(editor, $event.target.checked)" in html
+        assert "+ Add Chapters" in html
+        assert "Will Clear" in html
+
+        # 3. Unified Chapters Sheet landmarks
+        assert 'id="chapters-modal-title"' in html
+        assert 'x-show="chaptersModal !== null"' in html
+        assert "chaptersModal.hasComplexChapters" in html
+        assert "chaptersModal.conflictMessage" in html
+        assert 'aria-label="Movie timeline scrubber"' in html
+        assert "onChapterScrubberClick($event)" in html
+        assert "Not added yet" in html
+        assert "+ Add Chapter" in html
+        assert "C.CHAPTERS.NUDGE_STEPS_SEC" in html
+        assert "C.CHAPTERS.QUICK_NAME_CHIPS" in html
+        assert "toggleChapterRailPreviews()" in html
+        assert "Show Previews" in html
+        assert "Hide Previews" in html
+        assert "toggleChapterRowPreview(row._key)" in html
+        assert "End of movie" in html
+        assert "C.SCENE_PICKER.SCAN_DENSITY_PRESETS" in html
+        assert "Compact · 12" in html
+        assert "Balanced · 24" in html
+        assert "Detailed · 40" in html
+        assert "stopScanScenesGrid()" in html
+        assert "parseAndApplyPastedChapters('replace')" in html
+        assert "renumberChapters()" in html
+        assert "applyShiftAllChapters()" in html
+        assert "exportChaptersFile('txt')" in html
+        assert "exportChaptersFile('xml')" in html
+        assert "resetChaptersToOriginal()" in html
+        assert "clearAllChapters()" in html
+        assert "undoChapterEdit()" in html
+        assert "commitChaptersModal()" in html
+
+        # 4. Strict Guardrail: AbortController + URL.revokeObjectURL + ZERO parallel /frame <img> tags
+        assert "new AbortController()" in ch_ctrl_js
+        assert "revokeObjectURL" in ch_ctrl_js
+        assert "/api/files/" not in html or "/frame" not in html
+        assert 'buildSceneFrameUrl' not in html
