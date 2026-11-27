@@ -9,8 +9,8 @@
 
 Goal: Build the completely isolated, 100% unit-tested chapter parsing, serialization, validation, and `mkvextract` reading engine without touching any existing job runner or UI code.
 
-- [ ] **C1.1 Centralized Constants (`app/config.py`)**
-  - [ ] Add all chapter & scene-frame constants to `AppConstants` (zero magic numbers):
+- [x] **C1.1 Centralized Constants (`app/config.py`)**
+  - [x] Add all chapter & scene-frame constants to `AppConstants` (zero magic numbers):
     - `CHAPTER_MAX_COUNT = 500`, `CHAPTER_MAX_TITLE_LEN = 200`, `CHAPTER_PARSE_MAX_BYTES = 512 * 1024`, `CHAPTER_EXTRACT_TIMEOUT_SEC = 10.0`, `CHAPTER_QUICK_INTERVALS_MIN = (5, 10, 15)`, `CHAPTER_DEFAULT_LANGUAGE = "und"`, `TEMP_CHAPTERS_SUFFIX = ".mkvforge.chapters.xml"`.
     - `CHAPTER_ACTION_KEEP = "keep"`, `CHAPTER_ACTION_REPLACE = "replace"`, `CHAPTER_ACTION_CLEAR = "clear"`, `ALLOWED_CHAPTER_ACTIONS = ("keep", "replace", "clear")`.
     - `SCENE_FRAME_MODE_FAST = "fast"`, `SCENE_FRAME_MODE_ACCURATE = "accurate"`, `ALLOWED_SCENE_FRAME_MODES = ("fast", "accurate")`.
@@ -18,25 +18,25 @@ Goal: Build the completely isolated, 100% unit-tested chapter parsing, serializa
     - `SCENE_FRAME_FAST_WIDTH_PX = 320`, `SCENE_FRAME_ACCURATE_WIDTH_PX = 480`, `SCENE_FRAME_ACCURATE_PRESEEK_SEC = 10.0`, `SCENE_FRAME_EOF_MARGIN_MS = 500`.
     - `SCENE_FRAME_FAST_QUALITY = 5`, `SCENE_FRAME_ACCURATE_QUALITY = 4`, `SCENE_FRAME_TIMEOUT_SEC = 10.0`, `SCENE_FRAME_DISCONNECT_POLL_SEC = 0.15`, `SCENE_FRAME_TERMINATE_GRACE_SEC = 0.5`, `SCENE_FRAME_MAX_CONCURRENCY = 1`, `SCENE_FRAME_HTTP_CACHE_MAX_AGE_SEC = 86400`.
 
-- [ ] **C1.2 Pydantic Schema Contract (`app/models/schemas.py`)**
-  - [ ] Add `ChapterEntry(start_ms: int = Field(..., ge=0), title: str = Field(default="", max_length=AppConstants.CHAPTER_MAX_TITLE_LEN))`.
-  - [ ] Add API models: `ChaptersReadResponse` (including `has_complex_chapters: bool = False`), `ChaptersParseRequest`, `ChaptersParseResponse`.
-  - [ ] Extend `ContainerMetadataConfig` with:
+- [x] **C1.2 Pydantic Schema Contract (`app/models/schemas.py`)**
+  - [x] Add `ChapterEntry(start_ms: int = Field(..., ge=0), title: str = Field(default="", max_length=AppConstants.CHAPTER_MAX_TITLE_LEN))`.
+  - [x] Add API models: `ChaptersReadResponse` (including `has_complex_chapters: bool = False`), `ChaptersParseRequest`, `ChaptersParseResponse`.
+  - [x] Extend `ContainerMetadataConfig` with:
     - `chapters_action: Literal["keep", "replace", "clear"] = "keep"`
     - `chapters: list[ChapterEntry] | None = None`
     - Backward-compatible validator: map legacy `strip_chapters=True` (when `chapters_action == "keep"`) → `chapters_action = "clear"`; require valid non-empty `chapters` (≤ `CHAPTER_MAX_COUNT`) when `chapters_action == "replace"`; clear/reject conflicting `chapters` when `chapters_action == "clear"`.
 
-- [ ] **C1.3 Pure Chapter Service (`app/services/chapter_service.py`)**
-  - [ ] Implement forgiving timestamp parser (`parse_timestamp_to_ms`) accepting `MM:SS`, `H:MM:SS`, `HH:MM:SS.mmm`, `HH:MM:SS.nnnnnnnnn`, and formatter (`format_ms_to_matroska_time`).
-  - [ ] Implement `parse_matroska_chapters_xml(xml_text)` safely rejecting XML DTD/entity declarations, returning `(chapters, has_complex_chapters)` where `has_complex_chapters` is `True` if there are multiple `<EditionEntry>` elements, `<EditionFlagOrdered>1</EditionFlagOrdered>`, or nested `<ChapterAtom>` sub-chapters.
-  - [ ] Implement `parse_ffprobe_chapters_json(payload)` parsing `ffprobe -show_chapters -print_format json` output for `.mp4` containers.
-  - [ ] Implement `serialize_chapters_to_matroska_xml(chapters, *, language="und")` producing valid MKVToolNix-compatible `<Chapters><EditionEntry><ChapterAtom>...</ChapterAtom></EditionEntry></Chapters>` with deterministic UIDs and proper XML escaping.
-  - [ ] Implement unified auto-detecting `parse_chapters_text(raw_text, *, duration_ms=None)` handling Matroska XML, OGG (`CHAPTER01=`), and YouTube/plain text/CSV lines, with out-of-range warnings, duplicate merging, and `CHAPTER_MAX_COUNT` enforcement.
-  - [ ] Implement async `extract_chapters_from_file(abs_path, *, timeout_sec=AppConstants.CHAPTER_EXTRACT_TIMEOUT_SEC)` routing `.mkv` → `mkvextract <abs_path> chapters <tmp.xml>` (with guaranteed temp-file cleanup in `finally:`) and `.mp4` (non-MKV) → `ffprobe -v quiet -print_format json -show_chapters <abs_path>`.
+- [x] **C1.3 Pure Chapter Service (`app/services/chapter_service.py`)**
+  - [x] Implement forgiving timestamp parser (`parse_timestamp_to_ms`) accepting `MM:SS`, `H:MM:SS`, `HH:MM:SS.mmm`, `HH:MM:SS.nnnnnnnnn`, and formatter (`format_ms_to_matroska_time`).
+  - [x] Implement `parse_matroska_chapters_xml(xml_text)` safely rejecting XML DTD/entity declarations, returning `(chapters, has_complex_chapters)` where `has_complex_chapters` is `True` if there are multiple `<EditionEntry>` elements, `<EditionFlagOrdered>1</EditionFlagOrdered>`, or nested `<ChapterAtom>` sub-chapters.
+  - [x] Implement `parse_ffprobe_chapters_json(payload)` parsing `ffprobe -show_chapters -print_format json` output for `.mp4` containers.
+  - [x] Implement `serialize_chapters_to_matroska_xml(chapters, *, language="und")` producing valid MKVToolNix-compatible `<Chapters><EditionEntry><ChapterAtom>...</ChapterAtom></EditionEntry></Chapters>` with deterministic UIDs and proper XML escaping.
+  - [x] Implement unified auto-detecting `parse_chapters_text(raw_text, *, duration_ms=None)` handling Matroska XML, OGG (`CHAPTER01=`), and YouTube/plain text/CSV lines, with out-of-range warnings, duplicate merging, and `CHAPTER_MAX_COUNT` enforcement.
+  - [x] Implement async `extract_chapters_from_file(abs_path, *, timeout_sec=AppConstants.CHAPTER_EXTRACT_TIMEOUT_SEC)` routing `.mkv` → `mkvextract <abs_path> chapters <tmp.xml>` (with guaranteed temp-file cleanup in `finally:`) and `.mp4` (non-MKV) → `ffprobe -v quiet -print_format json -show_chapters <abs_path>`.
 
-- [ ] **C1.4 Phase C1 Verification Gate (`tests/unit/test_chapter_service.py`)**
-  - [ ] Test XML serialize → parse round-trip (Unicode, `& < > "`, 1–500 chapters), `has_complex_chapters` detection (multi-edition, nested `<ChapterAtom>`, `<EditionFlagOrdered>1</EditionFlagOrdered>`, and `False` for flat single-edition), `.mp4` `ffprobe -show_chapters` parsing, all 3 auto-detected text formats, duration warnings, XXE/DTD rejection, negative/empty/malformed inputs, `mkvextract`/`ffprobe` failure/timeout, and `strip_chapters=True` backward compatibility.
-  - [ ] Run `pytest tests/unit/test_chapter_service.py -v` and confirm 100% green.
+- [x] **C1.4 Phase C1 Verification Gate (`tests/unit/test_chapter_service.py`)**
+  - [x] Test XML serialize → parse round-trip (Unicode, `& < > "`, 1–500 chapters), `has_complex_chapters` detection (multi-edition, nested `<ChapterAtom>`, `<EditionFlagOrdered>1</EditionFlagOrdered>`, and `False` for flat single-edition), `.mp4` `ffprobe -show_chapters` parsing, all 3 auto-detected text formats, duration warnings, XXE/DTD rejection, negative/empty/malformed inputs, `mkvextract`/`ffprobe` failure/timeout, and `strip_chapters=True` backward compatibility.
+  - [x] Run `pytest tests/unit/test_chapter_service.py -v` and confirm 100% green.
 
 ---
 

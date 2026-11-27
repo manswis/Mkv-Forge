@@ -116,16 +116,53 @@ class AppConstants:
     SUPPORTED_MEDIA_EXTENSIONS: frozenset[str] = frozenset({".mkv", ".mp4"})
     TEMP_MARKER: str = ".mkvforge."
     TEMP_REMUX_SUFFIX: str = ".mkvforge.tmp"
+    TEMP_CHAPTERS_SUFFIX: str = ".mkvforge.chapters.xml"
     KEEP_BOTH_INFIX: str = ".remux"
     MACOS_APPLEDOUBLE_PREFIX: str = "._"
     MAX_KEEP_BOTH_COLLISIONS: int = 10_000
     MAX_DUPLICATE_COLLISIONS: int = 10_000
     MTIME_TOLERANCE_SEC: float = 1e-6
 
+    # Chapters Editor & On-Demand Scene Frame Extraction
+    CHAPTER_ACTION_KEEP: str = "keep"
+    CHAPTER_ACTION_REPLACE: str = "replace"
+    CHAPTER_ACTION_CLEAR: str = "clear"
+    ALLOWED_CHAPTER_ACTIONS: tuple[str, ...] = ("keep", "replace", "clear")
+    CHAPTER_MAX_COUNT: int = 500
+    CHAPTER_MAX_TITLE_LEN: int = 200
+    CHAPTER_PARSE_MAX_BYTES: int = 512 * 1024
+    CHAPTER_EXTRACT_TIMEOUT_SEC: float = 10.0
+    CHAPTER_QUICK_INTERVALS_MIN: tuple[int, ...] = (5, 10, 15)
+    CHAPTER_DEFAULT_LANGUAGE: str = "und"
+    CHAPTER_EDITION_UID: int = 1
+    CHAPTER_ATOM_UID_BASE: int = 1_000_001
+
+    SCENE_FRAME_MODE_FAST: str = "fast"
+    SCENE_FRAME_MODE_ACCURATE: str = "accurate"
+    ALLOWED_SCENE_FRAME_MODES: tuple[str, ...] = ("fast", "accurate")
+    SCENE_FRAME_SCAN_DENSITY_PRESETS: tuple[int, ...] = (12, 24, 40)
+    SCENE_FRAME_SCAN_DEFAULT_DENSITY: int = 24
+    SCENE_FRAME_PEEK_OFFSET_SEC: int = 15
+    SCENE_FRAME_FAST_WIDTH_PX: int = 320
+    SCENE_FRAME_ACCURATE_WIDTH_PX: int = 480
+    SCENE_FRAME_ACCURATE_PRESEEK_SEC: float = 10.0
+    SCENE_FRAME_EOF_MARGIN_MS: int = 500
+    SCENE_FRAME_FAST_QUALITY: int = 5
+    SCENE_FRAME_ACCURATE_QUALITY: int = 4
+    SCENE_FRAME_TIMEOUT_SEC: float = 10.0
+    SCENE_FRAME_DISCONNECT_POLL_SEC: float = 0.15
+    SCENE_FRAME_TERMINATE_GRACE_SEC: float = 0.5
+    SCENE_FRAME_MAX_CONCURRENCY: int = 1
+    SCENE_FRAME_HTTP_CACHE_MAX_AGE_SEC: int = 86_400
+
     # Time & media parsing constants
     NS_PER_US: int = 1_000
     NS_PER_MS: int = 1_000_000
+    US_PER_MS: int = 1_000
     US_PER_SEC: int = 1_000_000
+    MS_PER_SEC: int = 1_000
+    SEC_PER_MIN: int = 60
+    SEC_PER_HOUR: int = 3_600
     BITS_PER_BYTE: int = 8
     BYTES_PER_MIB: int = 1024 * 1024
     CHANNELS_71: int = 8

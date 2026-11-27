@@ -767,8 +767,54 @@ class DashboardResponse(BaseModel):
     recent_activity: list[RecentJobItem] = Field(default_factory=list)
 
 
+class ChapterEntry(BaseModel):
+    """Single flat chapter marker with millisecond start time and title."""
+
+    model_config = ConfigDict(frozen=True)
+
+    start_ms: int = Field(..., ge=0)
+    title: str = Field(default="", max_length=AppConstants.CHAPTER_MAX_TITLE_LEN)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _normalize_chapter_title(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
+
+class ChaptersReadResponse(BaseModel):
+    """Response returned by GET /api/files/{file_id}/chapters."""
+
+    model_config = ConfigDict(frozen=True)
+
+    file_id: int
+    duration_us: int = 0
+    chapters: list[ChapterEntry] = Field(default_factory=list)
+    has_complex_chapters: bool = False
+
+
+class ChaptersParseRequest(BaseModel):
+    """Request payload for POST /api/files/{file_id}/chapters/parse."""
+
+    model_config = ConfigDict(frozen=True)
+
+    raw_text: str = Field(..., max_length=AppConstants.CHAPTER_PARSE_MAX_BYTES)
+    filename: str | None = None
+
+
+class ChaptersParseResponse(BaseModel):
+    """Parsed chapters response returned by POST /api/files/{file_id}/chapters/parse."""
+
+    model_config = ConfigDict(frozen=True)
+
+    detected_format: Literal["matroska_xml", "ogg_text", "plain_text"]
+    chapters: list[ChapterEntry] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class ContainerMetadataConfig(BaseModel):
-    """Container-level title and stripping options for Stage 2 mkvmerge."""
+    """Container-level title, chapter, and stripping options for mkvpropedit / mkvmerge."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -778,6 +824,59 @@ class ContainerMetadataConfig(BaseModel):
     strip_attachments: bool = False
     keep_attachment_ids: list[int] | None = None
     strip_chapters: bool = False
+    chapters_action: Literal["keep", "replace", "clear"] = (
+        AppConstants.CHAPTER_ACTION_KEEP  # type: ignore[assignment]
+    )
+    chapters: list[ChapterEntry] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_legacy_strip_chapters(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        strip_flag = bool(normalized.get("strip_chapters", False))
+        action = normalized.get("chapters_action")
+        if action is None:
+            if strip_flag:
+                normalized["chapters_action"] = AppConstants.CHAPTER_ACTION_CLEAR
+            else:
+                normalized["chapters_action"] = AppConstants.CHAPTER_ACTION_KEEP
+        elif action == AppConstants.CHAPTER_ACTION_CLEAR:
+            normalized["strip_chapters"] = True
+        return normalized
+
+    @model_validator(mode="after")
+    def _validate_chapter_config(self) -> "ContainerMetadataConfig":
+        if self.chapters_action == AppConstants.CHAPTER_ACTION_REPLACE:
+            if self.strip_chapters:
+                raise ValueError(
+                    "strip_chapters cannot be True when chapters_action is 'replace'"
+                )
+            if not self.chapters:
+                raise ValueError(
+                    "chapters must contain at least one entry when chapters_action is 'replace'"
+                )
+            if len(self.chapters) > AppConstants.CHAPTER_MAX_COUNT:
+                raise ValueError(
+                    f"At most {AppConstants.CHAPTER_MAX_COUNT} chapters are supported "
+                    f"(got {len(self.chapters)})"
+                )
+        elif self.chapters_action == AppConstants.CHAPTER_ACTION_CLEAR:
+            if self.chapters:
+                raise ValueError(
+                    "chapters must be empty or omitted when chapters_action is 'clear'"
+                )
+        else:
+            if self.strip_chapters:
+                raise ValueError(
+                    "strip_chapters cannot be True when chapters_action is 'keep'"
+                )
+            if self.chapters:
+                raise ValueError(
+                    "chapters must be omitted when chapters_action is 'keep'"
+                )
+        return self
 
 
 class AudioConversionConfig(BaseModel):
