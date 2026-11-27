@@ -98,6 +98,7 @@ def build_mkvmerge_command(
     *,
     temp_audio_path: Path | None = None,
     resolved_external_tracks: list[tuple[ExternalTrackConfig, Path]] | None = None,
+    chapters_xml_path: Path | None = None,
 ) -> list[str]:
     """Construct a complete, shell-free `mkvmerge` argument list.
 
@@ -128,6 +129,15 @@ def build_mkvmerge_command(
             "resolved_external_tracks is required when config.external_tracks is non-empty"
         )
 
+    chapters_action = config.container.chapters_action
+    if (
+        chapters_action == AppConstants.CHAPTER_ACTION_REPLACE
+        and chapters_xml_path is None
+    ):
+        raise ValueError(
+            "chapters_xml_path is required when chapters_action is 'replace'"
+        )
+
     dropped_audio_id = _resolve_dropped_source_track_id(audio_cfg, config.tracks)
     kept_source_tracks = [
         track
@@ -145,9 +155,12 @@ def build_mkvmerge_command(
         str(output_tmp_path),
     ]
 
-    # Global container title option (None = keep existing, "" = clear)
+    # Global container title & replacement chapters options
     if config.container.title is not None:
         argv.extend(["--title", config.container.title])
+    if chapters_action == AppConstants.CHAPTER_ACTION_REPLACE:
+        assert chapters_xml_path is not None
+        argv.extend(["--chapters", str(chapters_xml_path)])
 
     # Determine single-default ownership across converted, source, and external tracks
     converted_owns_audio_default = has_new_audio and audio_cfg.set_as_default
@@ -215,7 +228,11 @@ def build_mkvmerge_command(
             str(att_id) for att_id in config.container.keep_attachment_ids
         )
         argv.extend(["--attachments", kept_att_ids])
-    if config.container.strip_chapters:
+    if (
+        chapters_action
+        in (AppConstants.CHAPTER_ACTION_REPLACE, AppConstants.CHAPTER_ACTION_CLEAR)
+        or config.container.strip_chapters
+    ):
         argv.append("--no-chapters")
 
     kept_video_ids = [str(t.id) for t in kept_source_tracks if t.type == "video"]

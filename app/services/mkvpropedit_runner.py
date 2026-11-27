@@ -61,9 +61,10 @@ def can_use_instant_header_edit(
     """Return `(eligible, reason)` indicating whether `config` can safely use `mkvpropedit`.
 
     Instant header editing is strictly limited to in-place `.mkv` Replace jobs where
-    no tracks are added, dropped, reordered, or transcoded and no tags/attachments/chapters
-    are stripped. This guarantees zero data loss and preserves 100% behavioral parity with
-    full remuxing while avoiding rewriting multi-GB files.
+    no tracks are added, dropped, reordered, or transcoded and no tags or attachments
+    are stripped. Chapter additions, replacements, and clears (`--chapters <xml>` /
+    `--chapters ""`) are supported in-place in under a second with zero data loss and
+    100% behavioral parity with full remuxing.
     """
     if not config.prefer_instant_edit:
         return False, "instant edit disabled by config"
@@ -86,9 +87,8 @@ def can_use_instant_header_edit(
         or container.strip_track_tags
         or container.strip_attachments
         or container.keep_attachment_ids is not None
-        or container.strip_chapters
     ):
-        return False, "stripping tags, attachments, or chapters requires full remux"
+        return False, "stripping tags or attachments requires full remux"
 
     if not config.tracks:
         return False, "no tracks specified"
@@ -120,6 +120,7 @@ def build_mkvpropedit_command(
     config: JobConfig,
     *,
     source_tracks: Sequence[ParsedTrackInfo] | None = None,
+    chapters_xml_path: Path | None = None,
 ) -> list[str]:
     """Build a deterministic, shell-free `mkvpropedit` command for header & track edits.
 
@@ -222,6 +223,19 @@ def build_mkvpropedit_command(
         if track_ops:
             argv.extend(["--edit", selector, *track_ops])
 
+    chapters_action = config.container.chapters_action
+    if chapters_action == AppConstants.CHAPTER_ACTION_REPLACE:
+        if chapters_xml_path is None:
+            raise ValueError(
+                "chapters_xml_path is required when chapters_action is 'replace'"
+            )
+        argv.extend(["--chapters", str(chapters_xml_path)])
+    elif (
+        chapters_action == AppConstants.CHAPTER_ACTION_CLEAR
+        or config.container.strip_chapters
+    ):
+        argv.extend(["--chapters", ""])
+
     return argv
 
 
@@ -230,6 +244,7 @@ async def run_mkvpropedit_edit(
     config: JobConfig,
     *,
     source_tracks: Sequence[ParsedTrackInfo] | None = None,
+    chapters_xml_path: Path | None = None,
     nice_increment: int = 0,
     use_ionice_idle: bool = False,
     on_log: LogCallback | None = None,
@@ -252,7 +267,10 @@ async def run_mkvpropedit_edit(
         )
 
     argv = build_mkvpropedit_command(
-        source_path, config, source_tracks=source_tracks
+        source_path,
+        config,
+        source_tracks=source_tracks,
+        chapters_xml_path=chapters_xml_path,
     )
     if len(argv) <= 2:
         return MkvPropEditResult(target_path=source_path, exit_code=0)
@@ -298,7 +316,7 @@ async def run_mkvpropedit_edit(
             if on_log is not None:
                 on_log(line)
 
-    if returncode >= AppConstants.MKVMERGE_EXIT_ERROR_MIN:
+    if returncode >= AppConstants.MKVMERGE_EXIT_ERROR:
         tail = " | ".join(log_lines[-3:])[: AppConstants.MAX_ERROR_EXCERPT_LEN]
         raise MkvPropEditError(
             f"mkvpropedit failed with exit code {returncode}"

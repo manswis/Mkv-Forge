@@ -183,8 +183,25 @@ def summarize_job_changes(
                     label=f"Kept {len(keep_att_ids)} {'attachment' if len(keep_att_ids) == 1 else 'attachments'}",
                 )
             )
-        if bool(container.get("strip_chapters")):
-            stripped.append("chapters")
+        chapters_action = str(container.get("chapters_action") or "").strip().lower()
+        chapters_list = container.get("chapters")
+        if (
+            chapters_action == AppConstants.CHAPTER_ACTION_REPLACE
+            and isinstance(chapters_list, list)
+            and len(chapters_list) > 0
+        ):
+            chapter_count = len(chapters_list)
+            noun = "chapter" if chapter_count == 1 else "chapters"
+            changes.append(
+                JobChangeItem(
+                    kind="changed",
+                    label=f"Updated {chapter_count} {noun}",
+                )
+            )
+        elif chapters_action == AppConstants.CHAPTER_ACTION_CLEAR or bool(
+            container.get("strip_chapters")
+        ):
+            changes.append(JobChangeItem(kind="removed", label="Cleared chapters"))
         if stripped:
             changes.append(
                 JobChangeItem(

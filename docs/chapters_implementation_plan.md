@@ -73,21 +73,21 @@ Goal: Deliver the fast, zero-disk-cache (`pipe:1`) frame extraction engine and R
 
 Goal: Wire chapter saving cleanly into both `mkvpropedit` (`<1s` in-place) and `mkvmerge` (full remux), preserving untouched chapters byte-for-byte and guaranteeing temp XML cleanup.
 
-- [ ] **C3.1 Instant Header Edit Support (`app/services/mkvpropedit_runner.py`)**
-  - [ ] Update `can_use_instant_header_edit(...)` to allow `chapters_action in ("keep", "replace", "clear")` on MKV `replace` jobs (removing `container.strip_chapters` as a `mkvpropedit` blocker).
-  - [ ] Update `build_mkvpropedit_command(..., chapters_xml_path=None)` and `run_mkvpropedit_edit(...)`: `--chapters <xml_path>` (`replace`), `--chapters ""` (`clear`), omitted (`keep`).
+- [x] **C3.1 Instant Header Edit Support (`app/services/mkvpropedit_runner.py`)**
+  - [x] Update `can_use_instant_header_edit(...)` to allow `chapters_action in ("keep", "replace", "clear")` on MKV `replace` jobs (removing `container.strip_chapters` as a `mkvpropedit` blocker).
+  - [x] Update `build_mkvpropedit_command(..., chapters_xml_path=None)` and `run_mkvpropedit_edit(...)`: `--chapters <xml_path>` (`replace`), `--chapters ""` (`clear`), omitted (`keep`).
 
-- [ ] **C3.2 Full Remux Support (`app/services/mkv_builder.py`)**
-  - [ ] Update `build_mkvmerge_command(..., chapters_xml_path=None)`: `--no-chapters --chapters <xml_path>` (`replace`), `--no-chapters` (`clear` / legacy `strip_chapters=True`), omitted (`keep`).
+- [x] **C3.2 Full Remux Support (`app/services/mkv_builder.py`)**
+  - [x] Update `build_mkvmerge_command(..., chapters_xml_path=None)`: `--no-chapters --chapters <xml_path>` (`replace`), `--no-chapters` (`clear` / legacy `strip_chapters=True`), omitted (`keep`).
 
-- [ ] **C3.3 Pipeline Temp XML Lifecycle & Job Summary (`app/services/mkv_runner.py`, `app/services/job_worker.py`, `app/services/job_summary.py`)**
-  - [ ] Materialize temp chapters XML (using preferred language or `und`) when `chapters_action == "replace"`, pass to `mkvpropedit` / `mkvmerge`, and always unlink in `finally:`.
-  - [ ] Surface `Updated N Chapters` / `Cleared Chapters` summary pills in `job_summary.py`.
-  - [ ] Confirm post-job `probe_single_file()` refreshes `chapters_count` in SQLite immediately.
+- [x] **C3.3 Pipeline Temp XML Lifecycle & Job Summary (`app/services/mkv_runner.py`, `app/services/job_worker.py`, `app/services/job_summary.py`)**
+  - [x] Materialize temp chapters XML (using preferred language or `und`) when `chapters_action == "replace"`, pass to `mkvpropedit` / `mkvmerge`, and always unlink in `finally:`.
+  - [x] Surface `Updated N Chapters` / `Cleared Chapters` summary pills in `job_summary.py`.
+  - [x] Confirm post-job `probe_single_file()` refreshes `chapters_count` in SQLite immediately.
 
-- [ ] **C3.4 Phase C3 Verification Gate (`tests/unit/test_chapters_pipeline.py`)**
-  - [ ] Verify `can_use_instant_header_edit`, exact `mkvpropedit` & `mkvmerge` argv, real `mkvpropedit` + `mkvextract` round-trip (`add` → `update` → `clear` via `--chapters ""`), and guaranteed temp XML cleanup even on error.
-  - [ ] Run `pytest tests/unit/test_chapters_pipeline.py tests/unit/test_instant_edit_track_flags_and_dynamics.py -v` and confirm 100% green.
+- [x] **C3.4 Phase C3 Verification Gate (`tests/unit/test_chapters_pipeline.py`)**
+  - [x] Verify `can_use_instant_header_edit`, exact `mkvpropedit` & `mkvmerge` argv, real `mkvpropedit` + `mkvextract` round-trip (`add` → `update` → `clear` via `--chapters ""`), and guaranteed temp XML cleanup even on error.
+  - [x] Run `pytest tests/unit/test_chapters_pipeline.py tests/unit/test_instant_edit_track_flags_and_dynamics.py -v` and confirm 100% green.
 
 ---
 

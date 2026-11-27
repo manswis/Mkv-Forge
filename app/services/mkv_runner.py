@@ -7,13 +7,20 @@ import errno
 import logging
 import os
 import re
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 from app.config import AppConstants
 from app.db.repositories import MediaFileRepository
-from app.models.schemas import ExternalTrackConfig, JobConfig, ParsedTrackInfo
+from app.models.schemas import (
+    ChapterEntry,
+    ExternalTrackConfig,
+    JobConfig,
+    ParsedTrackInfo,
+)
+from app.services.chapter_service import serialize_chapters_to_matroska_xml
 from app.services.ffmpeg_runner import (
     LogCallback,
     ProcessCallback,
@@ -113,6 +120,39 @@ def _safe_unlink(path: Path | None) -> None:
         logger.warning("Failed to clean up temp file %s: %s", path, exc)
 
 
+def _materialize_chapters_xml_sync(
+    chapters: Sequence[ChapterEntry],
+    *,
+    language: str = AppConstants.CHAPTER_DEFAULT_LANGUAGE,
+) -> Path:
+    """Serialize chapters to a private temporary Matroska XML file."""
+    xml_payload = serialize_chapters_to_matroska_xml(chapters, language=language)
+    fd, raw_path = tempfile.mkstemp(suffix=AppConstants.TEMP_CHAPTERS_SUFFIX)
+    xml_path = Path(raw_path)
+    try:
+        with os.fdopen(fd, "w", encoding=AppConstants.UTF8_ENCODING) as handle:
+            handle.write(xml_payload)
+    except Exception:
+        _safe_unlink(xml_path)
+        raise
+    return xml_path
+
+
+async def _maybe_materialize_chapters_xml(
+    config: JobConfig,
+    *,
+    language: str,
+) -> Path | None:
+    """Create a temp Matroska chapters XML file only when `chapters_action == 'replace'`."""
+    if config.container.chapters_action != AppConstants.CHAPTER_ACTION_REPLACE:
+        return None
+    return await asyncio.to_thread(
+        _materialize_chapters_xml_sync,
+        config.container.chapters or [],
+        language=language,
+    )
+
+
 def _move_without_overwrite(src: Path, dst: Path) -> None:
     """Place `src` at `dst` without overwriting an existing file.
 
@@ -142,6 +182,7 @@ async def run_mkvmerge_remux(
     *,
     temp_audio_path: Path | None = None,
     resolved_external_tracks: list[tuple[ExternalTrackConfig, Path]] | None = None,
+    chapters_xml_path: Path | None = None,
     nice_increment: int = 0,
     use_ionice_idle: bool = False,
     on_progress: ProgressCallback | None = None,
@@ -158,6 +199,7 @@ async def run_mkvmerge_remux(
         config,
         temp_audio_path=temp_audio_path,
         resolved_external_tracks=resolved_external_tracks,
+        chapters_xml_path=chapters_xml_path,
     )
     launch_argv = wrap_command_with_io_priority(
         argv, use_ionice_idle=use_ionice_idle
@@ -374,6 +416,7 @@ async def execute_two_stage_pipeline(
     folder_cache: FolderReconcileCache | None = None,
     processing_policy: ProcessingRuntimePolicy | None = None,
     source_tracks: list[ParsedTrackInfo] | None = None,
+    chapter_language: str = AppConstants.CHAPTER_DEFAULT_LANGUAGE,
     on_stage: StageCallback | None = None,
     on_progress: ProgressCallback | None = None,
     on_log: LogCallback | None = None,
@@ -385,12 +428,13 @@ async def execute_two_stage_pipeline(
     Enforces cancel-between-stages checks before Stage 1, between Stage 1 and
     Stage 2, and immediately before the atomic file swap so a cancelled job can
     never advance or overwrite a file. Guarantees cleanup of `<temp_audio_path>`,
-    job-owned staged uploads, and `<output_tmp_path>` whenever finalization does
-    not move it into place.
+    `<temp_chapters_path>`, job-owned staged uploads, and `<output_tmp_path>`
+    whenever finalization does not move it into place.
     """
     policy = processing_policy or ProcessingRuntimePolicy()
     job_upload_ids = extract_upload_ids_from_tracks(config.external_tracks)
     temp_audio_path: Path | None = None
+    temp_chapters_path: Path | None = None
     output_tmp_path: Path | None = None
     finalized = False
 
@@ -406,10 +450,15 @@ async def execute_two_stage_pipeline(
         if instant_ok:
             if on_stage is not None:
                 on_stage("header_edit", "Instant Header Edit (mkvpropedit)")
+            temp_chapters_path = await _maybe_materialize_chapters_xml(
+                config,
+                language=chapter_language,
+            )
             propedit_res = await run_mkvpropedit_edit(
                 source_path,
                 config,
                 source_tracks=source_tracks,
+                chapters_xml_path=temp_chapters_path,
                 nice_increment=policy.nice_increment,
                 use_ionice_idle=policy.use_ionice_idle,
                 on_log=on_log,
@@ -528,6 +577,10 @@ async def execute_two_stage_pipeline(
             )
             on_stage("remux", stage_label)
 
+        temp_chapters_path = await _maybe_materialize_chapters_xml(
+            config,
+            language=chapter_language,
+        )
         try:
             remux_result = await run_mkvmerge_remux(
                 source_path,
@@ -535,6 +588,7 @@ async def execute_two_stage_pipeline(
                 config,
                 temp_audio_path=temp_audio_path,
                 resolved_external_tracks=resolved_external_tracks,
+                chapters_xml_path=temp_chapters_path,
                 nice_increment=policy.nice_increment,
                 use_ionice_idle=policy.use_ionice_idle,
                 on_progress=on_progress,
@@ -573,6 +627,8 @@ async def execute_two_stage_pipeline(
     finally:
         if temp_audio_path is not None:
             await asyncio.to_thread(_safe_unlink, temp_audio_path)
+        if temp_chapters_path is not None:
+            await asyncio.to_thread(_safe_unlink, temp_chapters_path)
         if not finalized and output_tmp_path is not None:
             await asyncio.to_thread(_safe_unlink, output_tmp_path)
         if upload_service is not None and job_upload_ids:

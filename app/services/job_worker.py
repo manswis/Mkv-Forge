@@ -314,6 +314,15 @@ class JobWorker:
         effective = self._user_settings_service.get(user_id=None)
         return resolve_processing_policy(effective, settings=self._settings)
 
+    def _resolve_chapter_language(self) -> str:
+        """Return preferred chapter XML language from user settings, falling back to `und`."""
+        if self._user_settings_service is None:
+            return AppConstants.CHAPTER_DEFAULT_LANGUAGE
+        preferred = (
+            self._user_settings_service.get(user_id=None).preferred_language or ""
+        ).strip()
+        return preferred or AppConstants.CHAPTER_DEFAULT_LANGUAGE
+
     async def recover_from_crash(self) -> tuple[int, int]:
         """Fail stale `running` jobs, sweep `*.mkvforge.*` temps (storage + scratch), and sweep orphan uploads."""
         stale_jobs = await asyncio.to_thread(
@@ -583,6 +592,9 @@ class JobWorker:
             processing_policy = await asyncio.to_thread(
                 self._resolve_processing_policy
             )
+            chapter_language = await asyncio.to_thread(
+                self._resolve_chapter_language
+            )
             source_tracks: list[ParsedTrackInfo] | None = None
             if media_row is not None and media_row.get("raw_json"):
                 try:
@@ -604,6 +616,7 @@ class JobWorker:
                 folder_cache=self._folder_cache,
                 processing_policy=processing_policy,
                 source_tracks=source_tracks,
+                chapter_language=chapter_language,
                 on_stage=_on_stage,
                 on_progress=_on_progress,
                 on_log=_on_log,

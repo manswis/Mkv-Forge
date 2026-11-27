@@ -158,13 +158,13 @@ class TestInstantHeaderEditEligibilityAndCommand:
             mkv, base.model_copy(update={"external_tracks": [ext]}), source_tracks=tracks, binary_available=True
         )[0] is False
 
-        # 6. Any strip flag or partial attachment keep list
+        # 6. Tag/attachment strip flags or partial attachment keep list
+        # (Note: chapter replace/clear IS eligible for <1s mkvpropedit --chapters)
         for field_name, val in (
             ("strip_global_tags", True),
             ("strip_track_tags", True),
             ("strip_attachments", True),
             ("keep_attachment_ids", [1]),
-            ("strip_chapters", True),
         ):
             assert can_use_instant_header_edit(
                 mkv,
